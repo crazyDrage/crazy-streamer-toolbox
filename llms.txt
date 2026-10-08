@@ -1,0 +1,51 @@
+# streamer-toolbox
+
+> One program for live streamers that glues their tools together: buttons, flows (boxes connected by wires,
+> started by triggers such as a channel point redeem, a follow, a key or a timer), alerts and widgets on stream.
+> It runs on the streamer's own PC (Python, NiceGUI + FastAPI), talks to OBS, VTube Studio, SAMMI, Mix It Up,
+> Twitch and other services, and has an HTTP API so other programs and AI agents can run its actions.
+
+This file is the starting point for AI agents. It holds no content of its own: find your situation in the
+table and read only the files in that row. Where a doc and the code disagree, the code is right.
+
+## Always read
+
+- [docs/ai/rules.md](docs/ai/rules.md): what must never be done to a streamer's PC or live stream (short)
+
+## Find your situation
+
+Part 1: using the toolbox from outside (you don't change its code)
+
+| Your situation | Read |
+|---|---|
+| I have to start the toolbox, or find out whether it is running | [docs/ai/use/start.md](docs/ai/use/start.md) |
+| I want to run something in the toolbox from my own program (press a button, run a flow, switch a scene) | [docs/ai/use/api.md](docs/ai/use/api.md) |
+| My call is refused or fails (401, 403, 404, 422, 500) | [docs/ai/use/api.md](docs/ai/use/api.md), then [docs/ai/use/access.md](docs/ai/use/access.md) |
+| I need a token, more permissions, or access from another PC | [docs/ai/use/access.md](docs/ai/use/access.md) |
+| I don't know which action does what I want | [docs/ai/use/actions.md](docs/ai/use/actions.md) |
+| I want to start the streamer's flows, or tell the toolbox that something happened (a tip, an event of mine) | [docs/ai/use/actions.md](docs/ai/use/actions.md) |
+| I want to be told when something happens on stream (a follow, a redeem, a chat message) | [docs/ai/use/events.md](docs/ai/use/events.md) |
+| A person asks me how to use the toolbox's pages (connections, flows, alerts, widgets) | docs/USER_GUIDE.md (in the packed archive: README.md), docs/WIDGETS.md |
+
+Part 2: writing a plugin (your own folder in `plugins/`, the toolbox's code stays untouched)
+
+| Your situation | Read |
+|---|---|
+| I want to add my own action, tool tab, page or API route without touching the toolbox's code | [docs/PLUGINS.md](docs/PLUGINS.md) |
+| My plugin doesn't load, or I want to test it before the streamer uses it | [docs/ai/plugin/check.md](docs/ai/plugin/check.md) |
+| I'm not sure whether my idea is a plugin or a change to the toolbox itself | [docs/ai/plugin/check.md](docs/ai/plugin/check.md) |
+
+Part 3: changing the toolbox's own code (the repository)
+
+| Your situation | Read |
+|---|---|
+| I am about to edit anything under `src/` or `tests/` | [docs/ai/code/rules.md](docs/ai/code/rules.md) |
+| I want the toolbox to talk to a new program or service | [docs/ai/code/connection.md](docs/ai/code/connection.md) |
+| I want a new box / action in the toolbox itself | [docs/ai/code/action.md](docs/ai/code/action.md) |
+| I want something new to be able to start flows (a new event or trigger) | [docs/ai/code/events.md](docs/ai/code/events.md) |
+| I need to find where something is in the code, or how flows, wires and the editor work inside | docs/ARCHITECTURE.md (repository only; long, read the section you need) |
+| I am adding or changing one of these AI docs | [docs/ai/MAINTAIN.md](docs/ai/MAINTAIN.md) |
+
+## License
+
+Apache 2.0: [LICENSE](LICENSE); the [NOTICE](NOTICE) file must stay with copies and derived work.

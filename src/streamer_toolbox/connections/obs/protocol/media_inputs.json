@@ -1,0 +1,91 @@
+{
+ "category": "media inputs",
+ "requests": {
+  "GetMediaInputStatus": {
+   "description": "Gets the status of a media input.",
+   "fields": [
+    {
+     "name": "inputName",
+     "type": "String",
+     "description": "Name of the media input",
+     "optional": true
+    },
+    {
+     "name": "inputUuid",
+     "type": "String",
+     "description": "UUID of the media input",
+     "optional": true
+    }
+   ]
+  },
+  "SetMediaInputCursor": {
+   "description": "Sets the cursor position of a media input.",
+   "fields": [
+    {
+     "name": "inputName",
+     "type": "String",
+     "description": "Name of the media input",
+     "optional": true
+    },
+    {
+     "name": "inputUuid",
+     "type": "String",
+     "description": "UUID of the media input",
+     "optional": true
+    },
+    {
+     "name": "mediaCursor",
+     "type": "Number",
+     "description": "New cursor position to set",
+     "optional": false
+    }
+   ]
+  },
+  "OffsetMediaInputCursor": {
+   "description": "Offsets the current cursor position of a media input by the specified value.",
+   "fields": [
+    {
+     "name": "inputName",
+     "type": "String",
+     "description": "Name of the media input",
+     "optional": true
+    },
+    {
+     "name": "inputUuid",
+     "type": "String",
+     "description": "UUID of the media input",
+     "optional": true
+    },
+    {
+     "name": "mediaCursorOffset",
+     "type": "Number",
+     "description": "Value to offset the current cursor position by",
+     "optional": false
+    }
+   ]
+  },
+  "TriggerMediaInputAction": {
+   "description": "Triggers an action on a media input.",
+   "fields": [
+    {
+     "name": "inputName",
+     "type": "String",
+     "description": "Name of the media input",
+     "optional": true
+    },
+    {
+     "name": "inputUuid",
+     "type": "String",
+     "description": "UUID of the media input",
+     "optional": true
+    },
+    {
+     "name": "mediaAction",
+     "type": "String",
+     "description": "Identifier of the `ObsMediaInputAction` enum",
+     "optional": false
+    }
+   ]
+  }
+ }
+}

@@ -1,0 +1,128 @@
+{
+ "category": "sources",
+ "requests": {
+  "GetSourceActive": {
+   "description": "Gets the active and show state of a source.",
+   "fields": [
+    {
+     "name": "canvasUuid",
+     "type": "String",
+     "description": "UUID of the canvas the source is in, if using sourceName field",
+     "optional": true
+    },
+    {
+     "name": "sourceName",
+     "type": "String",
+     "description": "Name of the source to get the active state of",
+     "optional": true
+    },
+    {
+     "name": "sourceUuid",
+     "type": "String",
+     "description": "UUID of the source to get the active state of",
+     "optional": true
+    }
+   ]
+  },
+  "GetSourceScreenshot": {
+   "description": "Gets a Base64-encoded screenshot of a source.",
+   "fields": [
+    {
+     "name": "canvasUuid",
+     "type": "String",
+     "description": "UUID of the canvas the source is in, if using sourceName field",
+     "optional": true
+    },
+    {
+     "name": "sourceName",
+     "type": "String",
+     "description": "Name of the source to take a screenshot of",
+     "optional": true
+    },
+    {
+     "name": "sourceUuid",
+     "type": "String",
+     "description": "UUID of the source to take a screenshot of",
+     "optional": true
+    },
+    {
+     "name": "imageFormat",
+     "type": "String",
+     "description": "Image compression format to use. Use `GetVersion` to get compatible image formats",
+     "optional": false
+    },
+    {
+     "name": "imageWidth",
+     "type": "Number",
+     "description": "Width to scale the screenshot to",
+     "optional": true
+    },
+    {
+     "name": "imageHeight",
+     "type": "Number",
+     "description": "Height to scale the screenshot to",
+     "optional": true
+    },
+    {
+     "name": "imageCompressionQuality",
+     "type": "Number",
+     "description": "Compression quality to use. 0 for high compression, 100 for uncompressed. -1 to use \"default\" (whatever that means, idk)",
+     "optional": true
+    }
+   ]
+  },
+  "SaveSourceScreenshot": {
+   "description": "Saves a screenshot of a source to the filesystem.",
+   "fields": [
+    {
+     "name": "canvasUuid",
+     "type": "String",
+     "description": "UUID of the canvas the source is in, if using sourceName field",
+     "optional": true
+    },
+    {
+     "name": "sourceName",
+     "type": "String",
+     "description": "Name of the source to take a screenshot of",
+     "optional": true
+    },
+    {
+     "name": "sourceUuid",
+     "type": "String",
+     "description": "UUID of the source to take a screenshot of",
+     "optional": true
+    },
+    {
+     "name": "imageFormat",
+     "type": "String",
+     "description": "Image compression format to use. Use `GetVersion` to get compatible image formats",
+     "optional": false
+    },
+    {
+     "name": "imageFilePath",
+     "type": "String",
+     "description": "Path to save the screenshot file to. Eg. `C:\\Users\\user\\Desktop\\screenshot.png`",
+     "optional": false
+    },
+    {
+     "name": "imageWidth",
+     "type": "Number",
+     "description": "Width to scale the screenshot to",
+     "optional": true
+    },
+    {
+     "name": "imageHeight",
+     "type": "Number",
+     "description": "Height to scale the screenshot to",
+     "optional": true
+    },
+    {
+     "name": "imageCompressionQuality",
+     "type": "Number",
+     "description": "Compression quality to use. 0 for high compression, 100 for uncompressed. -1 to use \"default\" (whatever that means, idk)",
+     "optional": true
+    }
+   ]
+  }
+ }
+}

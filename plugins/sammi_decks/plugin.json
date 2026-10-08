@@ -1,0 +1,8 @@
+{
+  "id": "sammi_decks",
+  "name": "SAMMI decks",
+  "version": "0.1.0",
+  "api_version": 1,
+  "description": "Your SAMMI decks as a grid of buttons, like Deck Hopper: pick a deck, tap a button to press it in SAMMI.",
+  "author": "Hex (streamer-toolbox)"
+}

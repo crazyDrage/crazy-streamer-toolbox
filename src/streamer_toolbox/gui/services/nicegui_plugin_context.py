@@ -1,0 +1,138 @@
+from collections.abc import Callable, Collection
+from pathlib import Path
+from typing import Any, Optional
+
+from fastapi import APIRouter
+from nicegui import app, ui
+
+from streamer_toolbox.core.actions.action_registry import ActionRegistry
+from streamer_toolbox.core.actions.registered_action import ActionHandler, OptionsProvider
+from streamer_toolbox.core.events.event_bus import EventBus, EventHandler
+from streamer_toolbox.core.events.event_fields import EVENT_FIELDS
+from streamer_toolbox.core.interfaces.confirm_service import ConfirmService
+from streamer_toolbox.core.interfaces.connection import Connection
+from streamer_toolbox.gui.components.flow_editor.trigger_kinds import (TRIGGER_CHOICES, TRIGGER_INFO,
+                                                                       TRIGGER_KINDS)
+from streamer_toolbox.gui.services.ui_registry import SECTIONS, UiRegistry
+from streamer_toolbox.core.actions.json_boxes import JsonBoxes, Send
+from streamer_toolbox.core.values.value_kind import ValueKind
+from streamer_toolbox.core.values.value_kinds import ValueKinds
+from streamer_toolbox.core.interfaces.plugin_context import PluginContext
+from streamer_toolbox.plugins.plugin_settings import PluginSettings
+
+PageFrame = Callable[[str, str, Callable[[], None]], None]  # title, path, builder
+
+
+class NiceGuiPluginContext(PluginContext):
+    """PluginContext on top of NiceGUI/FastAPI: one app serves the API, the pages and the plugin files."""
+
+    def __init__(self, plugin_id: str, actions: ActionRegistry, ui_registry: UiRegistry,
+                 confirm: ConfirmService, page_frame: PageFrame, folder: Optional[Path] = None,
+                 config_folder: Optional[Path] = None, events: Optional[EventBus] = None) -> None:
+        self._id = plugin_id
+        self._events = events or EventBus()
+        self._actions = actions
+        self._ui = ui_registry
+        self._confirm = confirm
+        self._page_frame = page_frame
+        self._static_count = 0
+        self._resources = folder / "resources" if folder else None
+        self._resources_url = f"/static/plugins/{plugin_id}/resources"
+        if self._resources and self._resources.is_dir():
+            app.add_static_files(self._resources_url, self._resources)
+        saved = (config_folder or Path("config")) / "plugins" / f"{plugin_id}.json"
+        self._settings = PluginSettings(self._resources / "settings.json" if self._resources else None, saved)
+
+    @property
+    def plugin_id(self) -> str:
+        return self._id
+
+    def add_action(self, name: str, handler: ActionHandler, description: str = "", label: str = "",
+                   **box: Any) -> None:
+        self._actions.add(f"{self._id}.{name}", handler, description, label, **box)
+
+    def add_json_boxes(self, folder: Path, send: Send, kinds: Collection[ValueKind] = ()) -> None:
+        JsonBoxes(folder, ValueKinds(kinds)).add_to(self._actions, self._id, send)
+
+    def add_connection(self, connection: Connection) -> None:
+        if connection.id != self._id:
+            raise ValueError(f"a plugin's connection must have the plugin's id ({self._id!r}, not "
+                             f"{connection.id!r})")
+        if any(known.id == connection.id for known in self._ui.connections):
+            raise ValueError("a plugin can add one connection")
+        self._ui.connections.append(connection)
+
+    def add_trigger(self, event: str, title: str, fields: tuple[str, ...], icon: str = "bolt", pick: str = "",
+                    example: str = "*", description: str = "",
+                    choices: OptionsProvider | Collection[str] | None = None) -> str:
+        kind = f"{self._id}.{event}"
+        if not fields:
+            raise ValueError("a trigger needs at least one field")
+        EVENT_FIELDS[kind] = tuple(fields)
+        TRIGGER_KINDS[kind] = (icon, title, pick or fields[0], example)
+        if description:
+            TRIGGER_INFO[kind] = description
+        if choices is not None:
+            TRIGGER_CHOICES[kind] = choices if callable(choices) else _fixed(choices)
+        return kind
+
+    def publish(self, event: str, data: dict[str, Any]) -> None:
+        self._events.publish(f"{self._id}.{event}", dict(data))
+
+    def on_event(self, handler: EventHandler) -> None:
+        self._events.subscribe(handler)
+
+    def add_router(self, router: APIRouter) -> None:
+        app.include_router(router, prefix=f"/api/plugins/{self._id}")
+
+    def add_page(self, title: str, builder: Callable[[], None], subpath: str = "", icon: str = "extension") -> str:
+        path = f"/plugins/{self._id}" + (f"/{subpath.strip('/')}" if subpath else "")
+        ui.page(path, title=f"{title} · streamer-toolbox")(lambda: self._page_frame(title, path, builder))
+        if not subpath:
+            self._ui.pages.append((title, path, icon))
+        return path
+
+    def add_panel(self, title: str, builder: Callable[[], None], section: str = "live") -> None:
+        if section not in SECTIONS:
+            raise ValueError(f"section must be one of {', '.join(SECTIONS)} (got {section!r})")
+        self._ui.panels.append((self._id, section, title, builder))
+
+    def add_static(self, folder: Path) -> str:
+        self._static_count += 1
+        # not under /static: that mount comes first and would answer 404 for a folder added while running
+        url = f"/plugin-static/{self._id}" + (f"-{self._static_count}" if self._static_count > 1 else "")
+        app.add_static_files(url, folder)
+        return url
+
+    async def ask_yes_no(self, question: str, timeout: float = 20.0) -> Optional[bool]:
+        return await self._confirm.ask(question, timeout)
+
+    def add_tool(self, title: str, builder: Callable[[], None], icon: str = "build", description: str = "") -> None:
+        self._ui.tools.append((self._id, title, icon, description, builder))
+
+    async def run_action(self, name: str, **params: Any) -> Any:
+        return await self._actions.run(name, **params)
+
+    def has_action(self, name: str) -> bool:
+        return name in self._actions
+
+    @property
+    def resources(self) -> Optional[Path]:
+        return self._resources
+
+    def resource_url(self, name: str) -> str:
+        return f"{self._resources_url}/{name.lstrip('/')}"
+
+    def settings(self) -> dict[str, Any]:
+        return self._settings.load()
+
+    def save_settings(self, values: dict[str, Any]) -> None:
+        self._settings.save(values)
+
+
+def _fixed(choices: Collection[str]) -> OptionsProvider:
+    """A list of choices as the function the flow editor asks."""
+    async def same() -> list[str]:
+        return list(choices)
+
+    return same

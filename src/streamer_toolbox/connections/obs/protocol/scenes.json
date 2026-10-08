@@ -1,0 +1,189 @@
+{
+ "category": "scenes",
+ "requests": {
+  "GetSceneList": {
+   "description": "Gets an array of scenes in OBS.",
+   "fields": [
+    {
+     "name": "canvasUuid",
+     "type": "String",
+     "description": "UUID of the canvas the scenes are in",
+     "optional": true
+    }
+   ]
+  },
+  "GetGroupList": {
+   "description": "Gets an array of all groups in OBS.",
+   "fields": []
+  },
+  "GetCurrentProgramScene": {
+   "description": "Gets the current program scene.",
+   "fields": []
+  },
+  "SetCurrentProgramScene": {
+   "description": "Sets the current program scene.",
+   "fields": [
+    {
+     "name": "sceneName",
+     "type": "String",
+     "description": "Scene name to set as the current program scene",
+     "optional": true
+    },
+    {
+     "name": "sceneUuid",
+     "type": "String",
+     "description": "Scene UUID to set as the current program scene",
+     "optional": true
+    }
+   ]
+  },
+  "GetCurrentPreviewScene": {
+   "description": "Gets the current preview scene.",
+   "fields": []
+  },
+  "SetCurrentPreviewScene": {
+   "description": "Sets the current preview scene.",
+   "fields": [
+    {
+     "name": "sceneName",
+     "type": "String",
+     "description": "Scene name to set as the current preview scene",
+     "optional": true
+    },
+    {
+     "name": "sceneUuid",
+     "type": "String",
+     "description": "Scene UUID to set as the current preview scene",
+     "optional": true
+    }
+   ]
+  },
+  "CreateScene": {
+   "description": "Creates a new scene in OBS.",
+   "fields": [
+    {
+     "name": "canvasUuid",
+     "type": "String",
+     "description": "UUID of the canvas to create the new scene in. Leave default to assume main canvas",
+     "optional": true
+    },
+    {
+     "name": "sceneName",
+     "type": "String",
+     "description": "Name for the new scene",
+     "optional": false
+    }
+   ]
+  },
+  "RemoveScene": {
+   "description": "Removes a scene from OBS.",
+   "fields": [
+    {
+     "name": "canvasUuid",
+     "type": "String",
+     "description": "UUID of the canvas the scene is in, if using the sceneName field",
+     "optional": true
+    },
+    {
+     "name": "sceneName",
+     "type": "String",
+     "description": "Name of the scene to remove",
+     "optional": true
+    },
+    {
+     "name": "sceneUuid",
+     "type": "String",
+     "description": "UUID of the scene to remove",
+     "optional": true
+    }
+   ]
+  },
+  "SetSceneName": {
+   "description": "Sets the name of a scene (rename).",
+   "fields": [
+    {
+     "name": "canvasUuid",
+     "type": "String",
+     "description": "UUID of the canvas the scene is in, if using the sceneName field",
+     "optional": true
+    },
+    {
+     "name": "sceneName",
+     "type": "String",
+     "description": "Name of the scene to be renamed",
+     "optional": true
+    },
+    {
+     "name": "sceneUuid",
+     "type": "String",
+     "description": "UUID of the scene to be renamed",
+     "optional": true
+    },
+    {
+     "name": "newSceneName",
+     "type": "String",
+     "description": "New name for the scene",
+     "optional": false
+    }
+   ]
+  },
+  "GetSceneSceneTransitionOverride": {
+   "description": "Gets the scene transition overridden for a scene.",
+   "fields": [
+    {
+     "name": "canvasUuid",
+     "type": "String",
+     "description": "UUID of the canvas the scene is in, if using the sceneName field",
+     "optional": true
+    },
+    {
+     "name": "sceneName",
+     "type": "String",
+     "description": "Name of the scene",
+     "optional": true
+    },
+    {
+     "name": "sceneUuid",
+     "type": "String",
+     "description": "UUID of the scene",
+     "optional": true
+    }
+   ]
+  },
+  "SetSceneSceneTransitionOverride": {
+   "description": "Sets the scene transition overridden for a scene.",
+   "fields": [
+    {
+     "name": "canvasUuid",
+     "type": "String",
+     "description": "UUID of the canvas the scene is in, if using the sceneName field",
+     "optional": true
+    },
+    {
+     "name": "sceneName",
+     "type": "String",
+     "description": "Name of the scene",
+     "optional": true
+    },
+    {
+     "name": "sceneUuid",
+     "type": "String",
+     "description": "UUID of the scene",
+     "optional": true
+    },
+    {
+     "name": "transitionName",
+     "type": "String",
+     "description": "Name of the scene transition to use as override. Specify `null` to remove",
+     "optional": true
+    },
+    {
+     "name": "transitionDuration",
+     "type": "Number",
+     "description": "Duration to use for any overridden transition. Specify `null` to remove",
+     "optional": true
+    }
+   ]
+  }
+ }
+}

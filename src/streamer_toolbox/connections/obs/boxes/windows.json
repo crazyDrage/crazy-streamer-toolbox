@@ -1,0 +1,38 @@
+{
+ "group": "Windows",
+ "boxes": [
+  {
+   "name": "open_source_projector",
+   "label": "Open source projector",
+   "help": "Opens a projector for a source or a scene: on a monitor, or as a window",
+   "request": "OpenSourceProjector",
+   "fields": [
+    {"name": "source", "send_as": "sourceName", "kind": "obs.scene_item",
+     "hint": "A source, or a scene (type its name if it is not in the list)"},
+    {"name": "monitor", "send_as": "monitorIndex", "kind": "whole_number", "optional": true, "default": -1,
+     "hint": "The monitor's number in OBS, counted from 0. -1 = a window"}
+   ]
+  },
+  {
+   "name": "open_source_properties",
+   "label": "Open source properties",
+   "help": "Opens the properties window of a source in OBS",
+   "request": "OpenInputPropertiesDialog",
+   "fields": [{"name": "source", "send_as": "inputName", "kind": "obs.source"}]
+  },
+  {
+   "name": "open_source_filters",
+   "label": "Open source filters",
+   "help": "Opens the filters window of a source in OBS",
+   "request": "OpenInputFiltersDialog",
+   "fields": [{"name": "source", "send_as": "inputName", "kind": "obs.source"}]
+  },
+  {
+   "name": "open_source_interact",
+   "label": "Open source interact",
+   "help": "Opens the interact window of a source in OBS (a browser source you can click in)",
+   "request": "OpenInputInteractDialog",
+   "fields": [{"name": "source", "send_as": "inputName", "kind": "obs.source"}]
+  }
+ ]
+}

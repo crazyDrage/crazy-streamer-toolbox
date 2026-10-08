@@ -1,0 +1,9 @@
+{
+ "category": "canvases",
+ "requests": {
+  "GetCanvasList": {
+   "description": "Gets an array of canvases in OBS.",
+   "fields": []
+  }
+ }
+}

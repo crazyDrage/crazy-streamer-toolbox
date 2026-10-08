@@ -1,0 +1,25 @@
+{
+ "group": "Recording / streaming",
+ "boxes": [
+  {
+   "name": "add_recording_chapter",
+   "label": "Add recording chapter",
+   "help": "Adds a chapter marker to the file being recorded (needs a format with chapters, like Hybrid MP4)",
+   "request": "CreateRecordChapter",
+   "fields": [{"name": "name", "send_as": "chapterName", "optional": true, "hint": "Empty = OBS names it"}]
+  },
+  {
+   "name": "split_recording_file",
+   "label": "Split recording file",
+   "help": "Goes on recording in a new file (needs file splitting switched on in OBS's recording settings)",
+   "request": "SplitRecordFile"
+  },
+  {
+   "name": "send_stream_caption",
+   "label": "Send stream caption",
+   "help": "Sends caption text (CEA-608) with the stream",
+   "request": "SendStreamCaption",
+   "fields": [{"name": "text", "send_as": "captionText"}]
+  }
+ ]
+}

@@ -1,0 +1,126 @@
+{
+ "category": "general",
+ "requests": {
+  "GetVersion": {
+   "description": "Gets data about the current plugin and RPC version.",
+   "fields": []
+  },
+  "GetStats": {
+   "description": "Gets statistics about OBS, obs-websocket, and the current session.",
+   "fields": []
+  },
+  "BroadcastCustomEvent": {
+   "description": "Broadcasts a `CustomEvent` to all WebSocket clients. Receivers are clients which are identified and subscribed.",
+   "fields": [
+    {
+     "name": "eventData",
+     "type": "Object",
+     "description": "Data payload to emit to all receivers",
+     "optional": false
+    }
+   ]
+  },
+  "CallVendorRequest": {
+   "description": "Call a request registered to a vendor.",
+   "fields": [
+    {
+     "name": "vendorName",
+     "type": "String",
+     "description": "Name of the vendor to use",
+     "optional": false
+    },
+    {
+     "name": "requestType",
+     "type": "String",
+     "description": "The request type to call",
+     "optional": false
+    },
+    {
+     "name": "requestData",
+     "type": "Object",
+     "description": "Object containing appropriate request data",
+     "optional": true
+    }
+   ]
+  },
+  "GetHotkeyList": {
+   "description": "Gets an array of all hotkey names in OBS.",
+   "fields": []
+  },
+  "TriggerHotkeyByName": {
+   "description": "Triggers a hotkey using its name. See `GetHotkeyList`.",
+   "fields": [
+    {
+     "name": "hotkeyName",
+     "type": "String",
+     "description": "Name of the hotkey to trigger",
+     "optional": false
+    },
+    {
+     "name": "contextName",
+     "type": "String",
+     "description": "Name of context of the hotkey to trigger",
+     "optional": true
+    }
+   ]
+  },
+  "TriggerHotkeyByKeySequence": {
+   "description": "Triggers a hotkey using a sequence of keys.",
+   "fields": [
+    {
+     "name": "keyId",
+     "type": "String",
+     "description": "The OBS key ID to use. See https://github.com/obsproject/obs-studio/blob/master/libobs/obs-hotkeys.h",
+     "optional": true
+    },
+    {
+     "name": "keyModifiers",
+     "type": "Object",
+     "description": "Object containing key modifiers to apply",
+     "optional": true
+    },
+    {
+     "name": "keyModifiers.shift",
+     "type": "Boolean",
+     "description": "Press Shift",
+     "optional": true
+    },
+    {
+     "name": "keyModifiers.control",
+     "type": "Boolean",
+     "description": "Press CTRL",
+     "optional": true
+    },
+    {
+     "name": "keyModifiers.alt",
+     "type": "Boolean",
+     "description": "Press ALT",
+     "optional": true
+    },
+    {
+     "name": "keyModifiers.command",
+     "type": "Boolean",
+     "description": "Press CMD (Mac)",
+     "optional": true
+    }
+   ]
+  },
+  "Sleep": {
+   "description": "Sleeps for a time duration or number of frames. Only available in request batches with types `SERIAL_REALTIME` or `SERIAL_FRAME`.",
+   "fields": [
+    {
+     "name": "sleepMillis",
+     "type": "Number",
+     "description": "Number of milliseconds to sleep for (if `SERIAL_REALTIME` mode)",
+     "optional": true
+    },
+    {
+     "name": "sleepFrames",
+     "type": "Number",
+     "description": "Number of frames to sleep for (if `SERIAL_FRAME` mode)",
+     "optional": true
+    }
+   ]
+  }
+ }
+}

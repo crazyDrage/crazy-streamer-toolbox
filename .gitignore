@@ -1,0 +1,14 @@
+/notes/
+/temp/
+.venv/
+.idea/
+__pycache__/
+.env
+/memory/
+# settings, tokens, saved positions and flows are his, per PC; only the example is shared
+/config/*
+!/config/toolbox.example.toml
+/build/
+/.nicegui/
+# the GUI's own remembered state (theme, open menus), per PC; it changes with every use
+.nicegui/

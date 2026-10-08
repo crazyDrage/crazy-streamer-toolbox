@@ -1,0 +1,25 @@
+{
+ "group": "Studio mode",
+ "boxes": [
+  {
+   "name": "set_studio_mode",
+   "label": "Set studio mode",
+   "help": "Switches OBS's studio mode (preview next to program) on or off",
+   "request": "SetStudioModeEnabled",
+   "fields": [{"name": "on", "send_as": "studioModeEnabled", "kind": "yes_no", "default": true}]
+  },
+  {
+   "name": "set_preview_scene",
+   "label": "Set preview scene",
+   "help": "Puts a scene into the preview. Only works while studio mode is on",
+   "request": "SetCurrentPreviewScene",
+   "fields": [{"name": "scene", "send_as": "sceneName", "kind": "obs.scene"}]
+  },
+  {
+   "name": "studio_transition",
+   "label": "Studio mode transition",
+   "help": "Sends the preview live, like the Transition button. Only works while studio mode is on",
+   "request": "TriggerStudioModeTransition"
+  }
+ ]
+}

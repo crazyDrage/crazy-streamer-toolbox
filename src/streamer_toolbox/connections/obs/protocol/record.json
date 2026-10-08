@@ -1,0 +1,48 @@
+{
+ "category": "record",
+ "requests": {
+  "GetRecordStatus": {
+   "description": "Gets the status of the record output.",
+   "fields": []
+  },
+  "ToggleRecord": {
+   "description": "Toggles the status of the record output.",
+   "fields": []
+  },
+  "StartRecord": {
+   "description": "Starts the record output.",
+   "fields": []
+  },
+  "StopRecord": {
+   "description": "Stops the record output.",
+   "fields": []
+  },
+  "ToggleRecordPause": {
+   "description": "Toggles pause on the record output.",
+   "fields": []
+  },
+  "PauseRecord": {
+   "description": "Pauses the record output.",
+   "fields": []
+  },
+  "ResumeRecord": {
+   "description": "Resumes the record output.",
+   "fields": []
+  },
+  "SplitRecordFile": {
+   "description": "Splits the current file being recorded into a new file.",
+   "fields": []
+  },
+  "CreateRecordChapter": {
+   "description": "Adds a new chapter marker to the file currently being recorded.",
+   "fields": [
+    {
+     "name": "chapterName",
+     "type": "String",
+     "description": "Name of the new chapter",
+     "optional": true
+    }
+   ]
+  }
+ }
+}
