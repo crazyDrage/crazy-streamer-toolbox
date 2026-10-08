@@ -239,7 +239,7 @@ gui/
 devtools/tested/         `python -m streamer_toolbox.devtools.tested`: makes docs/tested/ (a row for everything, the
                          README's table; ticks and notes stay). It calls `assemble()` of `assembly/toolbox_assembly` (the toolbox put
                          together, not started) with an empty config in a throwaway folder. `checked <row> ...`
-                         sets "AI checked" to today. `window` (test-window.bat / .sh) is the test window:
+                         sets "AI checked" to today. `window` (docs/tested/test-window.bat / .sh) is the test window:
                          TestWindow, a small NiceGUI page of its own on port 8849 that only reads and writes
                          docs/tested (one file at a time in the menu's order, Back / Next, search, ticks, notes),
                          so it stays open next to the toolbox and through its restarts

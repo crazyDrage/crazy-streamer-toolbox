@@ -3,7 +3,7 @@ rem The test window: the checklist of what has to be tested (docs\tested), in a 
 rem Keep it open next to the toolbox; it needs no running toolbox and stays open while that is restarted.
 rem A tick is written into docs\tested at once. Another port: test-window.bat 8860
 setlocal
-cd /d "%~dp0"
+cd /d "%~dp0..\.."
 
 if not exist ".venv\Scripts\python.exe" (
     echo No .venv found in %CD%
@@ -12,6 +12,6 @@ if not exist ".venv\Scripts\python.exe" (
     exit /b 1
 )
 
-set "PYTHONPATH=%~dp0src"
+set "PYTHONPATH=%CD%\src"
 ".venv\Scripts\python.exe" -m streamer_toolbox.devtools.tested window %*
 if errorlevel 1 pause

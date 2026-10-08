@@ -6,7 +6,7 @@
     ... -m streamer_toolbox.devtools.tested checked box:obs.set_scene tool:points
         "AI checked" for these rows: today (Hex tried them in the running toolbox). `unchecked` takes it back.
     ... -m streamer_toolbox.devtools.tested window [port] [--no-open]
-        the test window (see TestWindow; test-window.bat / test-window.sh start it): a small page of its own
+        the test window (see TestWindow; docs/tested/test-window.bat / .sh start it): a small page of its own
         on port 8849, opened in the browser (not with --no-open), to tick next to the running toolbox. It only reads and writes
         docs/tested, so it needs no toolbox and stays open while that is restarted.
 

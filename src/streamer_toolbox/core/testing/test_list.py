@@ -36,7 +36,7 @@ trigger, box, tool or connection is not there. In the project folder everything 
 Tick the checks in the **test window**, a small window of its own next to the toolbox (it stays open while
 the toolbox is restarted, and writes the row's file at once):
 
-    test-window.bat          (Linux: ./test-window.sh)
+    test-window.bat          (Linux: ./test-window.sh)      both are in this folder
 
 You can also write `yes` or `-` into a file by hand, and anything into "Note" (not the sign `|`); press
 Reload in the test window after that. The toolbox reads the files when it starts.
