@@ -9,7 +9,11 @@ sub folder named after what uses them.
 ## Folder map (`src/streamer_toolbox/`)
 
 ```
-__main__.py              startup: reads the config, builds everything, starts NiceGUI (--open window/browser/none)
+__main__.py              the start: arguments, the launcher (runs the toolbox as a child, restarts it), ui.run
+assembly/                putting the toolbox together, without starting it: toolbox_assembly.assemble() (the
+                         one place where the pieces are wired: connections, boxes, flows, pages),
+                         BuiltInConnections (the list of connections, in the order of their tabs),
+                         OwnBoxes (the boxes that belong to no program)
 core/                    shared building blocks, no service-specific code
   interfaces/            every interface: Connection, VideoProbe, LayoutPolicy, SceneItemEditor,
                          ObsConnectionChecker, ConfirmService, MessageService, PageOpener, PluginContext,
@@ -117,7 +121,7 @@ core/                    shared building blocks, no service-specific code
                          which events go with a connection (hides triggers of off / left-out ones)
   (plugins)              PluginContext (core/interfaces) is a plugin's only door: actions with everything a
                          box can have, ONE connection (collected in UiRegistry.connections, joined to the
-                         built-in ones in __main__, configured from its [<id>] table), triggers (written
+                         built-in ones in assembly/BuiltInConnections, configured from its [<id>] table), triggers (written
                          into EVENT_FIELDS and TRIGGER_KINDS at load), publish / on_event on the EventBus.
                          plugins/example/ is the guided tour of all of it
 connections/             ONLY the connection classes, one per service
@@ -179,7 +183,8 @@ connections/             ONLY the connection classes, one per service
   mixitup/               MixItUpActions: Mix It Up's Developer API v2 as boxes (names in, IDs looked up)
   sammi/                 what SammiConnection uses: deck builder, toolbox deck, deck CLI (python -m ...connections.sammi)
                          SammiDeckList (SAMMI's own decks + buttons via getDeckList, for button / deck dropdowns)
-  vtube_studio/          what VtsConnection uses: VTS API client, positions and their store, VtsLookActions (tint,
+  vtube_studio/          what VtsConnection uses: VTS API client, positions and their store, VtsItemActions (items and
+                         pins), VtsExpressionActions, VtsHotkeyActions, VtsLookActions (tint,
                          physics, parameters, visual effects; physics / parameters are re-sent while they hold)
   oauth/                 what every browser login shares (Twitch, YouTube): OAuthCodeListener (one-shot on the
                          redirect port), OAuthToken, OAuthTokenStore (one file per service next to the settings)
@@ -204,7 +209,8 @@ gui/
                          Overlay, Tools, Settings: main view = cards, `?show=<part>` = that part alone), ConnectionPanel (one connection's settings),
                          FileDialog (the file window of a box's file field), BoxFilterPanel (Settings → Box
                          filters) + BoxFilterDialog (every box left, the filter's boxes right)
-    flow_editor/         FlowEditor and what it uses: drafts (mutable copies), NodeEditor (one box's form),
+    flow_editor/         FlowEditor and what it uses: drafts (mutable copies), NodeEditor (one box's form), BoxDots (what a box takes and gives: fields, data
+                         dots, kinds, the wires a field may take, its summary; no drawing),
                          ParamInput (value / variable / Live value / flow input / wire from a box),
                          SplitFieldsInput (Split data's outputs + Find fields), ActionPicker (Add menu with search),
                          FlowListView (SAMMI-like list), FlowBoxView + DrawflowGraph (boxes and wires),
@@ -231,7 +237,7 @@ gui/
                          dialog service and message service (both show on every open page), activity log, UI registry,
                          plugin context, page openers (window/browser)
 devtools/tested/         `python -m streamer_toolbox.devtools.tested`: makes docs/tested/ (a row for everything, the
-                         README's table; ticks and notes stay). It calls `assemble()` of `__main__` (the toolbox put
+                         README's table; ticks and notes stay). It calls `assemble()` of `assembly/toolbox_assembly` (the toolbox put
                          together, not started) with an empty config in a throwaway folder. `checked <row> ...`
                          sets "AI checked" to today. `window` (test-window.bat / .sh) is the test window:
                          TestWindow, a small NiceGUI page of its own on port 8849 that only reads and writes
@@ -276,7 +282,7 @@ User files live in `config/` (gitignored except `toolbox.example.toml`): `toolbo
    - `add_actions(actions)`: the actions it offers (named `youtube.*`, each with a `group`);
    - events: take the `EventBus` and `publish("youtube.<what>", {...})`; flows with a matching trigger start.
 2. Everything it needs besides that class goes in `connections/youtube/`.
-3. Add it to the `ConnectionManager([...])` list in `__main__.py`, reading its `[youtube]` table from the config.
+3. Add it to the list in `assembly/built_in_connections.py`, reading its `[youtube]` table from the config.
 4. Tests in `tests/connections/test_youtube_connection.py`, services faked (httpx.MockTransport, a local
    websocket server like `tests/fakes/fake_eventsub_server.py`).
 
@@ -356,7 +362,7 @@ Reward on / off keep the id too (older flows' names still work).
   every word anywhere) + ActionPicker (search on top, categories left / a row on a phone, boxes right). Show =
   one BoxFilter (round 21): the catalog is built with it, so categories, counts and search stay inside it; the
   one picked is kept in app.storage.general["box_filter"] (a filter that's gone = all boxes). The categories
-  of connections that are switched off are left out (`switched_off` in `__main__`), "Show them anyway" brings
+  of connections that are switched off are left out (`switched_off` in `assembly/toolbox_assembly`), "Show them anyway" brings
   them back for that window.
 - `files = {"file": MEDIA_TYPES}` (round 21): the field holds a file on this PC; ParamInput adds a folder button
   that opens FileDialog (lists through FileBrowser, so it also works from another device and gives the real
@@ -369,7 +375,7 @@ Reward on / off keep the id too (older flows' names still work).
   `@last`, `@text`; also in the middle (`${box.n3.items.@first.name}`). The field's "from box" list offers each
   dot's helpers right below it, only those that fit the dot's kind when it's known: one text, number or yes/no
   has none (round 21). A whole result's kind: "object" with declared outputs, else the handler's return type,
-  else its last result (NodeEditor.output_kind); Start fields are plain unless an input's default says more.
+  else its last result (BoxDots.output_kind); Start fields are plain unless an input's default says more.
 - `port_fields = "case"` (Switch): the box has any number of fields case_1, case_2, ... (count kept in `cases`,
   because empty fields aren't saved), each also an output before `ports`. Outputs are per box:
   `action.ports_for(node.params)` (core/actions/numbered_fields.py); everything that asks for a box's outputs
@@ -378,7 +384,7 @@ Reward on / off keep the id too (older flows' names still work).
   view reads back the canvas (old output names) first.
 - `editors = {"animation": "vts_animation"}` (2026-10-01, his "custom variables in boxes" idea): a value the box
   keeps itself (any JSON-like object, stored in the flow file's params), edited in its own window instead of a
-  ParamInput. NodeEditor.EDITORS maps the kind to its field class (AnimationInput: map + one line + Edit opens
+  ParamInput. EDITORS (value_editors.py) maps the kind to its field class (AnimationInput: map + one line + Edit opens
   AnimationDialog); the class's `text(value)` is the box line. The window can Save to file / Load from file:
   BoxValueFiles, `config/box_values/<kind>/<name>.json` (a copy, not a link). New kinds: an input class with
   build() + text(), one entry in EDITORS. The class also gets the box's params (PlacementInput: its scene).
@@ -434,7 +440,7 @@ box with fields has a **"by name"** dot first on the left (data_in `*`, BY_NAME)
 kept as a wire; flow_boxes.js sends tb_flow_by_name and WireMatcher.by_name sets each field named like one of
 the result's keys (known: declared outputs / Split fields / Start fields; else a sample) to `${box.n3.<key>}`,
 leaving fields that have a value or another wire. A Split box wired to a result with known keys takes them as
-its fields at once (NodeEditor.fields_from_wire); Find fields still reads a sample otherwise. A **Flow output** box (`logic.output`, name + value) makes a
+its fields at once (BoxDots.fields_from_wire); Find fields still reads a sample otherwise. A **Flow output** box (`logic.output`, name + value) makes a
 flow used as a box give back {name: value} with a dot per output (Flow.outputs). Kinds: KindCheck (core/data)
 gives a field's kind from its parameter type and warns when a wire brings the wrong one (text → number).
 Flow.data_loop(): saving refuses orange wires that go round. Editor extras: **Wire by name** (WireMatcher +

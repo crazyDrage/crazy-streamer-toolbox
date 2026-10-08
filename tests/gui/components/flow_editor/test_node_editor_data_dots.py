@@ -39,19 +39,19 @@ class TestNodeEditorDataDots(unittest.TestCase):
 
     def test_a_result_with_keys_has_one_dot_and_its_keys_stay_in_the_list(self) -> None:
         video = self.draft.node("n1")
-        self.assertEqual(self.editor.data_outputs(video), [("", "result")])
-        sources = self.editor.wire_sources(self.draft.node("n2"))
+        self.assertEqual(self.editor.dots.data_outputs(video), [("", "result")])
+        sources = self.editor.dots.wire_sources(self.draft.node("n2"))
         self.assertIn("${box.n1}", sources)
         self.assertIn("${box.n1.width}", sources)
 
     def test_the_box_line_leaves_out_what_the_chosen_way_does_not_use(self) -> None:
         node = NodeDraft("n9", "a.send", {"address": "a@b.c", "number": "123"})
-        self.assertEqual(self.editor.summary(node), "address = a@b.c")
+        self.assertEqual(self.editor.dots.summary(node), "address = a@b.c")
         node.params["way"] = "phone"
-        self.assertEqual(self.editor.summary(node), "number = 123, way = phone")
+        self.assertEqual(self.editor.dots.summary(node), "number = 123, way = phone")
 
     def test_helpers_are_only_offered_where_they_fit(self) -> None:
-        sources = self.editor.wire_sources(self.draft.node("n2"))
+        sources = self.editor.dots.wire_sources(self.draft.node("n2"))
         helpers = {ref for ref in sources if ".@" in ref}
         self.assertEqual({r for r in helpers if r.startswith("${box.n1.")},  # an object: no @first, no @kind
                          {"${box.n1.@keys}", "${box.n1.@kinds}", "${box.n1.@count}", "${box.n1.@text}"})
@@ -63,20 +63,20 @@ class TestNodeEditorDataDots(unittest.TestCase):
     def test_a_box_with_fields_gets_a_by_name_dot_first(self) -> None:
         video = self.draft.node("n1")
         video.params["path"] = "${box}"
-        self.assertEqual(self.editor.data_inputs(video), [BY_NAME, "path"])
-        self.assertNotIn(BY_NAME, self.editor.data_inputs(self.draft.node("n2")))  # Split: data is a dot already
+        self.assertEqual(self.editor.dots.data_inputs(video), [BY_NAME, "path"])
+        self.assertNotIn(BY_NAME, self.editor.dots.data_inputs(self.draft.node("n2")))  # Split: data is a dot already
 
     def test_split_takes_the_keys_of_the_box_wired_in(self) -> None:
         split = self.draft.node("n2")
-        self.assertTrue(self.editor.fields_from_wire(split))
+        self.assertTrue(self.editor.dots.fields_from_wire(split))
         self.assertEqual(split.params["fields"],
                          {"width": "number", "height": "number", "seconds": "number", "orientation": "text"})
-        self.assertEqual([f for f, _ in self.editor.data_outputs(split)], ["width", "height", "seconds", "orientation"])
+        self.assertEqual([f for f, _ in self.editor.dots.data_outputs(split)], ["width", "height", "seconds", "orientation"])
 
     def test_split_after_a_field_has_no_known_keys(self) -> None:
         split = self.draft.node("n2")
         split.params["data"] = "${box.n1.width}"
-        self.assertFalse(self.editor.fields_from_wire(split))
+        self.assertFalse(self.editor.dots.fields_from_wire(split))
 
 
 async def _name() -> str:

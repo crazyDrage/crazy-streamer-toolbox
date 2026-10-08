@@ -24,7 +24,7 @@ WINDOW_PORT = 8849
 
 
 def write_files(scratch: Path, arguments: list[str]) -> None:
-    from streamer_toolbox.__main__ import assemble
+    from streamer_toolbox.assembly.toolbox_assembly import assemble
     from streamer_toolbox.core.config.toolbox_config import ToolboxConfig
 
     config = scratch / "config" / "toolbox.toml"
@@ -44,7 +44,7 @@ def show_window(port: int, open_it: bool) -> None:
     from streamer_toolbox.core.testing.test_list import TestList
     from streamer_toolbox.devtools.tested.test_window import TestWindow
 
-    ui.page("/", title="Test window · streamer-toolbox")(lambda: TestWindow(TestList).build())
+    ui.page("/", title="Test window · crazy-streamer-toolbox")(lambda: TestWindow(TestList).build())
     ui.run(host="127.0.0.1", port=port, title="Test window", show=open_it, reload=False)
 
 

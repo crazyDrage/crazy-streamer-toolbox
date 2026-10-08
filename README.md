@@ -1,4 +1,4 @@
-# streamer-toolbox
+# crazy-streamer-toolbox
 
 > **AI agents should read [llms.txt](llms.txt) instead.**
 >

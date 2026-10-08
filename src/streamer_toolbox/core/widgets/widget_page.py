@@ -4,6 +4,7 @@ from collections.abc import Callable
 from html import escape
 from typing import Any
 
+from streamer_toolbox.core.app_name import APP_NAME
 from streamer_toolbox.core.widgets.streamelements_links import for_widget
 from streamer_toolbox.core.widgets.widget import Widget
 from streamer_toolbox.core.widgets.widget_helpers import with_kept_helpers
@@ -40,7 +41,7 @@ class WidgetPage:
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>{escape(widget.name)} · streamer-toolbox widget</title>
+<title>{escape(widget.name)} · {APP_NAME} widget</title>
 <style>html, body {{ margin: 0; background: transparent; overflow: hidden; }}</style>
 <style>
 {_no_close(for_widget(fill(widget.css, data, single=True), widget.name), "style")}
@@ -69,7 +70,7 @@ class WidgetPage:
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>{escape(name)} · streamer-toolbox widget</title>
+<title>{escape(name)} · {APP_NAME} widget</title>
 <style>
 html, body {{ margin: 0; height: 100%; background: transparent; overflow: hidden; }}
 iframe {{ display: block; width: 100%; height: 100%; border: 0; background: transparent; }}

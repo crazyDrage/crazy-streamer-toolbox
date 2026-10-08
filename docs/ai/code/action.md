@@ -23,7 +23,7 @@ class ThingActions:
   box's result (other boxes wire from it); `-> None` means no result dot.
 - Raise with a message the streamer understands; it shows on the box and comes back over the API.
 - Where the class lives: a connection's boxes in `connections/<id>/`, anything else in `core/<area>/`. Call
-  its `add_to(actions)` from the connection's `add_actions`, or from `__main__.py`.
+  its `add_to(actions)` from the connection's `add_actions`, or from `assembly/toolbox_assembly.py` (`assembly/own_boxes.py` for boxes that belong to no program).
 - Test it by running the action through an `ActionRegistry` (`await actions.run("thing.do", name="x")`).
 
 ## What `actions.add` can do

@@ -2,6 +2,7 @@ from collections.abc import Callable
 
 from nicegui import app, ui
 
+from streamer_toolbox.core.app_name import APP_NAME
 from streamer_toolbox.gui.services.open_pages import OpenPages
 from streamer_toolbox.gui.services.ui_registry import UiRegistry
 
@@ -52,7 +53,7 @@ class AppShell:
         return app.storage.general.get("theme", "dark")
 
     def page(self, title: str, path: str, builder: Callable[[], None]) -> None:
-        ui.page(path, title=f"{title} · streamer-toolbox")(lambda: self.frame(title, path, builder))
+        ui.page(path, title=f"{title} · {APP_NAME}")(lambda: self.frame(title, path, builder))
 
     def frame(self, title: str, path: str, builder: Callable[[], None]) -> None:
         self._pages.attach(ui.context.client)
@@ -67,7 +68,7 @@ class AppShell:
             ui.button(icon="menu", on_click=drawer.toggle).props("flat round color=white") \
                 .classes("lg:hidden").tooltip("Menu")
             ui.icon("construction").classes("text-xl")
-            ui.label("streamer-toolbox").classes("text-lg font-semibold")
+            ui.label(APP_NAME).classes("text-lg font-semibold")
             ui.space()
             ui.label(title).classes("text-sm opacity-80 lg:hidden")
 

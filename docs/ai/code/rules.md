@@ -18,7 +18,8 @@ Applies to everything under `src/` and `tests/`. Short on purpose; the deep refe
 
 ```
 src/streamer_toolbox/
-  __main__.py     startup: builds everything, one place where the pieces are wired together
+  __main__.py     the start: arguments, the launcher, ui.run
+  assembly/       builds everything: the one place where the pieces are wired together
   core/           shared building blocks (actions, flows, events, alerts, widgets, points, config, ...)
   connections/    one class per service + a sub folder with what it uses
   api/            the HTTP API and the overlay pages' routes

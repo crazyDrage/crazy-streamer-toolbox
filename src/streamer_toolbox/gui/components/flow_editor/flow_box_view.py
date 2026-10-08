@@ -36,9 +36,9 @@ class FlowBoxView:
                  test_run: Callable[[], Awaitable[None]] | None = None) -> None:
         self._draft = draft
         self._editor = editor
-        self._graph = DrawflowGraph(editor.ports, editor.title, editor.data_inputs, editor.data_outputs,
-                                    lambda node: editor.summary(node, wired=False), editor.start_outputs,
-                                    editor.entries)
+        self._graph = DrawflowGraph(editor.dots.ports, editor.dots.title, editor.dots.data_inputs, editor.dots.data_outputs,
+                                    lambda node: editor.dots.summary(node, wired=False), editor.dots.start_outputs,
+                                    editor.dots.entries)
         self._selected: str | None = None  # node id
         self._numbers: dict[int, str] = {}
         self._listening = False
@@ -162,7 +162,7 @@ class FlowBoxView:
         node = self._draft.node(node_id)
         if node is not None:
             CLIPBOARD.copy(node, self._draft.name)
-            ui.notify(f"Copied {self._editor.title(node.action)}", type="positive", timeout=1500)
+            ui.notify(f"Copied {self._editor.dots.title(node.action)}", type="positive", timeout=1500)
             self.side_panel.refresh()
 
     async def _duplicate(self, node_id: str) -> None:
@@ -192,7 +192,7 @@ class FlowBoxView:
                 .props("no-caps outline dense") \
                 .tooltip("Choose what the trigger gives (user, input, reward, ...) and run the flow with it")
         ui.label("LAST START").classes("text-xs font-semibold uppercase tracking-wider text-primary pt-2")
-        known, value = self._editor.last_result(START)
+        known, value = self._editor.dots.last_result(START)
         if known:
             ResultView.show(value)
         else:
@@ -224,7 +224,7 @@ class FlowBoxView:
         await self.sync()  # moved boxes and new wires first
         node = self._draft.node(node_id)
         if node is not None:
-            self._draft.remove(node_id, self._editor.ports(node.action, node.params))
+            self._draft.remove(node_id, self._editor.dots.ports(node.action, node.params))
         self._selected = None
         self._draw()
         self.side_panel.refresh()
@@ -244,9 +244,9 @@ class FlowBoxView:
         it has no fields yet, it reads the data."""
         await self.sync()
         node = self._draft.node(self._numbers.get(e.args)) if isinstance(e.args, int) else None
-        action = self._editor.action(node.action) if node else None
+        action = self._editor.dots.action(node.action) if node else None
         if action and action.data_outputs and any(is_wire_in(v) and v != WIRE_IN for v in node.params.values()):
-            if self._editor.fields_from_wire(node):
+            if self._editor.dots.fields_from_wire(node):
                 await self._resync()
                 return
             if not node.params.get(action.data_outputs):
@@ -265,7 +265,7 @@ class FlowBoxView:
             return
         await self.sync()
         keys = await self._editor.result_keys(source, "" if source == START else args.get("field") or "")
-        fields = self._editor.fields(target)
+        fields = self._editor.dots.fields(target)
         chosen, kept = WireMatcher.by_name(fields, source, keys, target.params)
         if not chosen and not kept:  # no field named like its keys (an If box): it becomes the first free value
             chosen = WireMatcher.as_value(fields, source, "" if source == START else args.get("field") or "",
@@ -316,7 +316,7 @@ class FlowBoxView:
     def _last_marks(self) -> str:
         marks = {}
         for number, node_id in self._numbers.items():
-            known, value = self._editor.last_result(node_id)
+            known, value = self._editor.dots.last_result(node_id)
             if known:
                 marks[number] = {"text": ResultView.text(value), "failed": False, "debug": True}
         return json.dumps(marks, sort_keys=True, default=str)

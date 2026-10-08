@@ -1,7 +1,9 @@
 import asyncio
 from urllib.parse import parse_qs, urlsplit
 
-PAGE = ("<!doctype html><meta charset=utf-8><title>streamer-toolbox</title>"
+from streamer_toolbox.core.app_name import APP_NAME
+
+PAGE = ("<!doctype html><meta charset=utf-8><title>" + APP_NAME + "</title>"
         "<body style='font-family:sans-serif;padding:2rem'><h2>{title}</h2><p>{text}</p>")
 
 

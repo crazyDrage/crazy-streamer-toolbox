@@ -23,7 +23,7 @@ class FlowListView:
 
     @ui.refreshable_method
     def build(self) -> None:
-        outline = FlowOutline(self._draft.to_flow(), self._editor.ports)
+        outline = FlowOutline(self._draft.to_flow(), self._editor.dots.ports)
         entries = outline.build()
         with ui.row().classes("items-center gap-2"):
             ui.icon("play_circle").classes("text-2xl text-positive")
@@ -61,7 +61,7 @@ class FlowListView:
                 with ui.row().classes("items-center gap-1 text-sm opacity-70 pl-2"):
                     ui.icon("subdirectory_arrow_right")
                     ui.label(f"goes on at box {_number(entry.node_id)} "
-                             f"({self._editor.title(node.action) if node else '?'}), shown above")
+                             f"({self._editor.dots.title(node.action) if node else '?'}), shown above")
             else:
                 node = self._draft.node(entry.node_id)
                 if node is None:
@@ -92,15 +92,15 @@ class FlowListView:
         with ui.row().classes("items-center no-wrap gap-2 w-full"):
             ui.badge(_number(node.id)).props("color=primary rounded").tooltip(f"box {node.id}")
             with ui.column().classes("gap-0 min-w-0 flex-1"):
-                ui.label(self._editor.title(node.action) + ("" if node.enabled else "  (off)")).classes("font-medium")
-                summary = self._editor.summary(node)
+                ui.label(self._editor.dots.title(node.action) + ("" if node.enabled else "  (off)")).classes("font-medium")
+                summary = self._editor.dots.summary(node)
                 if summary:
                     ui.label(summary).classes("text-xs opacity-70 break-all")
                 if node.save_as:
                     ui.label(f"→ saved in variable {node.save_as}").classes("text-xs text-primary")
                 if node.note:
                     ui.label(node.note).classes("text-xs text-warning")
-            ports = self._editor.ports(node.action, node.params)
+            ports = self._editor.dots.ports(node.action, node.params)
             tools = []
             if len(ports) == 1:
                 tools.append(("add", "Add a box after this one", lambda: self._add(node.id, ports[0])))
@@ -121,7 +121,7 @@ class FlowListView:
         if entries:
             last = entries[-1]
             node = self._draft.node(last.node_id) if last.kind == "node" else None
-            ports = self._editor.ports(node.action, node.params) if node else ()
+            ports = self._editor.dots.ports(node.action, node.params) if node else ()
             if len(ports) != 1:
                 return
             source, port = last.node_id, ports[0]
@@ -131,7 +131,7 @@ class FlowListView:
     async def _add(self, source: str, port: str) -> None:
         action = await self._editor.picker().pick()
         if action:
-            node = self._draft.add_after(source, port, action, self._editor.ports(action)[0])
+            node = self._draft.add_after(source, port, action, self._editor.dots.ports(action)[0])
             self._editor.prepare(node)
             self._open = node.id
             self.build.refresh()
@@ -145,7 +145,7 @@ class FlowListView:
             self.build.refresh()
 
     def _delete(self, node: NodeDraft) -> None:
-        self._draft.remove(node.id, self._editor.ports(node.action, node.params))
+        self._draft.remove(node.id, self._editor.dots.ports(node.action, node.params))
         self.build.refresh()
 
     def _opened(self, node_id: str, value: bool) -> None:

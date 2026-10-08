@@ -3,6 +3,7 @@ import asyncio
 from nicegui import ui
 from starlette.requests import Request
 
+from streamer_toolbox.core.app_name import APP_NAME
 from streamer_toolbox.core.security.login_throttle import LoginThrottle
 from streamer_toolbox.core.security.remote_access import RemoteAccess
 from streamer_toolbox.core.security.signed_in_devices import SignedInDevices
@@ -26,7 +27,7 @@ class LoginPage:
         with ui.card().classes("absolute-center w-80 max-w-[90vw] gap-3"):
             with ui.row().classes("items-center gap-2"):
                 ui.icon("construction").classes("text-2xl text-primary")
-                ui.label("streamer-toolbox").classes("text-lg font-semibold")
+                ui.label(APP_NAME).classes("text-lg font-semibold")
             if not self._access.has_password:
                 ui.label("No password is set yet. Set one on the stream PC: Settings → Other devices.") \
                     .classes("text-sm")

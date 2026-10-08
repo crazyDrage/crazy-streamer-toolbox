@@ -19,7 +19,7 @@ HTTP API with pickers).
    - `retry_when_down = True` if it should connect by itself once the program is started later.
 2. Everything else it needs goes into `connections/<id>/`, one class per file: the client, the actions class,
    the event mapping.
-3. Add it to the `ConnectionManager([...])` list in `__main__.py`, giving it `config.tables.get("<id>", {})`.
+3. Add it to the list in `assembly/built_in_connections.py`, giving it `tables.get("<id>", {})`.
 4. Events: take the `EventBus` in `__init__`, `publish("<id>.<what>", {...})`, and list the event's fields
    (`docs/ai/code/events.md`).
 5. Tests: `tests/connections/test_<id>_connection.py`, the service faked. Pass `"enabled": True` in the test's

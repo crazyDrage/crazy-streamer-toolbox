@@ -7,6 +7,7 @@ from nicegui import app, ui
 
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.actions.registered_action import ActionHandler, OptionsProvider
+from streamer_toolbox.core.app_name import APP_NAME
 from streamer_toolbox.core.events.event_bus import EventBus, EventHandler
 from streamer_toolbox.core.events.event_fields import EVENT_FIELDS
 from streamer_toolbox.core.interfaces.confirm_service import ConfirmService
@@ -87,7 +88,7 @@ class NiceGuiPluginContext(PluginContext):
 
     def add_page(self, title: str, builder: Callable[[], None], subpath: str = "", icon: str = "extension") -> str:
         path = f"/plugins/{self._id}" + (f"/{subpath.strip('/')}" if subpath else "")
-        ui.page(path, title=f"{title} · streamer-toolbox")(lambda: self._page_frame(title, path, builder))
+        ui.page(path, title=f"{title} · {APP_NAME}")(lambda: self._page_frame(title, path, builder))
         if not subpath:
             self._ui.pages.append((title, path, icon))
         return path
