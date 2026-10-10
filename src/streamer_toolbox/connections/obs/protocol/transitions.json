@@ -1,0 +1,81 @@
+{
+ "category": "transitions",
+ "requests": {
+  "GetTransitionKindList": {
+   "description": "Gets an array of all available transition kinds.",
+   "fields": []
+  },
+  "GetSceneTransitionList": {
+   "description": "Gets an array of all scene transitions in OBS.",
+   "fields": []
+  },
+  "GetCurrentSceneTransition": {
+   "description": "Gets information about the current scene transition.",
+   "fields": []
+  },
+  "SetCurrentSceneTransition": {
+   "description": "Sets the current scene transition.",
+   "fields": [
+    {
+     "name": "transitionName",
+     "type": "String",
+     "description": "Name of the transition to make active",
+     "optional": false
+    }
+   ]
+  },
+  "SetCurrentSceneTransitionDuration": {
+   "description": "Sets the duration of the current scene transition, if it is not fixed.",
+   "fields": [
+    {
+     "name": "transitionDuration",
+     "type": "Number",
+     "description": "Duration in milliseconds",
+     "optional": false
+    }
+   ]
+  },
+  "SetCurrentSceneTransitionSettings": {
+   "description": "Sets the settings of the current scene transition.",
+   "fields": [
+    {
+     "name": "transitionSettings",
+     "type": "Object",
+     "description": "Settings object to apply to the transition. Can be `{}`",
+     "optional": false
+    },
+    {
+     "name": "overlay",
+     "type": "Boolean",
+     "description": "Whether to overlay over the current settings or replace them",
+     "optional": true
+    }
+   ]
+  },
+  "GetCurrentSceneTransitionCursor": {
+   "description": "Gets the cursor position of the current scene transition.",
+   "fields": []
+  },
+  "TriggerStudioModeTransition": {
+   "description": "Triggers the current scene transition. Same functionality as the `Transition` button in studio mode.",
+   "fields": []
+  },
+  "SetTBarPosition": {
+   "description": "Sets the position of the TBar.",
+   "fields": [
+    {
+     "name": "position",
+     "type": "Number",
+     "description": "New position",
+     "optional": false
+    },
+    {
+     "name": "release",
+     "type": "Boolean",
+     "description": "Whether to release the TBar. Only set `false` if you know that you will be sending another position update",
+     "optional": true
+    }
+   ]
+  }
+ }
+}

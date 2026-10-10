@@ -1,0 +1,133 @@
+{
+ "category": "ui",
+ "requests": {
+  "GetStudioModeEnabled": {
+   "description": "Gets whether studio is enabled.",
+   "fields": []
+  },
+  "SetStudioModeEnabled": {
+   "description": "Enables or disables studio mode",
+   "fields": [
+    {
+     "name": "studioModeEnabled",
+     "type": "Boolean",
+     "description": "True == Enabled, False == Disabled",
+     "optional": false
+    }
+   ]
+  },
+  "OpenInputPropertiesDialog": {
+   "description": "Opens the properties dialog of an input.",
+   "fields": [
+    {
+     "name": "inputName",
+     "type": "String",
+     "description": "Name of the input to open the dialog of",
+     "optional": true
+    },
+    {
+     "name": "inputUuid",
+     "type": "String",
+     "description": "UUID of the input to open the dialog of",
+     "optional": true
+    }
+   ]
+  },
+  "OpenInputFiltersDialog": {
+   "description": "Opens the filters dialog of an input.",
+   "fields": [
+    {
+     "name": "inputName",
+     "type": "String",
+     "description": "Name of the input to open the dialog of",
+     "optional": true
+    },
+    {
+     "name": "inputUuid",
+     "type": "String",
+     "description": "UUID of the input to open the dialog of",
+     "optional": true
+    }
+   ]
+  },
+  "OpenInputInteractDialog": {
+   "description": "Opens the interact dialog of an input.",
+   "fields": [
+    {
+     "name": "inputName",
+     "type": "String",
+     "description": "Name of the input to open the dialog of",
+     "optional": true
+    },
+    {
+     "name": "inputUuid",
+     "type": "String",
+     "description": "UUID of the input to open the dialog of",
+     "optional": true
+    }
+   ]
+  },
+  "GetMonitorList": {
+   "description": "Gets a list of connected monitors and information about them.",
+   "fields": []
+  },
+  "OpenVideoMixProjector": {
+   "description": "Opens a projector for a specific output video mix.",
+   "fields": [
+    {
+     "name": "videoMixType",
+     "type": "String",
+     "description": "Type of mix to open",
+     "optional": false
+    },
+    {
+     "name": "monitorIndex",
+     "type": "Number",
+     "description": "Monitor index, use `GetMonitorList` to obtain index",
+     "optional": true
+    },
+    {
+     "name": "projectorGeometry",
+     "type": "String",
+     "description": "Size/Position data for a windowed projector, in Qt Base64 encoded format. Mutually exclusive with `monitorIndex`",
+     "optional": true
+    }
+   ]
+  },
+  "OpenSourceProjector": {
+   "description": "Opens a projector for a source.",
+   "fields": [
+    {
+     "name": "canvasUuid",
+     "type": "String",
+     "description": "UUID of the canvas the source is in, if using the sourceName field",
+     "optional": true
+    },
+    {
+     "name": "sourceName",
+     "type": "String",
+     "description": "Name of the source to open a projector for",
+     "optional": true
+    },
+    {
+     "name": "sourceUuid",
+     "type": "String",
+     "description": "UUID of the source to open a projector for",
+     "optional": true
+    },
+    {
+     "name": "monitorIndex",
+     "type": "Number",
+     "description": "Monitor index, use `GetMonitorList` to obtain index",
+     "optional": true
+    },
+    {
+     "name": "projectorGeometry",
+     "type": "String",
+     "description": "Size/Position data for a windowed projector, in Qt Base64 encoded format. Mutually exclusive with `monitorIndex`",
+     "optional": true
+    }
+   ]
+  }
+ }
+}

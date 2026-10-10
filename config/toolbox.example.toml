@@ -1,0 +1,66 @@
+# Copy to config/toolbox.toml (gitignored, tokens live there) and edit.
+# Without a toolbox.toml the toolbox runs on 127.0.0.1:8850, loads every plugin and lets anything on this PC call.
+
+[api]
+host = "127.0.0.1"   # "0.0.0.0" to let Kit reach it over the LAN; do this only once every caller below has a token
+port = 8850          # and the pages ask other devices for the [access] password (Settings → Other devices sets both)
+
+# [access]
+# password_hash = "pbkdf2_sha256$..."   # set it in Settings → Other devices; never the password itself
+
+[plugins]
+# Only these plugin ids are loaded; leave the line out to load every plugin found in plugins/.
+enabled = ["hello"]
+
+# Who may call the HTTP API. A caller is recognised by its token (sent as "Authorization: Bearer <token>"
+# or "X-Toolbox-Token: <token>"), or with local = true by calling from this PC without a token.
+# allow: action names or patterns ("hello.*"); "*" = everything. Callers only see and run what they're allowed.
+[callers.sammi]
+local = true
+allow = ["*"]
+
+[callers.kit]
+token = "change-me-to-a-long-random-string"   # python -c "import secrets; print(secrets.token_urlsafe(32))"
+allow = ["hello.greet"]
+
+# Connections: each has its own tab under Connections in the GUI, where "Connect" tests and saves these for you.
+# Every connection is off until you press Connect (or write enabled = true here); then it connects when the
+# toolbox starts.
+[sammi]
+enabled = false
+url = "http://127.0.0.1:9450"   # SAMMI Settings → Local API
+password = ""                   # only if you set one in SAMMI
+
+[sound]
+folder = ""   # where your sound files are; the Play sound box lists them (full paths work too)
+
+[twitch]
+enabled = false
+client_id = ""                          # dev.twitch.tv/console → your app
+client_secret = ""
+redirect_url = "http://localhost:17563"   # must be one of the app's OAuth Redirect URLs
+# The login itself (Connect → allow in the browser) is kept in config/twitch_token.json.
+
+[mixitup]
+enabled = false
+url = "http://localhost:8911/api/v2"   # Mix It Up → Services → Developer API
+
+[obs]
+enabled = false
+url = "ws://127.0.0.1:4455"   # OBS → Tools → WebSocket Server Settings
+password = ""
+
+# One obs.fit_<name>(video_path) action per table. Boxes are [x, y, width, height] in canvas pixels.
+# Placeholders: only the landscape sizes are known (576x324, 757x425). Positions and portrait boxes come from
+# his OBS layout once he places the sources and we read their transforms.
+[obs.fit.raid_clip]
+source = "raid_video_clip"
+scenes = ["desktop", "Just_chatting"]
+landscape = [0, 0, 576, 324]
+portrait = [0, 0, 182, 324]
+
+[obs.fit.sound_alert]
+source = "sound_alert"
+scenes = ["desktop", "Just_chatting"]
+landscape = [0, 0, 757, 425]
+portrait = [0, 0, 239, 425]

@@ -1,0 +1,103 @@
+# GitHub Actions for crazy-streamer-toolbox.
+#
+#   tests      on a push or merge to main, and to a branch named test/<something>. Nowhere else.
+#   package    the Windows and the Linux download, on the same branches and for a version tag (v1.2.3)
+#   release    for a version tag: puts both downloads on the repository's Releases page
+#
+# The tests run on Linux and on Windows. Each download is built on its own system.
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - "test/**"
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.14"
+
+jobs:
+  tests:
+    if: github.ref_type == 'branch'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - run: python -m pip install --quiet -r requirements.txt
+      # no OBS, no accounts, no screen needed: every program is faked
+      - run: python -m unittest discover -s tests -t .
+        env:
+          PYTHONPATH: "src${{ runner.os == 'Windows' && ';' || ':' }}."
+
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: windows
+            os: windows-latest
+          - target: linux
+            os: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: python -m streamer_toolbox.devtools.package ${{ matrix.target }}
+        env:
+          PYTHONPATH: src
+      - uses: actions/upload-artifact@v4
+        with:
+          name: crazy-streamer-toolbox-${{ matrix.target }}
+          path: build/crazy-streamer-toolbox-${{ matrix.target }}.zip
+          if-no-files-found: error
+          retention-days: 14
+
+  # The README's download links point at these two file names of the newest release:
+  #   <repository>/releases/latest/download/crazy-streamer-toolbox-windows.zip
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      # the checkout brings the tag without its message: get the tag itself
+      - run: git fetch --force origin "refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
+      - uses: actions/download-artifact@v4
+        with:
+          path: downloads
+          merge-multiple: true
+      # The release's text is the tag's message (git tag -a v1.2.3 -m "..."); a tag without one gets one line.
+      - name: Release notes from the tag's message
+        run: |
+          if [ "$(git cat-file -t "$GITHUB_REF_NAME")" = "tag" ]; then
+            git tag -l --format='%(contents:subject)%0a%0a%(contents:body)' "$GITHUB_REF_NAME" > notes.md
+          fi
+          if ! grep -q '[^[:space:]]' notes.md 2>/dev/null; then
+            echo 'Still in testing: Settings > What you see starts on "Tested".' > notes.md
+          fi
+          cat notes.md
+      - run: >
+          gh release create "$GITHUB_REF_NAME"
+          downloads/crazy-streamer-toolbox-windows.zip
+          downloads/crazy-streamer-toolbox-linux.zip
+          --repo "$GITHUB_REPOSITORY"
+          --title "crazy-streamer-toolbox $GITHUB_REF_NAME"
+          --notes-file notes.md
+        env:
+          GH_TOKEN: ${{ github.token }}

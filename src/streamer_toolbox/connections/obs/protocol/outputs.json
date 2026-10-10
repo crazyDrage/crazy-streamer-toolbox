@@ -1,0 +1,121 @@
+{
+ "category": "outputs",
+ "requests": {
+  "GetVirtualCamStatus": {
+   "description": "Gets the status of the virtualcam output.",
+   "fields": []
+  },
+  "ToggleVirtualCam": {
+   "description": "Toggles the state of the virtualcam output.",
+   "fields": []
+  },
+  "StartVirtualCam": {
+   "description": "Starts the virtualcam output.",
+   "fields": []
+  },
+  "StopVirtualCam": {
+   "description": "Stops the virtualcam output.",
+   "fields": []
+  },
+  "GetReplayBufferStatus": {
+   "description": "Gets the status of the replay buffer output.",
+   "fields": []
+  },
+  "ToggleReplayBuffer": {
+   "description": "Toggles the state of the replay buffer output.",
+   "fields": []
+  },
+  "StartReplayBuffer": {
+   "description": "Starts the replay buffer output.",
+   "fields": []
+  },
+  "StopReplayBuffer": {
+   "description": "Stops the replay buffer output.",
+   "fields": []
+  },
+  "SaveReplayBuffer": {
+   "description": "Saves the contents of the replay buffer output.",
+   "fields": []
+  },
+  "GetLastReplayBufferReplay": {
+   "description": "Gets the filename of the last replay buffer save file.",
+   "fields": []
+  },
+  "GetOutputList": {
+   "description": "Gets the list of available outputs.",
+   "fields": []
+  },
+  "GetOutputStatus": {
+   "description": "Gets the status of an output.",
+   "fields": [
+    {
+     "name": "outputName",
+     "type": "String",
+     "description": "Output name",
+     "optional": false
+    }
+   ]
+  },
+  "ToggleOutput": {
+   "description": "Toggles the status of an output.",
+   "fields": [
+    {
+     "name": "outputName",
+     "type": "String",
+     "description": "Output name",
+     "optional": false
+    }
+   ]
+  },
+  "StartOutput": {
+   "description": "Starts an output.",
+   "fields": [
+    {
+     "name": "outputName",
+     "type": "String",
+     "description": "Output name",
+     "optional": false
+    }
+   ]
+  },
+  "StopOutput": {
+   "description": "Stops an output.",
+   "fields": [
+    {
+     "name": "outputName",
+     "type": "String",
+     "description": "Output name",
+     "optional": false
+    }
+   ]
+  },
+  "GetOutputSettings": {
+   "description": "Gets the settings of an output.",
+   "fields": [
+    {
+     "name": "outputName",
+     "type": "String",
+     "description": "Output name",
+     "optional": false
+    }
+   ]
+  },
+  "SetOutputSettings": {
+   "description": "Sets the settings of an output.",
+   "fields": [
+    {
+     "name": "outputName",
+     "type": "String",
+     "description": "Output name",
+     "optional": false
+    },
+    {
+     "name": "outputSettings",
+     "type": "Object",
+     "description": "Output settings",
+     "optional": false
+    }
+   ]
+  }
+ }
+}

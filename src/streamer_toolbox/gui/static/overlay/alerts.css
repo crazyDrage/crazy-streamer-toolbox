@@ -1,0 +1,167 @@
+/* The alerts overlay: see-through page, one alert at a time. Change the look of every alert with OBS's "Custom
+   CSS" on the Browser source, e.g.  :root { --alert-accent: #ffb347; --alert-size: 56px; }
+   An alert's own look (Overlay → Alerts → Look and animation) wins over these. */
+:root {
+  --alert-accent: #a78bfa;
+  --alert-color: #ffffff;
+  --alert-size: 44px;
+  --alert-font: "Segoe UI", "Noto Sans", system-ui, sans-serif;
+  --alert-media-height: calc(var(--vh) * 45);
+  --alert-fade: 400ms;
+  /* one percent of the screen: plain vh / vw in OBS; the toolbox's shrunk preview frames set them so sizes
+     stay what they are on the real canvas */
+  --vh: 1vh;
+  --vw: 1vw;
+}
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+}
+
+#stage {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: calc(var(--vh) * 5) calc(var(--vw) * 4);
+  box-sizing: border-box;
+}
+
+#stage.center { justify-content: center; }
+#stage.bottom { justify-content: flex-end; }
+
+/* an alert dragged to its own spot: its middle sits at left / top (percent of the screen) */
+.spot.free {
+  position: absolute;
+  transform: translate(-50%, -50%);
+}
+
+.alert {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  animation-duration: var(--alert-fade);
+  animation-timing-function: ease;
+  animation-fill-mode: both;
+}
+
+.alert.above { flex-direction: column-reverse; }
+
+.alert .media {
+  position: relative;
+  display: flex;
+}
+
+.alert img, .alert video {
+  max-height: var(--alert-media-height);
+  max-width: calc(var(--vw) * 80);
+  user-select: none;
+}
+
+/* a picture height set in the alert's look: exactly that high (a small gif grows), not only "at most" */
+.alert.sized img, .alert.sized video {
+  height: var(--alert-media-height);
+  object-fit: contain;
+}
+
+/* once the picture's own shape is known (alerts.js sets --alert-aspect = width / height): as high as set, but not
+   wider than the screen allows, and the box is exactly the picture (pieces on it and the resize handle sit on
+   the picture, not on an empty margin around it) */
+.alert.sized.measured img, .alert.sized.measured video {
+  height: min(var(--alert-media-height), calc(var(--vw) * 80 / var(--alert-aspect)));
+  max-height: none;
+}
+
+.alert .words {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+/* a piece of the words: the text line, the name, the amount, their message */
+.alert .part {
+  font-family: var(--alert-font);
+  font-size: var(--alert-size);
+  font-weight: 800;
+  color: var(--alert-color);
+  text-align: center;
+  text-shadow: 0 0 6px #000, 0 2px 4px #000, 0 0 2px #000;
+  overflow-wrap: anywhere;
+}
+
+.alert .part b, .alert .part-name, .alert .part-amount {
+  color: var(--alert-accent);
+}
+
+.alert .part-message {
+  font-size: calc(var(--alert-size) * 0.6);
+  font-weight: 600;
+  max-width: calc(var(--vw) * 70);
+}
+
+/* a piece on the picture: left / top (percent of the picture) is where its anchor sits: the middle of its top
+   edge, or with align-left / align-right its top left / top right corner (so a name starts at the left edge of
+   its box on a card, and a message that wraps grows downwards inside its box) */
+.alert .part.over {
+  position: absolute;
+  transform: translate(-50%, 0);
+  width: max-content;
+  max-width: calc(var(--vw) * 80);  /* may be wider than a small picture, unless it has a width of its own */
+}
+
+.alert .part.over.align-left { transform: none; }
+.alert .part.over.align-right { transform: translate(-100%, 0); }
+
+/* the look editor's frame */
+body.edit .alert { cursor: grab; touch-action: none; }
+body.edit .spot.moving .alert { cursor: grabbing; }
+
+body.edit .part.draggable {
+  cursor: move;
+  outline: 3px dashed var(--alert-accent);
+  outline-offset: 8px;
+  touch-action: none;
+  user-select: none;
+}
+
+/* the corner of the picture that is dragged to make it bigger or smaller */
+body.edit .media .resize {
+  position: absolute;
+  right: -14px;
+  bottom: -14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--alert-accent);
+  border: 3px solid #fff;
+  box-shadow: 0 0 6px #000;
+  cursor: nwse-resize;
+  touch-action: none;
+}
+
+body.edit .media .resize.upper {
+  top: -14px;
+  bottom: auto;
+  cursor: nesw-resize;
+}
+
+@keyframes alert-in-fade { from { opacity: 0; } }
+@keyframes alert-in-slide_down { from { opacity: 0; transform: translateY(-80px); } }
+@keyframes alert-in-slide_up { from { opacity: 0; transform: translateY(80px); } }
+@keyframes alert-in-zoom { from { opacity: 0; transform: scale(0.5); } }
+@keyframes alert-in-pop {
+  0% { opacity: 0; transform: scale(0.5); }
+  70% { opacity: 1; transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+@keyframes alert-out-fade { to { opacity: 0; } }
+@keyframes alert-out-slide_up { to { opacity: 0; transform: translateY(-80px); } }
+@keyframes alert-out-slide_down { to { opacity: 0; transform: translateY(80px); } }
+@keyframes alert-out-zoom { to { opacity: 0; transform: scale(0.5); } }
