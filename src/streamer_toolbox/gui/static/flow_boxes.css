@@ -1,0 +1,134 @@
+/* box view of the flow editor, on top of drawflow.min.css; works in light and dark */
+.tb-drawflow {
+  background-color: rgba(127, 127, 127, 0.06);
+  background-image: radial-gradient(rgba(127, 127, 127, 0.35) 1px, transparent 1px);
+  background-size: 22px 22px;
+  border: 1px solid rgba(127, 127, 127, 0.3);
+  border-radius: 8px;
+}
+.tb-drawflow .drawflow .drawflow-node {
+  width: 190px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 2px solid rgba(127, 127, 127, 0.5);
+  background: #ffffff;
+  color: #1d1d1d;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+.body--dark .tb-drawflow .drawflow .drawflow-node { background: #2a2a2e; color: #eee; }
+.tb-drawflow .drawflow .drawflow-node.selected { border-color: #6d5dfc; background: #efeaff; }
+.body--dark .tb-drawflow .drawflow .drawflow-node.selected { background: #3a3360; }
+.tb-drawflow .drawflow .drawflow-node.tb-start { border-color: #21ba45; width: 160px; }
+.tb-drawflow .drawflow .drawflow-node.tb-off { opacity: 0.45; border-style: dashed; }
+.tb-drawflow .drawflow .connection .main-path { stroke: #6d5dfc; stroke-width: 4px; }
+.tb-drawflow .drawflow .drawflow-node .input,
+.tb-drawflow .drawflow .drawflow-node .output { width: 18px; height: 18px; border: 2px solid #6d5dfc; background: #fff; }
+.tb-drawflow .tb-title { font-weight: 600; }
+.tb-drawflow .tb-detail { font-size: 12px; opacity: 0.75; word-break: break-all; }
+.tb-drawflow .tb-note { font-size: 12px; color: #f2c037; }
+.tb-drawflow .tb-save { font-size: 12px; color: #6d5dfc; }
+.body--dark .tb-drawflow .tb-save { color: #a99dff; }
+/* port colours: the label in the box, its output dot and its wires (set by flow_boxes.js) */
+.tb-drawflow { --tb-go: #21ba45; --tb-stop: #c10015; --tb-loop: #1e88e5; --tb-none: #8a8a8a; }
+.body--dark .tb-drawflow { --tb-stop: #ff6b6b; --tb-loop: #64b5f6; --tb-none: #aaaaaa; }
+.tb-drawflow .drawflow .drawflow-node .output.tb-port-then,
+.tb-drawflow .drawflow .drawflow-node .output.tb-port-yes { border-color: var(--tb-go); background: var(--tb-go); }
+.tb-drawflow .drawflow .drawflow-node .output.tb-port-else,
+.tb-drawflow .drawflow .drawflow-node .output.tb-port-no { border-color: var(--tb-stop); background: var(--tb-stop); }
+.tb-drawflow .drawflow .drawflow-node .output.tb-port-each { border-color: var(--tb-loop); background: var(--tb-loop); }
+.tb-drawflow .drawflow .drawflow-node .output.tb-port-no_answer { border-color: var(--tb-none); background: var(--tb-none); }
+.tb-drawflow .drawflow .connection.tb-port-then .main-path,
+.tb-drawflow .drawflow .connection.tb-port-yes .main-path { stroke: var(--tb-go); }
+.tb-drawflow .drawflow .connection.tb-port-else .main-path,
+.tb-drawflow .drawflow .connection.tb-port-no .main-path { stroke: var(--tb-stop); }
+.tb-drawflow .drawflow .connection.tb-port-each .main-path { stroke: var(--tb-loop); }
+.tb-drawflow .drawflow .connection.tb-port-no_answer .main-path { stroke: var(--tb-none); stroke-dasharray: 8 6; }
+.tb-drawflow .drawflow .drawflow-node .outputs,
+.tb-drawflow .drawflow .drawflow-node .inputs { gap: 14px; display: flex; flex-direction: column; }
+/* dot names (then / else, a field, result): small tags just outside the box, above the dot */
+.tb-drawflow .drawflow .drawflow-node .input[data-label]::after,
+.tb-drawflow .drawflow .drawflow-node .output[data-label]::after {
+  content: attr(data-label); position: absolute; bottom: 17px; white-space: nowrap; pointer-events: none;
+  font-size: 11px; font-weight: 600; line-height: 1; padding: 1px 4px; border-radius: 4px;
+  background: rgba(255, 255, 255, 0.85); color: #333;
+}
+.body--dark .tb-drawflow .drawflow .drawflow-node .input[data-label]::after,
+.body--dark .tb-drawflow .drawflow .drawflow-node .output[data-label]::after { background: rgba(30, 30, 34, 0.85); color: #ddd; }
+.tb-drawflow .drawflow .drawflow-node .output[data-label]::after { left: 8px; }
+.tb-drawflow .drawflow .drawflow-node .input[data-label]::after { right: 8px; }
+.tb-drawflow .drawflow .drawflow-node .output.tb-port-then[data-label]::after,
+.tb-drawflow .drawflow .drawflow-node .output.tb-port-yes[data-label]::after { color: var(--tb-go); }
+.tb-drawflow .drawflow .drawflow-node .output.tb-port-else[data-label]::after,
+.tb-drawflow .drawflow .drawflow-node .output.tb-port-no[data-label]::after { color: var(--tb-stop); }
+.tb-drawflow .drawflow .drawflow-node .output.tb-port-each[data-label]::after { color: var(--tb-loop); }
+/* data: orange square dots and orange wires, a little apart from the run dots */
+.tb-drawflow .drawflow .drawflow-node .output.tb-data-first { margin-top: 12px; }
+.tb-drawflow { --tb-data: #ef8a17; }
+.body--dark .tb-drawflow { --tb-data: #ffab40; }
+.tb-drawflow .drawflow .drawflow-node .input.tb-data,
+.tb-drawflow .drawflow .drawflow-node .output.tb-data { border-radius: 4px; border-color: var(--tb-data); background: #fff3e0; }
+.body--dark .tb-drawflow .drawflow .drawflow-node .input.tb-data,
+.body--dark .tb-drawflow .drawflow .drawflow-node .output.tb-data { background: #4a3417; }
+.tb-drawflow .drawflow .drawflow-node .input.tb-data[data-label]::after,
+.tb-drawflow .drawflow .drawflow-node .output.tb-data[data-label]::after { color: var(--tb-data); }
+/* an extra run dot on the left (a Loop's stop) */
+.tb-drawflow .drawflow .drawflow-node .input.tb-entry { border-color: var(--tb-stop); background: var(--tb-stop); }
+.tb-drawflow .drawflow .drawflow-node .input.tb-entry[data-label]::after { color: var(--tb-stop); }
+/* the "by name" dot: a result dropped here fills the fields named like its keys */
+.tb-drawflow .drawflow .drawflow-node .input.tb-by-name { border-style: dashed; }
+.tb-drawflow .drawflow .drawflow-node .input.tb-by-name[data-label]::after { font-style: italic; }
+/* Test run results under each box */
+.tb-drawflow .tb-ran { font-size: 12px; margin-top: 4px; padding: 2px 6px; border-radius: 4px; word-break: break-word;
+  background: rgba(33, 186, 69, 0.15); color: var(--tb-go); }
+/* debug: the full value, as it is (line breaks of a list / object kept), scrolls when it's long */
+.tb-drawflow .tb-ran-debug { white-space: pre-wrap; font-family: monospace; font-size: 11px; max-height: 160px; overflow: auto; }
+.tb-drawflow .tb-ran-failed { background: rgba(193, 0, 21, 0.15); color: var(--tb-stop); }
+.tb-drawflow .drawflow .drawflow-node.tb-failed { border-color: var(--tb-stop); }
+/* long orange wires as short tagged ends (flow_boxes.js tbFlowStubs); hover a faded wire to see it */
+.tb-drawflow .tb-stub {
+  position: absolute; top: -1px; white-space: nowrap; pointer-events: none; font-size: 11px; font-weight: 600;
+  line-height: 16px; padding: 0 5px; border: 1px dashed var(--tb-data); border-radius: 4px; color: var(--tb-data);
+  background: rgba(255, 255, 255, 0.92);
+}
+.body--dark .tb-drawflow .tb-stub { background: rgba(30, 30, 34, 0.92); }
+.tb-drawflow .tb-stub-input { right: 24px; }
+.tb-drawflow .tb-stub-output { left: 24px; }
+.tb-drawflow .drawflow .connection.tb-cut .main-path { stroke-opacity: 0.08; }
+.tb-drawflow .drawflow .connection.tb-cut .main-path:hover { stroke-opacity: 1; }
+.tb-drawflow .drawflow .connection.tb-data .main-path { stroke: var(--tb-data); stroke-width: 3px; stroke-dasharray: 2 5; stroke-linecap: round; }
+.tb-flow-area.tb-full { position: fixed; inset: 0; z-index: 2000; background: #fafafa; padding: 0; }
+.body--dark .tb-flow-area.tb-full { background: #121212; }
+.tb-flow-area.tb-full .tb-drawflow { height: 100vh; border-radius: 0; }
+/* the box panel, docked left of the canvas; folded it's a thin strip of buttons (flow_boxes.js tbFlowPanel) */
+.tb-flow-panel {
+  flex: none; width: 360px; height: 640px; margin-right: 8px; display: flex; flex-direction: column;
+  overflow: hidden; border: 1px solid rgba(127, 127, 127, 0.3); border-radius: 8px; background: #fff;
+  transition: width 0.2s ease;
+}
+.body--dark .tb-flow-panel { background: #1d1d1d; }
+.tb-flow-panel .tb-flow-body { flex: 1; overflow: auto; }
+.tb-flow-panel .tb-rail-only { display: none; }
+.tb-flow-panel.tb-folded { width: 44px; }
+.tb-flow-panel.tb-folded .tb-flow-handle { flex-direction: column; height: 100%; justify-content: flex-start; }
+.tb-flow-panel.tb-folded .tb-flow-body,
+.tb-flow-panel.tb-folded .tb-panel-title { display: none; }
+.tb-flow-panel.tb-folded .tb-rail-only { display: inline-flex; }
+.tb-flow-panel .tb-fold-button .q-icon { transition: transform 0.2s ease; }
+.tb-flow-panel.tb-folded .tb-fold-button .q-icon { transform: rotate(180deg); }
+.tb-flow-area.tb-full .tb-flow-panel { height: 100vh; border-radius: 0; margin-right: 0; }
+/* phone: the panel slides in over the canvas instead of beside it */
+@media (max-width: 700px) {
+  .tb-flow-panel { position: absolute; left: 0; top: 0; bottom: 0; height: auto; z-index: 10; width: min(360px, 88vw);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35); }
+  .tb-flow-area { padding-left: 44px; }
+}
+
+/* a selected wire (click near it) and its remove button (flow_boxes.js tbFlowWireClicks) */
+.tb-drawflow .drawflow svg.connection path.main-path.selected {
+  stroke: #e53935; stroke-width: 6px; stroke-dasharray: none; stroke-opacity: 1;
+}
+.tb-drawflow .tb-wire-delete {
+  position: absolute; z-index: 20; transform: translate(-50%, -50%); width: 30px; height: 30px;
+  border: 2px solid #fff; border-radius: 50%; background: #e53935; color: #fff; font-size: 20px; line-height: 1;
+  cursor: pointer; box-shadow: 0 1px 4px rgba(0, 0, 0, .4);
+}

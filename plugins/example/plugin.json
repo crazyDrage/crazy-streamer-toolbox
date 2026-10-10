@@ -1,0 +1,8 @@
+{
+  "id": "example",
+  "name": "Example lamp",
+  "version": "1.0.0",
+  "api_version": 2,
+  "description": "A guided tour: one plugin that adds a connection, boxes with pickers, a trigger, a tool, a Live card, a page, an API route and settings. Its 'program' is a pretend lamp, so it runs without anything installed. Read its README.md.",
+  "author": "streamer-toolbox"
+}

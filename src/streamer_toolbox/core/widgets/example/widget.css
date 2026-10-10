@@ -1,0 +1,3 @@
+.main-container { color: {{textColor}}; font-size: {fontSize}px; font-family: sans-serif; padding: 40px;
+  text-shadow: 0 0 6px #000; }
+#name { font-weight: 800; }

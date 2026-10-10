@@ -1,0 +1,7 @@
+{
+  "title": {"type": "text", "label": "Title", "value": "Latest follower", "group": "Text"},
+  "emptyText": {"type": "text", "label": "When nobody followed yet", "value": "nobody yet", "group": "Text"},
+  "textColor": {"type": "colorpicker", "label": "Text colour", "value": "#ffffff", "group": "Look"},
+  "fontSize": {"type": "slider", "label": "Font size", "value": 64, "min": 20, "max": 160, "step": 4, "group": "Look"},
+  "clearLog": {"type": "button", "label": "Clear the chat lines", "value": "clear", "group": "Look"}
+}
