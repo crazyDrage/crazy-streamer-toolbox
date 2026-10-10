@@ -36,6 +36,16 @@ GitHub builds both (`.github/workflows/ci.yml`), each on its own system:
 
 The README's download links point at the newest release.
 
+Making a release: put a tag with a message on the commit of `main` and push the tag. The message becomes the
+release's text (first line, empty line, then the rest).
+
+```
+git tag -a v0.1.0 -m "First test release" -m "What is new, what to try."
+git push origin v0.1.0
+```
+
+The tag's run does not run the tests: tag a commit whose run on `main` was green.
+
 ## The docs
 
 ```

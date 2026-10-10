@@ -75,16 +75,29 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+      # the checkout brings the tag without its message: get the tag itself
+      - run: git fetch --force origin "refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
       - uses: actions/download-artifact@v4
         with:
           path: downloads
           merge-multiple: true
+      # The release's text is the tag's message (git tag -a v1.2.3 -m "..."); a tag without one gets one line.
+      - name: Release notes from the tag's message
+        run: |
+          if [ "$(git cat-file -t "$GITHUB_REF_NAME")" = "tag" ]; then
+            git tag -l --format='%(contents:subject)%0a%0a%(contents:body)' "$GITHUB_REF_NAME" > notes.md
+          fi
+          if ! grep -q '[^[:space:]]' notes.md 2>/dev/null; then
+            echo 'Still in testing: Settings > What you see starts on "Tested".' > notes.md
+          fi
+          cat notes.md
       - run: >
           gh release create "$GITHUB_REF_NAME"
           downloads/crazy-streamer-toolbox-windows.zip
           downloads/crazy-streamer-toolbox-linux.zip
           --repo "$GITHUB_REPOSITORY"
           --title "crazy-streamer-toolbox $GITHUB_REF_NAME"
-          --notes "Still in testing: Settings > What you see starts on \"Tested\"."
+          --notes-file notes.md
         env:
           GH_TOKEN: ${{ github.token }}
