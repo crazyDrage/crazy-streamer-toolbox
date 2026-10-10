@@ -142,7 +142,8 @@ core/                    shared building blocks, no service-specific code
                          box can have, ONE connection (collected in UiRegistry.connections, joined to the
                          built-in ones in assembly/BuiltInConnections, configured from its [<id>] table), triggers (written
                          into EVENT_FIELDS and TRIGGER_KINDS at load), publish / on_event on the EventBus.
-                         plugins/example/ is the guided tour of all of it
+                         the example plugin (plugins/example/, kept apart from this repository) is the
+                         guided tour of all of it
 connections/             ONLY the connection classes, one per service
   obs_connection.py  sammi_connection.py  mixitup_connection.py  vts_connection.py  twitch_connection.py
   streamelements_connection.py  streamlabs_connection.py  rumble_connection.py  youtube_connection.py

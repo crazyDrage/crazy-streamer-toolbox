@@ -22,9 +22,14 @@ $env:PYTHONPATH = "src"; .venv\Scripts\python.exe -m streamer_toolbox.devtools.p
 $env:PYTHONPATH = "src"; .venv\Scripts\python.exe -m streamer_toolbox.devtools.package linux
 ```
 
-Give `build/crazy-streamer-toolbox-windows.zip` (with its own Python and the two `.bat` start scripts) and
-`build/crazy-streamer-toolbox-linux.zip` (no Python: `start-linux.sh` gets the libraries on the first start).
-The Windows one can be built on Linux as well: the libraries are then taken as ready-made Windows packages.
+Give `build/crazy-streamer-toolbox-windows.zip` (the two `.bat` start scripts) and
+`build/crazy-streamer-toolbox-linux.tar.gz` (the two `.sh` start scripts). Each has its own Python and every
+library, so nothing is installed on the other PC.
+
+- The Windows one can be built on Linux as well: the libraries are then taken as ready-made Windows packages.
+- The Linux one is built on Linux only, with a C compiler there (`gcc`): its Python (a ready-made one from the
+  python-build-standalone project, which runs from any folder) installs the libraries itself, and one of them
+  is compiled while doing so. The download runs on a Linux at least as new as the one it was built on.
 
 GitHub builds both (`.github/workflows/ci.yml`), each on its own system:
 

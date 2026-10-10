@@ -1,11 +1,13 @@
 import shutil
 import subprocess
 import sys
+import tarfile
 import urllib.request
 import zipfile
 from pathlib import Path
 
 from streamer_toolbox.core.testing.release_marker import RELEASE_MARKER
+from streamer_toolbox.devtools.package.linux_python import LinuxPython
 
 PYTHON_ZIP = "https://www.python.org/ftp/python/{version}/python-{version}-embed-amd64.zip"
 # what goes into the archive from the repo: only files git knows, and only these. Never config/ (his settings
@@ -21,7 +23,7 @@ cd /d "%~dp0"
 "python\\python.exe" -m streamer_toolbox --open {open} %*
 if errorlevel 1 pause
 """
-# Linux has no Python to carry along like Windows' embeddable package: the script makes a .venv in the folder
+# The archive for both systems carries no Python for Linux: the script makes a .venv in the folder
 # on the first start, with the PC's own python3, and installs the libraries into it. 3.12 or newer: on 3.11
 # asyncio.wait_for can swallow a cancel, and a connection's stop then never returns. The keyboard library
 # (pynput) brings evdev, which pip has to compile: that is what gcc and python3-dev are for
@@ -45,6 +47,13 @@ if [ ! -x ".venv/bin/python" ]; then
 fi
 PYTHONPATH="$(pwd)/src" exec .venv/bin/python -m streamer_toolbox --open {open} "$@"
 """
+# the Linux download brings its Python and the libraries (LinuxPython): nothing to get, nothing to install
+LINUX_OWN_START = """#!/bin/sh
+# Starts streamer-toolbox on Linux and opens it {how}.
+# Everything it needs is in this folder; nothing is installed on the PC.
+cd "$(dirname "$0")" || exit 1
+PYTHONPATH="$(pwd)/src" exec python/bin/python3 -m streamer_toolbox --open {open} "$@"
+"""
 SCRIPTS = (("Start streamer-toolbox.bat", START, "window", "ascii", "\r\n"),
            ("Start in the browser.bat", START, "browser", "ascii", "\r\n"),
            ("start-linux.sh", LINUX_START, "window", "utf-8", "\n"),
@@ -67,18 +76,20 @@ class Packager:
     choose themselves in Settings → What you see, which starts on "Tested" (TestView). tested_only=True builds
     one that leaves out what is not ticked off there: it gets the marker file that tells the toolbox so.
 
-    target = WINDOWS or LINUX builds a download for that system only (the releases, built by GitHub):
-    crazy-streamer-toolbox-windows.zip has the Python and the .bat scripts, crazy-streamer-toolbox-linux.zip
-    neither (start-linux.sh gets the libraries on the first start). The Windows one can be built on Linux:
-    the libraries are then taken as ready-made Windows packages."""
+    target = WINDOWS or LINUX builds a download for that system only (the releases, built by GitHub), each
+    with its own Python, so nothing is installed on the other PC: crazy-streamer-toolbox-windows.zip (the .bat
+    scripts) and crazy-streamer-toolbox-linux.tar.gz (the .sh scripts; a tar keeps what Linux needs: which
+    files may run, and links). The Windows one can be built on Linux: the libraries are then taken as
+    ready-made Windows packages. The Linux one only on Linux (see LinuxPython)."""
 
     def __init__(self, repo: Path, build: Path, version: str = "", tested_only: bool = False,
-                 target: str = "") -> None:
+                 target: str = "", linux_python: LinuxPython | None = None) -> None:
         self._repo = repo
         self._build = build
         self._tested_only = tested_only
         self._target = target
         self._version = version or "{}.{}.{}".format(*sys.version_info[:3])
+        self._linux_python = linux_python or LinuxPython(build / "cache", ".".join(self._version.split(".")[:2]))
 
     def build(self, name: str = "") -> Path:
         name = name or (f"crazy-streamer-toolbox-{self._target}" if self._target else "streamer-toolbox")
@@ -86,22 +97,44 @@ class Packager:
         if folder.exists():
             shutil.rmtree(folder)
         folder.mkdir(parents=True)
-        if self._target != LINUX:
+        python = self._version
+        copied = self._files(folder)  # before the Linux Python: it installs from the copied requirements.txt
+        if self._target == LINUX:
+            python = self._linux_python.put(folder, folder / "requirements.txt")
+        else:
             self._python(folder / "python")
             self._libraries(folder / "python" / "Lib" / "site-packages")
-        copied = self._files(folder)
         self._start_scripts(folder, self._target)
+        archive = self._tar(folder, name) if self._target == LINUX else self._zip(folder, name)
+        # no arrow in it: not every console can print one
+        print(f"{'only what is tested' if self._tested_only else 'everything in it (Settings, What you see)'}: "
+              f"{copied} toolbox files, Python {python} -> {archive} ({archive.stat().st_size / 1e6:.1f} MB)")
+        return archive
+
+    def _zip(self, folder: Path, name: str) -> Path:
         archive = self._build / f"{name}.zip"
         archive.unlink(missing_ok=True)
         with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as packed:
             for file in sorted(folder.rglob("*")):
                 if file.is_file() and "__pycache__" not in file.parts:
                     self._pack(packed, file, Path(name) / file.relative_to(folder))
-        # no arrow in it: not every console can print one
-        print(f"{'only what is tested' if self._tested_only else 'everything in it (Settings, What you see)'}: "
-              f"{copied} toolbox files, {'no Python' if self._target == LINUX else f'Python {self._version}'} "
-              f"-> {archive} "
-              f"({archive.stat().st_size / 1e6:.1f} MB)")
+        return archive
+
+    def _tar(self, folder: Path, name: str) -> Path:
+        """The Linux download: links stay links, and what may run stays runnable (the start scripts always)."""
+        def entry(info: tarfile.TarInfo) -> tarfile.TarInfo | None:
+            if "__pycache__" in info.name.split("/"):
+                return None
+            if info.name.endswith(".sh"):
+                info.mode = 0o755
+            info.uid = info.gid = 0
+            info.uname = info.gname = ""
+            return info
+
+        archive = self._build / f"{name}.tar.gz"
+        archive.unlink(missing_ok=True)
+        with tarfile.open(archive, "w:gz") as packed:
+            packed.add(folder, arcname=name, filter=entry)
         return archive
 
     @staticmethod
@@ -109,6 +142,8 @@ class Packager:
         for script, text, how, encoding, line_end in SCRIPTS:
             if target and (target == LINUX) != script.endswith(".sh"):
                 continue  # the other system's script
+            if target == LINUX:
+                text = LINUX_OWN_START
             (folder / script).write_text(text.format(open=how, how=HOW[how]), encoding=encoding, newline=line_end)
 
     @staticmethod

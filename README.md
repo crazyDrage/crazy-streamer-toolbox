@@ -16,7 +16,7 @@ ours: there is none.
 | | |
 |---|---|
 | **Windows** (64 bit) | [crazy-streamer-toolbox-windows.zip][download-windows] |
-| **Linux** | [crazy-streamer-toolbox-linux.zip][download-linux] |
+| **Linux** (64 bit) | [crazy-streamer-toolbox-linux.tar.gz][download-linux] |
 | Every version | [Releases][releases] |
 
 **Still in testing.** Most of it has not been tried by anyone but its author yet. Settings → What you see
@@ -40,13 +40,13 @@ Python and every library it needs are in the archive.
 
 ### Linux
 
-It was started on Ubuntu 24.04 without a screen (the pages answer), but not yet used on a real Linux desktop.
+1. Download the Linux archive and unpack it: `tar -xzf crazy-streamer-toolbox-linux.tar.gz`
+2. Run `./start-linux.sh` in its folder (`./start-linux-browser.sh` for a browser tab).
 
-1. You need `python3` 3.12 or newer with `venv`, and a C compiler. On Debian / Ubuntu:
-   `sudo apt install python3-venv python3-dev gcc`
-2. Download the Linux archive, unpack it and run `./start-linux.sh` in its folder
-   (`./start-linux-browser.sh` for a browser tab).
-3. The first start gets the libraries from the internet into a `.venv` folder inside the toolbox's folder.
+Python and every library it needs are in the archive here too; no `apt install`, no internet at the start.
+It needs a 64 bit (x86) Linux about as new as Ubuntu 22.04 or Debian 12.
+
+It was started on Linux without a screen (the pages answer), but not yet used on a real Linux desktop.
 
 ### What next
 
@@ -120,12 +120,13 @@ plugins/my_thing/
   resources/         pictures, default settings, JS, ...
 ```
 
-- Start with [plugins/example](plugins/example/README.md): a guided tour with one of everything.
-- [plugins/hello](plugins/hello) is the smallest one, [plugins/sammi_decks](plugins/sammi_decks) a real tool.
 - The guide: [docs/PLUGINS.md](docs/PLUGINS.md).
+- Plugins are not part of this repository, and the download comes without any. The example plugins (a
+  guided tour with one of everything, the smallest possible one, and SAMMI decks as buttons) are planned
+  as a repository of their own.
 
 [download]: https://github.com/crazyDrage/crazy-streamer-toolbox/releases/latest
 [download-windows]: https://github.com/crazyDrage/crazy-streamer-toolbox/releases/latest/download/crazy-streamer-toolbox-windows.zip
-[download-linux]: https://github.com/crazyDrage/crazy-streamer-toolbox/releases/latest/download/crazy-streamer-toolbox-linux.zip
+[download-linux]: https://github.com/crazyDrage/crazy-streamer-toolbox/releases/latest/download/crazy-streamer-toolbox-linux.tar.gz
 [releases]: https://github.com/crazyDrage/crazy-streamer-toolbox/releases
 [issues]: https://github.com/crazyDrage/crazy-streamer-toolbox/issues

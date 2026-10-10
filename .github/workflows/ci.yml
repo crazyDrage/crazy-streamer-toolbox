@@ -4,7 +4,7 @@
 #   package    the Windows and the Linux download, on the same branches and for a version tag (v1.2.3)
 #   release    for a version tag: puts both downloads on the repository's Releases page
 #
-# The tests run on Linux and on Windows. Each download is built on its own system.
+# The tests run on Linux and on Windows. Each download is built on its own system and has its own Python.
 name: CI
 
 on:
@@ -48,8 +48,11 @@ jobs:
         include:
           - target: windows
             os: windows-latest
+            file: crazy-streamer-toolbox-windows.zip
+          # an older Ubuntu on purpose: the download runs on every Linux at least as new as this one
           - target: linux
-            os: ubuntu-latest
+            os: ubuntu-22.04
+            file: crazy-streamer-toolbox-linux.tar.gz
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -62,12 +65,12 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: crazy-streamer-toolbox-${{ matrix.target }}
-          path: build/crazy-streamer-toolbox-${{ matrix.target }}.zip
+          path: build/${{ matrix.file }}
           if-no-files-found: error
           retention-days: 14
 
   # The README's download links point at these two file names of the newest release:
-  #   <repository>/releases/latest/download/crazy-streamer-toolbox-windows.zip
+  #   <repository>/releases/latest/download/crazy-streamer-toolbox-windows.zip  and  ...-linux.tar.gz
   release:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: package
@@ -95,7 +98,7 @@ jobs:
       - run: >
           gh release create "$GITHUB_REF_NAME"
           downloads/crazy-streamer-toolbox-windows.zip
-          downloads/crazy-streamer-toolbox-linux.zip
+          downloads/crazy-streamer-toolbox-linux.tar.gz
           --repo "$GITHUB_REPOSITORY"
           --title "crazy-streamer-toolbox $GITHUB_REF_NAME"
           --notes-file notes.md
