@@ -26,8 +26,14 @@ To remove the toolbox, delete its folder.
 
 ### On Linux
 
-The same archive starts on Linux. **This is new: it was started on Ubuntu 24.04 without a screen
-(the pages answer), but not yet used on a real Linux desktop.**
+**The Linux download** (`crazy-streamer-toolbox-linux.tar.gz`) has its own Python and every library, like
+the Windows one: unpack it (`tar -xzf ...`) and run `./start-linux.sh` in its folder
+(`./start-linux-browser.sh` for a browser tab). Nothing is installed and no internet is needed.
+**This is new: it was started on Linux without a screen (the pages answer), but not yet used on a real
+Linux desktop.**
+
+An archive made for both systems at once (it has a `python` folder for Windows and `.bat` files) starts on
+Linux too, but uses your PC's Python:
 
 1. You need `python3`, version 3.12 or newer, with `venv`, and a C compiler (one library for the keyboard
    triggers is built on your PC). On Debian / Ubuntu: `sudo apt install python3-venv python3-dev gcc`.

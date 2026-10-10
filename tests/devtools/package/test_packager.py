@@ -1,3 +1,4 @@
+import tarfile
 import tempfile
 import zipfile
 import unittest
@@ -5,6 +6,7 @@ from pathlib import Path
 
 from streamer_toolbox.core.testing.release_marker import RELEASE_MARKER, is_release
 from streamer_toolbox.devtools.package.packager import LINUX, WINDOWS, Packager
+from tests.fakes.fake_linux_python import FakeLinuxPython
 from tests.fakes.listed_packager import TRACKED, ListedPackager
 
 
@@ -57,14 +59,21 @@ class TestPackager(unittest.TestCase):
             Packager._start_scripts(folder, target)
             self.assertEqual(sorted(p.name for p in folder.iterdir()), scripts)
 
-    def test_a_linux_build_carries_no_python(self) -> None:
-        archive = ListedPackager(self.repo, self.out, target=LINUX).build()
-        self.assertEqual(archive.name, "crazy-streamer-toolbox-linux.zip")
-        with zipfile.ZipFile(archive) as packed:
-            names = packed.namelist()
-        self.assertIn("crazy-streamer-toolbox-linux/start-linux.sh", names)
-        self.assertIn("crazy-streamer-toolbox-linux/requirements.txt", names)
-        self.assertFalse([name for name in names if "/python/" in name or name.endswith(".bat")])
+    def test_a_linux_build_carries_its_own_python_and_starts_with_it(self) -> None:
+        python = FakeLinuxPython()
+        archive = ListedPackager(self.repo, self.out, target=LINUX, linux_python=python).build()
+        self.assertEqual(archive.name, "crazy-streamer-toolbox-linux.tar.gz")
+        self.assertEqual(python.requirements, "requirements.txt")  # installed from the copied file
+        root = "crazy-streamer-toolbox-linux/"
+        with tarfile.open(archive) as packed:
+            names = packed.getnames()
+            script = packed.extractfile(root + "start-linux.sh").read()
+            self.assertEqual(packed.getmember(root + "start-linux.sh").mode, 0o755)
+        self.assertIn(root + "python/bin/python3", names)
+        self.assertFalse([name for name in names if name.endswith(".bat") or "__pycache__" in name])
+        self.assertIn(b'exec python/bin/python3 -m streamer_toolbox --open window "$@"', script)
+        self.assertNotIn(b"venv", script)  # nothing is got or installed at the first start
+        self.assertNotIn(b"\r", script)
 
     def test_a_shell_script_is_runnable_in_the_archive(self) -> None:
         self.out.mkdir()

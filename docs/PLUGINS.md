@@ -11,8 +11,9 @@ plugins/my_thing/
   resources/         pictures, default settings, JS, ... (served to the GUI)
 ```
 
-Examples: **`plugins/example/`** (a guided tour: one of everything, with a README that walks through it; start
-there), `plugins/hello/` (the smallest), `plugins/sammi_decks/` (a real tool: SAMMI decks as buttons).
+Plugins are kept apart from the toolbox's own repository. The example plugins are planned as a repository of
+their own: `example` (a guided tour: one of everything, with a README that walks through it; start there),
+`hello` (the smallest), `sammi_decks` (a real tool: SAMMI decks as buttons).
 
 ## plugin.json
 
@@ -89,7 +90,7 @@ right after `register`, so don't read them in its `__init__`.
 
 - `resources/settings.json`: the default settings (optional).
 - Pictures, JS for your own NiceGUI components (`class Badge(ui.element, component=<path to resources/x.js>)`,
-  see `plugins/hello/lib/hello_badge.py`), sounds, ...
+  see `lib/hello_badge.py` of the `hello` example plugin), sounds, ...
 - Files the plugin writes at runtime go to settings (`save_settings`), not into resources/.
 
 ## Installed plugins (pip)

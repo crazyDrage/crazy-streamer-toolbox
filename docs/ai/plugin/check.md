@@ -1,7 +1,8 @@
 # Plugins: is it one, does it load, does it work
 
-How to write one is in `docs/PLUGINS.md`. Copy `plugins/example/` as a start: it has one of everything and
-its `README.md` walks through it (`plugins/hello/` is the smallest one).
+How to write one is in `docs/PLUGINS.md`. If the example plugins are there (they are kept apart from the
+toolbox's repository), copy `plugins/example/` as a start: it has one of everything and its `README.md`
+walks through it (`plugins/hello/` is the smallest one).
 
 ## Plugin, or a change to the toolbox?
 
