@@ -2,13 +2,15 @@ from typing import Any
 
 from streamer_toolbox.core.events.event_fields import EVENT_FIELDS
 from streamer_toolbox.core.flows.flow_trigger import FlowTrigger
+from streamer_toolbox.core.flows.number_match import compare_of
 
 # what a test start fills in when the flow never started for real yet (his trigger's own values come first)
 EXAMPLES: dict[str, Any] = {
-    "user": "TestViewer", "user_login": "testviewer", "input": "hello", "cost": 100, "message": "hello chat",
+    "user": "TestViewer", "user_login": "testviewer", "user_id": "12345", "input": "hello", "cost": 100, "message": "hello chat",
     "args": "", "role": "viewer", "platform": "twitch", "tier": "1000", "months": 3, "amount": 5, "bits": 100,
     "viewers": 10, "seconds": 60, "anonymous": False, "gift": False, "automatic": False, "source": "test",
-    "reward_id": "", "redemption_id": "test", "message_id": "test", "model": "", "key": "f23",
+    "reward_id": "", "redemption_id": "test", "message_id": "test", "model": "", "key": "f23", "followed_at": "2026-01-01T12:00:00Z",
+    "title": "My stream", "category": "Just Chatting", "bpm": 80,
 }
 
 
@@ -30,7 +32,8 @@ class StartExamples:
         from_triggers: dict[str, Any] = {}
         for trigger in triggers:
             for key, value in trigger.match.items():
-                if isinstance(value, str) and "*" not in value and key not in ("who", "words"):
+                if isinstance(value, str) and "*" not in value and compare_of(value) is None \
+                        and key not in ("who", "who_max", "roles", "words"):
                     from_triggers.setdefault(key, value)
         last = last or {}
         return {name: last[name] if name in last else from_triggers.get(name, EXAMPLES.get(name, ""))

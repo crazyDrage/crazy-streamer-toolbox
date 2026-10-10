@@ -43,6 +43,7 @@ class AstroClient:
                 self._on_state("listening")
                 delay = self._retry_delay
                 await self._listen(socket)
+                await socket.close()  # asked to reconnect: the old line is not left open
             except asyncio.CancelledError:
                 if socket is not None:
                     await socket.close()

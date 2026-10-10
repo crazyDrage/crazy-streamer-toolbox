@@ -6,6 +6,7 @@ from typing import Any
 
 import httpx
 
+from streamer_toolbox.core.web.web_client import web_client
 from streamer_toolbox.core.widgets.streamelements_import import StreamElementsImport, _free, _slug
 from streamer_toolbox.core.widgets.widget import Widget
 from streamer_toolbox.core.widgets.widget_store import WidgetStore
@@ -92,7 +93,7 @@ class StreamElementsElements:
         config = copy.deepcopy(config)
         files: dict[str, bytes] = {}
         local: dict[str, str] = {}  # address → its file here; "" = it failed
-        async with httpx.AsyncClient(transport=self._transport, timeout=120, follow_redirects=True,
+        async with web_client(self._transport, timeout=120, follow_redirects=True,
                                      headers=BROWSER) as client:
             for state in config.get("configStates", []):
                 for field in (state.get("settings") or {}).get("compositeFields", {}).values():
@@ -138,7 +139,7 @@ class StreamElementsElements:
         return name
 
     def _client(self, token: str) -> httpx.AsyncClient:
-        return httpx.AsyncClient(transport=self._transport, timeout=20,
+        return web_client(self._transport, timeout=20,
                                  headers={"Authorization": f"Bearer {token}", "Accept": "application/json"})
 
 

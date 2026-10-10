@@ -30,6 +30,10 @@ class TestTriggerCatalog(unittest.TestCase):
                          ("reward", "", EVENT_FIELDS["twitch.redeem"]))
         self.assertIn("reward", redeem.info)
 
+    def test_a_streamsocket_event_is_matched_by_its_id(self) -> None:
+        event = next(e for e in self.catalog.entries("StreamSocket") if e.kind == "streamsocket.event")
+        self.assertEqual((event.match, event.example), ("event_id", "*"))
+
     def test_search_looks_in_titles_info_and_fields_of_every_group(self) -> None:
         found = dict(self.catalog.search("chat message"))
         self.assertEqual(found["Twitch"][0].kind, "twitch.chat")  # the title that starts with the search

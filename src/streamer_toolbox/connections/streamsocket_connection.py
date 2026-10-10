@@ -12,6 +12,8 @@ from streamer_toolbox.core.connections.connection_state import ConnectionState
 from streamer_toolbox.core.connections.connection_status import ConnectionStatus
 from streamer_toolbox.core.connections.setting_field import SettingField
 from streamer_toolbox.core.events.event_bus import EventBus
+from streamer_toolbox.gui.components.outside_link import outside_link
+from streamer_toolbox.gui.components.secret_input import SecretInput
 
 EXTENSION = "https://dashboard.twitch.tv/extensions/1lpj3883m4u6exlgdwzuk627bvpabj"
 DOCS = "https://streamsocket.kadokta.com/"
@@ -46,11 +48,12 @@ class StreamSocketConnection(ConnectionBase):
                              hint="leave empty to use the channel of the toolbox's Twitch login")]
 
     def add_gui_settings(self) -> None:
-        ui.label(f"The secret is read from {self._secret_path}: the secret from the extension's configuration "
-                 "page, nothing else in the file. It lets a program listen to your extension's events.") \
+        SecretInput(self._secret_path, "Secret", "secret")
+        ui.label("The secret: from the extension's configuration "
+                 "page. It lets a program listen to your extension's events.") \
             .classes("text-sm opacity-80")
-        ui.link("Open the extension on Twitch", EXTENSION, new_tab=True).classes("text-sm")
-        ui.link("StreamSocket Events' own page", DOCS, new_tab=True).classes("text-sm")
+        outside_link("Open the extension on Twitch", EXTENSION).classes("text-sm")
+        outside_link("StreamSocket Events' own page", DOCS).classes("text-sm")
         ui.label("What comes in: each event a viewer redeems in the extension, with its name, the viewer and "
                  "the bits it cost. Flows: the trigger \"StreamSocket event\".").classes("text-xs opacity-60")
 
@@ -109,6 +112,6 @@ class StreamSocketConnection(ConnectionBase):
     def _read_secret(self) -> str:
         text = self._secret_path.read_text(encoding="utf-8").strip() if self._secret_path.is_file() else ""
         if not text:
-            raise ValueError(f"No secret yet: put the secret from the extension's configuration page into "
-                             f"{self._secret_path}")
+            raise ValueError("No secret yet: type the secret from the extension's configuration page into its "
+                             "field under Connections → StreamSocket Events")
         return text.splitlines()[0].strip()

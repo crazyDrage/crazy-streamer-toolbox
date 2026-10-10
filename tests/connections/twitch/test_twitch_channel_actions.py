@@ -46,7 +46,7 @@ class TestTwitchChannelActions(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await self.run_box("set_category", category="just chat"), "Just Chatting")
         self.assertEqual(self.helix.sent("PATCH", "channels"), [({"broadcaster_id": "42"}, {"game_id": "509658"})])
         self.helix.answers[("GET", "search/categories")] = {"data": []}
-        with self.assertRaisesRegex(KeyError, "no category like 'zzz'"):
+        with self.assertRaisesRegex(LookupError, "no category like 'zzz'"):
             await self.run_box("set_category", category="zzz")
 
     async def test_ad_schedule(self) -> None:
@@ -62,7 +62,7 @@ class TestTwitchChannelActions(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((user["id"], user["name"], user["type"]), ("77", "Viewer", "affiliate"))
         self.assertEqual(self.helix.sent("GET", "users"), [({"login": "viewer"}, {})])
         self.helix.answers[("GET", "users")] = {"data": []}
-        with self.assertRaisesRegex(KeyError, "no user 'ghost'"):
+        with self.assertRaisesRegex(LookupError, "no user 'ghost'"):
             await self.run_box("get_user", user="ghost")
 
     async def test_followers(self) -> None:

@@ -39,6 +39,10 @@ class TestTestWindow(unittest.TestCase):
         self.assertEqual(self.window._option("flows/boxes/obs/scenes", self.window.files()["flows/boxes/obs/scenes"]),
                          "Flows > Boxes > OBS > Scenes  ·  2 open")
 
+    def test_a_box_shows_the_number_of_its_test_flow(self) -> None:
+        self.assertEqual([self.window.number(key) for key in ("box:obs.mute", "box:obs.set_scene", "tool:points")],
+                         ["001", "003", ""])
+
     def test_a_tick_is_in_the_file_and_only_open_leaves_the_tested_out(self) -> None:
         self._tick("box:obs.mute")
         self._tick("box:obs.get_scene")

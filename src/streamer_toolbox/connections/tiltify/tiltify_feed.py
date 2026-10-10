@@ -6,6 +6,8 @@ from typing import Any
 
 import httpx
 
+from streamer_toolbox.core.web.web_client import web_client
+
 API = "https://v5api.tiltify.com"
 EVENT = "tiltify.donation"
 log = logging.getLogger(__name__)
@@ -100,7 +102,7 @@ class TiltifyFeed:
 
     async def _call(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
         try:
-            async with httpx.AsyncClient(transport=self._transport, timeout=10) as client:
+            async with web_client(self._transport, timeout=10) as client:
                 return await client.request(method, self._api + path, **kwargs)
         except httpx.HTTPError as e:
             raise ConnectionError(type(e).__name__) from None

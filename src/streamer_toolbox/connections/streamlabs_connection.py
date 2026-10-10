@@ -12,6 +12,8 @@ from streamer_toolbox.core.connections.connection_state import ConnectionState
 from streamer_toolbox.core.connections.connection_status import ConnectionStatus
 from streamer_toolbox.core.connections.setting_field import SettingField
 from streamer_toolbox.core.events.event_bus import EventBus
+from streamer_toolbox.gui.components.outside_link import outside_link
+from streamer_toolbox.gui.components.secret_input import SecretInput
 
 TOKEN_PAGE = "https://streamlabs.com/dashboard#/settings/api-settings"
 
@@ -44,10 +46,11 @@ class StreamlabsConnection(ConnectionBase):
         return []  # the token isn't typed into the tab: see add_gui_settings
 
     def add_gui_settings(self) -> None:
-        ui.label(f"The token is read from {self._token_path}: your Socket API Token, nothing else in the file "
+        SecretInput(self._token_path, "Socket API Token", "token")
+        ui.label("The token: your Socket API Token "
                  "(Streamlabs dashboard → Settings → API Settings → API Tokens). It can only listen to your "
                  "events.").classes("text-sm opacity-80")
-        ui.link("Open Streamlabs' page with the token", TOKEN_PAGE, new_tab=True).classes("text-sm")
+        outside_link("Open Streamlabs' page with the token", TOKEN_PAGE).classes("text-sm")
         ui.label("What comes in: donations, YouTube Super Chats and Super Stickers (all three also as the "
                  "toolbox's Tip trigger and Tip alert), store redemptions, merch, Twitch charity donations, YouTube "
                  "memberships and gifts, and the Alert Box's test buttons. Flows: the trigger \"Streamlabs "
@@ -99,5 +102,6 @@ class StreamlabsConnection(ConnectionBase):
     def _read_token(self) -> str:
         text = self._token_path.read_text(encoding="utf-8").strip() if self._token_path.is_file() else ""
         if not text:
-            raise ValueError(f"No token yet: put your Streamlabs Socket API Token into {self._token_path}")
+            raise ValueError("No token yet: type your Streamlabs Socket API Token into its field under Connections "
+                             "→ Streamlabs")
         return text.splitlines()[0].strip()

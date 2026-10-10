@@ -14,6 +14,7 @@ from streamer_toolbox.core.connections.connection_state import ConnectionState
 from streamer_toolbox.core.connections.connection_status import ConnectionStatus
 from streamer_toolbox.core.connections.setting_field import SettingField
 from streamer_toolbox.core.events.event_bus import EventBus
+from streamer_toolbox.gui.components.outside_link import outside_link
 
 DOCS = "https://veado.tube/docs/tech/api/"
 
@@ -48,7 +49,7 @@ class VeadotubeConnection(ConnectionBase):
     def add_gui_settings(self) -> None:
         ui.label("In veadotube mini the websocket server must be on (it is by default). The toolbox shows up "
                  "there as \"streamer-toolbox\".").classes("text-sm opacity-80")
-        ui.link("veadotube's page about it", DOCS, new_tab=True).classes("text-sm")
+        outside_link("veadotube's page about it", DOCS).classes("text-sm")
 
     async def start(self) -> None:
         await self.stop()

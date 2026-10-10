@@ -8,6 +8,7 @@ cd "$(dirname "$0")" || exit 1
 if [ ! -x ".venv/bin/python" ]; then
     echo "No .venv found in $(pwd)"
     echo "Create it first: python3 -m venv .venv && .venv/bin/python -m pip install -r requirements.txt"
+    echo "(python3 3.12 or newer; on Debian / Ubuntu: sudo apt install python3-venv python3-dev gcc)"
     exit 1
 fi
 

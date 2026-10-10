@@ -31,7 +31,7 @@ class TestMixItUpActions(unittest.IsolatedAsyncioTestCase):
             ("commands/id-magic", {"Arguments": "", "Platform": "YouTube", "IgnoreRequirements": True})])
 
     async def test_unknown_command(self) -> None:
-        with self.assertRaisesRegex(KeyError, "no command named 'nope'"):
+        with self.assertRaisesRegex(LookupError, "no command named 'nope'"):
             await self.run_box("run_command", command="nope")
 
     async def test_command_on_off_toggle(self) -> None:
@@ -69,7 +69,7 @@ class TestMixItUpActions(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await self.run_box("get_item", item="Bag · Sword", username="viewer"), 1)
         await self.run_box("add_item", item="sword", username="viewer", amount=2)
         self.assertEqual(self.miu.items["id-sword"], 3)
-        with self.assertRaisesRegex(KeyError, "no inventory item 'Shield'"):
+        with self.assertRaisesRegex(LookupError, "no inventory item 'Shield'"):
             await self.run_box("set_item", item="Shield", username="viewer", amount=1)
 
     async def test_counters(self) -> None:

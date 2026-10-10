@@ -5,6 +5,7 @@ from typing import Any
 
 from streamer_toolbox.connections.oauth.oauth_token import OAuthToken
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
+from streamer_toolbox.core.data.box_value import to_bool
 
 Helix = Callable[..., Awaitable[dict[str, Any]]]  # (method, path, **httpx kwargs) → Twitch's answer
 ANNOUNCEMENT_COLORS = ("primary", "blue", "green", "orange", "purple")
@@ -36,7 +37,9 @@ class TwitchStreamActions:
         actions.add("twitch.get_clips", self.clips, "The clips of a channel (yours when the name is empty), most "
                     "watched first, and one of them picked at random. E.g. for a shoutout that plays a clip",
                     "Get clips", hints={"user": "empty = your channel", "count": "how many to look at, up to 100",
-                                        "max_seconds": "0 = any length", "days": "0 = all time"},
+                                        "max_seconds": "0 = any length", "days": "0 = all time",
+                                        "featured": "on: only the clips the channel marked as featured"},
+                    labels={"featured": "Only featured"},
                     outputs={"count": "number", "clips": "list", "url": "text", "title": "text",
                              "seconds": "number", "thumbnail": "text", "id": "text"}, **stream)
         actions.add("twitch.run_ad", self.run_ad, "Starts an ad break now (only while live); gives its length "
@@ -87,9 +90,12 @@ class TwitchStreamActions:
             raise RuntimeError("Twitch made no clip (clips only work while you're live)")
         return {"id": clip["id"], "url": f"https://clips.twitch.tv/{clip['id']}", "edit_url": clip.get("edit_url", "")}
 
-    async def clips(self, user: str = "", count: int = 50, max_seconds: float = 0, days: int = 0) -> dict[str, Any]:
+    async def clips(self, user: str = "", count: int = 50, max_seconds: float = 0, days: int = 0,
+                    featured: bool = False) -> dict[str, Any]:
         owner = (await self._user(user))["id"] if str(user).strip() else self._me().user_id
         params: dict[str, Any] = {"broadcaster_id": owner, "first": max(1, min(int(count), 100))}
+        if to_bool(featured):
+            params["is_featured"] = "true"
         if int(days) > 0:
             now = self._now()
             params["started_at"] = (now - timedelta(days=int(days))).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -227,7 +233,7 @@ class TwitchStreamActions:
                           if str(o.get("title", "")).casefold() == wanted), None)
             if found is None:
                 titles = ", ".join(str(o.get("title", "")) for o in prediction.get("outcomes") or [])
-                raise KeyError(f"the prediction has no outcome {winner!r} (it has: {titles})")
+                raise LookupError(f"the prediction has no outcome {winner!r} (it has: {titles})")
             change["winning_outcome_id"] = found["id"]
         await self._helix("PATCH", "predictions", json=change)
 
@@ -248,7 +254,7 @@ class TwitchStreamActions:
             raise ValueError("which user? (the name is empty)")
         found = _first(await self._helix("GET", "users", params={"login": login}))
         if not found:
-            raise KeyError(f"Twitch has no user {login!r}")
+            raise LookupError(f"Twitch has no user {login!r}")
         return found
 
 

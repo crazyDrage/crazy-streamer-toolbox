@@ -268,8 +268,8 @@ class FlowBoxView:
         fields = self._editor.dots.fields(target)
         chosen, kept = WireMatcher.by_name(fields, source, keys, target.params)
         if not chosen and not kept:  # no field named like its keys (an If box): it becomes the first free value
-            chosen = WireMatcher.as_value(fields, source, "" if source == START else args.get("field") or "",
-                                          target.params)
+            # the dot that was dropped, also from Start: ${box.start} alone has no dot, so no wire was drawn
+            chosen = WireMatcher.as_value(fields, source, args.get("field") or "", target.params)
             if chosen:
                 ui.notify(f"No field named like its keys: it's the value of {', '.join(chosen)} now",
                           type="positive", multi_line=True)

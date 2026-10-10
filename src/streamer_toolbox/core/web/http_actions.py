@@ -5,6 +5,7 @@ import httpx
 
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.data.box_value import to_bool, to_kind, understand
+from streamer_toolbox.core.web.web_client import web_client
 
 METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"]
 
@@ -37,7 +38,7 @@ class HttpActions:
         sent_headers = {str(k): str(v) for k, v in _object(headers, "headers").items()}
         if kind and not any(k.casefold() == "content-type" for k in sent_headers):
             sent_headers["Content-Type"] = kind
-        async with httpx.AsyncClient(transport=self._transport, timeout=float(seconds)) as client:
+        async with web_client(self._transport, timeout=float(seconds)) as client:
             try:
                 answer = await client.request(method, str(url), params=_query(query), content=content,
                                               headers=sent_headers)

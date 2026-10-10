@@ -1,6 +1,6 @@
 import asyncio
 import uuid
-from pathlib import Path
+from pathlib import PureWindowsPath
 from typing import Any
 
 from streamer_toolbox.connections.obs.obs_audio_actions import MONITORING, monitor_type, track_numbers, TRACKS
@@ -13,6 +13,7 @@ from streamer_toolbox.core.files.file_types import MEDIA_TYPES
 
 STARTED = ("OBS_MEDIA_STATE_PLAYING", "OBS_MEDIA_STATE_PAUSED", "OBS_MEDIA_STATE_BUFFERING")
 FINISHED = ("OBS_MEDIA_STATE_ENDED", "OBS_MEDIA_STATE_ERROR")
+ADDRESS_STARTS = ("http://", "https://")  # a "file" that starts like this is played from the internet
 # what a placed copy takes over from the source it is placed like (the rest are OBS's read-only facts)
 PLACE = ("positionX", "positionY", "rotation", "alignment", "boundsAlignment", "cropLeft", "cropRight", "cropTop",
          "cropBottom")
@@ -33,8 +34,9 @@ class ObsMediaPlayback:
         self._running: set[asyncio.Task] = set()
 
     def add_to(self, actions: ActionRegistry) -> None:
-        actions.add("obs.play_video_once", self.play_once, "Plays a video (or sound) file in a scene with its own "
-                    "new Media Source: sound settings like the Audio Mixer's, the place and size of another source "
+        actions.add("obs.play_video_once", self.play_once, "Plays a video (or sound) file, or one at an "
+                    "address (https://..., e.g. from Clip video address), in a scene with its own new Media "
+                    "Source: sound settings like the Audio Mixer's, the place and size of another source "
                     "if you like, and the source is removed again when the video is over", "Play video once",
                     group="Media", options={"scene": self._requests.scene_names, "monitoring": _monitoring,
                                             "place_like": self._requests.source_names},
@@ -91,12 +93,16 @@ class ObsMediaPlayback:
                                visible: bool = False) -> dict[str, Any]:
         if not str(file).strip():
             raise ValueError("which file? (file is empty)")
-        name = str(name).strip() or f"toolbox {Path(str(file)).stem} {uuid.uuid4().hex[:6]}"
+        file = str(file).strip()
+        online = file.casefold().startswith(ADDRESS_STARTS)  # OBS plays it from the address, nothing is downloaded
+        what = "video" if online else PureWindowsPath(file).stem
+        name = str(name).strip() or f"toolbox {what} {uuid.uuid4().hex[:6]}"
+        source = {"input": file, "is_local_file": False} if online else {"local_file": file, "is_local_file": True}
         made = await self._requests("CreateInput", {
             "sceneName": scene, "inputName": name, "inputKind": "ffmpeg_source",
             "sceneItemEnabled": to_bool(visible),
-            "inputSettings": {"local_file": str(file), "is_local_file": True, "looping": False,
-                              "restart_on_activate": True, "close_when_inactive": True}})
+            "inputSettings": {**source, "looping": False, "restart_on_activate": True,
+                              "close_when_inactive": True}})
         return {"source": name, "scene": scene, "item_id": made["sceneItemId"]}
 
     async def place_like(self, scene: str, source: str, like: str) -> None:

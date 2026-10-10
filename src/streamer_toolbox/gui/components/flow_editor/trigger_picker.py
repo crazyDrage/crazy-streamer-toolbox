@@ -11,9 +11,11 @@ class TriggerPicker:
     """The Add trigger window, built like the Add box window: a search on top, the groups on the left (on a
     phone: a row on top) with how many triggers each has, and on the right the chosen group's triggers, each
     with one line of what it is and what it gives the flow. Searching lists the matching triggers of every
-    group; Enter takes the first one."""
+    group; Enter takes the first one. `note` is one small line below the groups (how many triggers are
+    hidden, and why)."""
 
-    def __init__(self, kinds: Mapping[str, tuple[str, str, str, str]]) -> None:
+    def __init__(self, kinds: Mapping[str, tuple[str, str, str, str]], note: str = "") -> None:
+        self._note = note
         self._catalog = TriggerCatalog(kinds)
         self._group = next(iter(self._catalog.groups()), ("", 0))[0]
         self._search = ""
@@ -60,6 +62,8 @@ class TriggerPicker:
             with button, ui.row().classes("no-wrap items-center w-full gap-2"):
                 ui.label(group).classes("text-left flex-1 whitespace-nowrap")
                 ui.label(str(shown)).classes("text-xs opacity-60")
+        if self._note:
+            ui.label(self._note).classes("text-xs opacity-60 pt-2 px-1")
 
     @ui.refreshable_method
     def _triggers(self) -> None:

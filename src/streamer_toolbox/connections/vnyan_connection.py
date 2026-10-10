@@ -11,6 +11,8 @@ from streamer_toolbox.core.connections.connection_state import ConnectionState
 from streamer_toolbox.core.connections.connection_status import ConnectionStatus
 from streamer_toolbox.core.connections.not_connected_error import NotConnectedError
 from streamer_toolbox.core.connections.setting_field import SettingField
+from streamer_toolbox.core.web.web_client import web_client
+from streamer_toolbox.gui.components.outside_link import outside_link
 
 DOCS = "https://github.com/Suvidriel/VNyanDoc/wiki"
 
@@ -42,7 +44,7 @@ class VNyanConnection(ConnectionBase):
         ui.label('What VNyan does with a message is built in VNyan: add a "WebSocket" node (or an "API '
                  'Message" node) to a node graph and give it a name. A flow\'s "Send message to VNyan" box '
                  'with the same name runs it.').classes("text-sm opacity-80")
-        ui.link("VNyan's documentation", DOCS, new_tab=True).classes("text-sm")
+        outside_link("VNyan's documentation", DOCS).classes("text-sm")
 
     async def start(self) -> None:
         self._set_status(await self.test(self._settings))
@@ -74,7 +76,7 @@ class VNyanConnection(ConnectionBase):
     async def _send_api(self, body: dict[str, Any]) -> None:
         self._need_switched_on()
         try:
-            async with httpx.AsyncClient(transport=self._transport, timeout=5) as client:
+            async with web_client(self._transport, timeout=5) as client:
                 response = await client.post(str(self._settings["api"]), json=body)
         except httpx.HTTPError as e:
             raise NotConnectedError(f"VNyan's API at {self._settings['api']} doesn't answer "

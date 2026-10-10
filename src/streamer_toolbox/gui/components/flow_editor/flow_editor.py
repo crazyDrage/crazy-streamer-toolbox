@@ -8,14 +8,20 @@ from streamer_toolbox.core.actions.box_filter_store import BoxFilterStore
 from streamer_toolbox.gui.components.flow_editor.action_picker import SwitchedOff
 from streamer_toolbox.core.actions.registered_action import OptionsProvider
 from streamer_toolbox.core.data.box_value import understand
+from streamer_toolbox.core.events.last_events import LastEvents
 from streamer_toolbox.core.files.box_value_files import BoxValueFiles
 from streamer_toolbox.core.flows.flow_input import FlowInput
 from streamer_toolbox.core.flows.flow_library import FlowLibrary
 from streamer_toolbox.core.flows.flow_runner import FlowRunner
-from streamer_toolbox.core.flows.chat_match import MODES, WHO, mode_of, to_match
+from streamer_toolbox.core.events.event_fields import EVENT_FIELDS
+from streamer_toolbox.core.flows.chat_match import MODES, mode_of, to_match
+from streamer_toolbox.core.flows.number_match import COMPARE, compare_of, to_compare
+from streamer_toolbox.core.flows.role_match import ROLE_KEYS, roles_match, roles_of
+from streamer_toolbox.gui.components.role_picker import RolePicker
 from streamer_toolbox.core.flows.flow_gate import WHEN_BUSY
 from streamer_toolbox.core.flows.flow_trigger import FlowTrigger
 from streamer_toolbox.core.flows.flow_wire import START
+from streamer_toolbox.core.testing.test_view import TestView
 from streamer_toolbox.core.variables.variable_store import VariableStore
 from streamer_toolbox.gui.components.folder_field import FolderField
 from streamer_toolbox.gui.components.flow_editor.flow_box_view import FlowBoxView
@@ -23,7 +29,7 @@ from streamer_toolbox.gui.components.flow_editor.flow_draft import FlowDraft
 from streamer_toolbox.gui.components.flow_editor.flow_list_view import FlowListView
 from streamer_toolbox.gui.components.flow_editor.node_editor import NodeEditor
 from streamer_toolbox.gui.components.flow_editor.start_examples import StartExamples
-from streamer_toolbox.gui.components.flow_editor.trigger_kinds import (TRIGGER_CHOICES, TRIGGER_INFO,
+from streamer_toolbox.gui.components.flow_editor.trigger_kinds import (NUMBER_TRIGGERS, TRIGGER_CHOICES, TRIGGER_INFO,
                                                                        TRIGGER_KINDS, offered_triggers)
 from streamer_toolbox.gui.components.flow_editor.trigger_picker import TriggerPicker
 
@@ -37,7 +43,10 @@ class FlowEditor:
     def __init__(self, draft: FlowDraft, old_name: str | None, library: FlowLibrary, actions: ActionRegistry,
                  runner: FlowRunner, variables: VariableStore, box_files: BoxValueFiles,
                  trigger_choices: dict[str, OptionsProvider] | None = None,
-                 box_filters: BoxFilterStore | None = None, switched_off: SwitchedOff | None = None) -> None:
+                 box_filters: BoxFilterStore | None = None, switched_off: SwitchedOff | None = None,
+                 last_events: LastEvents | None = None, test_view: TestView | None = None) -> None:
+        self._last_events = last_events
+        self._test_view = test_view
         self._draft = draft
         self._old_name = old_name
         self._library = library
@@ -46,7 +55,7 @@ class FlowEditor:
         self._view = app.storage.general.get("flow_view", "list")
         self._runner = runner
         self._nodes = NodeEditor(actions, runner, variables, box_files, draft, self._changed, box_filters,
-                                 switched_off)
+                                 switched_off, test_view)
         self._list = FlowListView(draft, self._nodes)
         self._boxes = FlowBoxView(draft, self._nodes, self._test_run)
 
@@ -72,6 +81,14 @@ class FlowEditor:
             FolderField(self._library.folders(), draft.folder,
                         on_change=lambda folder: setattr(draft, "folder", folder)).build() \
                 .classes("w-56").tooltip("Where the Flows page lists it: pick one or type a new name")
+        with ui.row().classes("items-center gap-4 w-full"):
+            ui.switch("Flow on", value=draft.enabled, on_change=lambda e: setattr(draft, "enabled", e.value)) \
+                .tooltip("Off: the flow doesn't start at all: not by its button, SAMMI, the API, another flow or "
+                         "a trigger. Test run here still works. Saved with the flow")
+            ui.switch("Triggers on", value=draft.triggers_enabled,
+                      on_change=lambda e: setattr(draft, "triggers_enabled", e.value)) \
+                .tooltip("Off: its triggers don't start it; its button and everything else still do. Saved "
+                         "with the flow")
         with ui.row().classes("items-center gap-4 w-full"):
             ui.select(WHEN_BUSY, value=draft.when_busy, label="Started again while it still runs",
                       on_change=lambda e: setattr(draft, "when_busy", e.value)).classes("w-72") \
@@ -166,8 +183,11 @@ class FlowEditor:
         def rows() -> None:
             box.props(f'label="Triggers ({len(self._draft.triggers)})"')
             for index, trigger in enumerate(self._draft.triggers):
-                icon, text, key, _ = TRIGGER_KINDS.get(trigger.kind, ("bolt", trigger.kind, "", ""))
-                key = key or next(iter(trigger.match), "match")
+                icon, text, key, _ = TRIGGER_KINDS.get(trigger.kind, ("bolt", trigger.kind, None, ""))
+                if key is None:  # a kind this copy doesn't know: show what its file says
+                    key = next(iter(trigger.match), "match")
+                elif not key and set(trigger.match) - set(ROLE_KEYS):  # e.g. an older Stream offline's "type"
+                    self._set_trigger(index, match=self._who(index))
                 # the name on its own line (a long one fits), what it matches below; that line may wrap
                 with ui.column().classes("w-full gap-0 pb-2"):
                     with ui.row().classes("items-center no-wrap gap-2 w-full"):
@@ -182,29 +202,44 @@ class FlowEditor:
                     with ui.row().classes("items-start gap-2 w-full pl-8"):
                         if trigger.kind.rpartition(".")[2] == "chat":  # every platform's chat, and the common one
                             self._chat_match(index, trigger.match)
+                        elif trigger.kind in NUMBER_TRIGGERS:
+                            self._number_match(index, key, str(trigger.match.get(key, "*")))
+                        elif not key:  # nothing to pick on it (Stream offline)
+                            ui.label("Starts every time; it has nothing to filter by.").classes("text-xs opacity-60")
                         else:
                             self._trigger_value(index, trigger.kind, key, str(trigger.match.get(key, "")))
+                            if "role" in EVENT_FIELDS.get(trigger.kind, ()):
+                                self._who_select(index)
             ui.button("Add trigger", icon="add", on_click=add).props("no-caps flat dense")
 
         async def add() -> None:
-            picked = await TriggerPicker(offered_triggers(self._switched_off)).pick()
+            kinds = offered_triggers(self._switched_off, self._test_view)
+            hidden = len(offered_triggers(self._switched_off)) - len(kinds)
+            note = (f"{hidden} triggers hidden: {self._test_view.why()}. Change it in Settings → What "
+                    "you see") if hidden else ""
+            picked = await TriggerPicker(kinds, note).pick()
             if picked is None:
                 return
-            self._draft.triggers.append(FlowTrigger(picked.kind, {picked.match: picked.example}))
+            self._draft.triggers.append(FlowTrigger(picked.kind, {picked.match: picked.example} if picked.match
+                                                    else {}))
             rows.refresh()
             self._changed(rebuild=True)
 
         rows()
 
     def _trigger_value(self, index: int, kind: str, key: str, value: str) -> None:
-        """The reward (or other match) of a trigger: a list from the service when it has one, typing works too."""
-        current = [value] if value else []
-        pick = ui.select(current, value=value or None, label=key, new_value_mode="add-unique",
-                         on_change=lambda e: self._set_trigger(index, match={key: e.value or ""})) \
-            .props("dense").classes("flex-1 min-w-[10rem]")
+        """The reward (or other match) of a trigger: a list from the service when it has one, typing works too.
+        Without a list it is a plain text field, saved as it is typed (a list's typed value needs Enter)."""
+        def changed(e) -> None:
+            self._set_trigger(index, match={key: e.value or "", **self._who(index)})
+
         provider = self._trigger_choices.get(kind) or TRIGGER_CHOICES.get(kind)
         if provider is None:
+            ui.input(label=key, value=value, on_change=changed).props("dense").classes("flex-1 min-w-[10rem]")
             return
+        current = [value] if value else []
+        pick = ui.select(current, value=value or None, label=key, new_value_mode="add-unique",
+                         on_change=changed).props("dense").classes("flex-1 min-w-[10rem]")
 
         async def load() -> None:
             try:
@@ -235,9 +270,40 @@ class FlowEditor:
 
         def picked(e) -> None:
             text = e.value or ""
-            self._set_trigger(index, match={key: text, id_key: ids[text]} if text in ids else {key: text})
+            found = {key: text, id_key: ids[text]} if text in ids else {key: text}
+            self._set_trigger(index, match={**found, **self._who(index)})
 
         pick.on_value_change(picked)
+
+    def _number_match(self, index: int, key: str, saved: str) -> None:
+        """A trigger on a number (Heart rate changed): any, or higher than / lower than / equal to a number."""
+        how, number = compare_of(saved) or ("", 100.0)
+
+        def changed() -> None:
+            amount.set_visibility(bool(pick.value))
+            self._set_trigger(index, match={key: to_compare(pick.value, amount.value), **self._who(index)})
+
+        pick = ui.select(COMPARE, value=how, label=key, on_change=changed).props("dense").classes("w-36 shrink-0")
+        amount = ui.number(value=number, on_change=changed).props("dense").classes("w-24 shrink-0")
+        amount.set_visibility(bool(how))
+        ui.label("Starts at every change that fits; give the flow a cooldown if that is too often.") \
+            .classes("text-xs opacity-60 self-center")
+
+    def _who(self, index: int) -> dict[str, str]:
+        """The trigger's role filter as it is saved (kept when its other field changes)."""
+        return {k: v for k, v in self._draft.triggers[index].match.items() if k in ROLE_KEYS}
+
+    def _who_select(self, index: int, chat: bool = False) -> None:
+        """Who may start it: a checkbox per role (RolePicker), on a trigger that names a viewer. Only chat tells
+        a role: the others go by what the toolbox knows of the viewer (Settings → Viewer roles)."""
+        def changed(roles: list[str]) -> None:
+            match = self._draft.triggers[index].match
+            self._set_trigger(index, match={**{k: v for k, v in match.items() if k not in ROLE_KEYS},
+                                            **roles_match(roles)})
+
+        RolePicker(roles_of(self._draft.triggers[index].match), changed,
+                   "" if chat else "This trigger doesn't tell the role itself: it is the one the toolbox knows of "
+                                   "the viewer (Settings → Viewer roles); unknown counts as a plain viewer.")
 
     def _chat_match(self, index: int, match: dict) -> None:
         """A chat trigger: a command (!cat), a text the message contains (lizard), or a pattern with *."""
@@ -245,15 +311,13 @@ class FlowEditor:
 
         def changed() -> None:
             field.props(f'hint="{MODES[how.value][1]}"')
-            limit = {} if who.value == "viewer" else {"who": who.value}
-            self._set_trigger(index, match={**to_match(how.value, field.value or ""), **limit})
+            self._set_trigger(index, match={**to_match(how.value, field.value or ""), **self._who(index)})
 
         how = ui.select({m: label for m, (label, _) in MODES.items()}, value=mode, on_change=changed) \
             .props("dense").classes("w-28 shrink-0")
         field = ui.input(value=text, on_change=changed).props(f'dense hint="{MODES[mode][1]}"') \
             .classes("flex-1 min-w-[10rem]")
-        who = ui.select(WHO, value=match.get("who", "viewer"), on_change=changed).props("dense") \
-            .classes("w-32 shrink-0").tooltip("Who may start it")
+        self._who_select(index, chat=True)
 
     def _set_trigger(self, index: int, **changes) -> None:
         trigger = self._draft.triggers[index]
@@ -271,6 +335,9 @@ class FlowEditor:
             return
         values = {i.name: i.default for i in self._draft.inputs}
         known, last = self._runner.last_result(self._draft.name, START) if self._draft.name else (False, None)
+        if not known and self._last_events is not None:  # this flow didn't start yet: what its trigger gave last
+            last = next((e for e in map(self._last_events.get, (t.kind for t in self._draft.triggers)) if e), None)
+            known = last is not None
         event = StartExamples.values(self._draft.triggers, last if known and isinstance(last, dict) else None)
         with ui.dialog() as dialog, ui.card().classes("w-[460px] max-w-[95vw]"):
             ui.label("Test run: this runs the flow for real (OBS, SAMMI, sounds, ...).").classes("text-sm")

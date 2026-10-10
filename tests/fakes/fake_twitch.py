@@ -26,6 +26,7 @@ class FakeTwitch:
         self.markers: list[dict] = []
         self.device_asks_until_confirmed = 0  # how often "did he confirm?" is answered "not yet"
         self.device_scopes = ""
+        self.scopes = list(SCOPES)  # what a login is given and has
         self._next = 2
 
     @property
@@ -55,13 +56,13 @@ class FakeTwitch:
             self._next += 1
             self.valid.add(token)
             return httpx.Response(200, json={"access_token": token, "refresh_token": f"refresh-{self._next}",
-                                             "expires_in": 14000, "scope": SCOPES})
+                                             "expires_in": 14000, "scope": self.scopes})
         if path == "/oauth2/validate":
             token = request.headers["Authorization"].removeprefix("OAuth ")
             if token not in self.valid:
                 return httpx.Response(401, json={"message": "invalid access token"})
             return httpx.Response(200, json={"client_id": self.client_id, "login": "crazydrage", "user_id": "42",
-                                             "scopes": SCOPES, "expires_in": 14000})
+                                             "scopes": self.scopes, "expires_in": 14000})
         if request.headers.get("Authorization", "").removeprefix("Bearer ") not in self.valid:
             return httpx.Response(401, json={"message": "Invalid OAuth token"})
         body = json.loads(request.content) if request.content else {}
@@ -76,6 +77,8 @@ class FakeTwitch:
         if path == "/helix/channel_points/custom_rewards/redemptions":
             self.redemptions.append((dict(request.url.params), body))
             return httpx.Response(200, json={"data": [{"status": body["status"]}]})
+        if path == "/helix/channels" and request.method == "GET":
+            return httpx.Response(200, json={"data": [{"title": "Lizard time", "game_name": "Just Chatting"}]})
         if path == "/helix/streams/markers":
             self.markers.append(body)
             return httpx.Response(200, json={"data": [{"id": "mk1", **body}]})

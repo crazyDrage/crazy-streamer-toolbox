@@ -2,6 +2,7 @@ from collections.abc import Callable
 
 from nicegui import ui
 
+from streamer_toolbox.core.testing.test_flows import SHOWN
 from streamer_toolbox.core.testing.test_list import CHECKS, TestList
 
 HELP = {"works": "It does what it says, on the real program",
@@ -67,6 +68,13 @@ class TestWindow:
             if hits:
                 found[where] = hits
         return found
+
+    def number(self, key: str) -> str:
+        """What a box's or trigger's flow in the test toolbox is numbered ("012", "T003"); "" for the rest."""
+        for kind, shown in SHOWN.items():
+            if key in self._tested.numbers(kind):
+                return f"{shown}{self._tested.numbers(kind)[key]:03d}"
+        return ""
 
     def step(self, by: int) -> None:
         """To the file after (1) or before (-1) the one shown; stays at the ends."""
@@ -138,6 +146,10 @@ class TestWindow:
         ai_checked = self._tested.ai_checked(key)
         with ui.column().classes("w-full gap-0 border-b border-gray-500/30 py-2"):
             with ui.row().classes("items-baseline w-full gap-2"):
+                number = self.number(key)
+                if number:
+                    ui.label(number).classes("text-xs font-mono text-primary") \
+                        .tooltip("The number of its flow in the test toolbox (test-toolbox.bat)")
                 ui.label(self._tested.title(key)).classes("font-medium")
                 ui.label(key.split(":", 1)[1]).classes("text-xs opacity-60 font-mono")
                 ui.space()

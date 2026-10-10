@@ -15,6 +15,9 @@ from streamer_toolbox.core.connections.not_connected_error import NotConnectedEr
 from streamer_toolbox.core.connections.secret_file import SecretFile
 from streamer_toolbox.core.connections.setting_field import SettingField
 from streamer_toolbox.core.events.event_bus import EventBus
+from streamer_toolbox.core.web.web_client import web_client
+from streamer_toolbox.gui.components.outside_link import outside_link
+from streamer_toolbox.gui.components.secret_input import SecretInput
 
 DOCS = "https://dev.lumiastream.com/docs/intro"
 EVENT = "lumia.event"
@@ -27,7 +30,9 @@ class LumiaConnection(LineConnection):
 
     The token is from Lumia's settings and lets a program steer it: kept in its own file
     (config/lumia_token.txt), never in toolbox.toml and never shown. Lumia wants it in the address, so no
-    address is ever put into an error text. Built from Lumia's docs, never run against the real program.
+    address is ever put into an error text. Built from Lumia's docs. Tried on the real program
+    (2026-10-10, no lamp linked): it connects, the pickers fill, Lumia takes an alert, a colour and a studio
+    animation, and refuses a command that is switched off there in its own words. No event was seen coming in.
     NOT CONFIRMED: where an event's data holds the viewer's name and message (`username`, `message` are
     looked for). Off until switched on."""
 
@@ -47,11 +52,11 @@ class LumiaConnection(LineConnection):
         return [SettingField("url", "Address", hint="Lumia Stream → Settings → API: the developer API on")]
 
     def add_gui_settings(self) -> None:
-        ui.label(f"The token is read from {self._token.path}: the token from Lumia Stream's API settings, "
-                 "nothing else in the file.").classes("text-sm opacity-80")
-        ui.label("Not tried with the real program yet. Boxes: Run Lumia command, Fire Lumia alert, Set Lumia "
-                 "lights, Send to Lumia. Trigger: \"Lumia event\".").classes("text-xs opacity-60")
-        ui.link("Lumia Stream's developer pages", DOCS, new_tab=True).classes("text-sm")
+        SecretInput(self._token, "Token")
+        ui.label("The token: from Lumia Stream → Settings → API.").classes("text-sm opacity-80")
+        ui.label("Its trigger was not seen with the real program yet. Boxes: Run Lumia command, Fire Lumia "
+                 "alert, Set Lumia lights, Send to Lumia. Trigger: \"Lumia event\".").classes("text-xs opacity-60")
+        outside_link("Lumia Stream's developer pages", DOCS).classes("text-sm")
 
     def add_actions(self, actions: ActionRegistry) -> None:
         LumiaActions(self._send, self._retrieve).add_to(actions)
@@ -101,7 +106,7 @@ class LumiaConnection(LineConnection):
         params = {**kwargs.pop("params", {}), "token": self._token.read()}
         url = f"{str(settings['url']).strip().rstrip('/')}/api/{path}"
         try:
-            async with httpx.AsyncClient(transport=self._transport, timeout=5) as client:
+            async with web_client(self._transport, timeout=5) as client:
                 response = await client.request(method, url, params=params, **kwargs)
         except httpx.HTTPError as e:  # its text would name the address, which holds the token
             raise NotConnectedError(f"can't reach Lumia Stream ({type(e).__name__}): is it running, with "

@@ -5,6 +5,9 @@ from nicegui import ui
 
 from streamer_toolbox.core.config.toolbox_config import ToolboxConfig
 from streamer_toolbox.core.connections.connection_manager import ConnectionManager
+from streamer_toolbox.core.interfaces.connection import Connection
+from streamer_toolbox.core.testing.test_item import CONNECTION
+from streamer_toolbox.core.testing.test_view import TestView
 from streamer_toolbox.gui.components.connection_panel import STATE_LOOK, ConnectionPanel
 from streamer_toolbox.gui.services.ui_registry import UiRegistry
 
@@ -16,14 +19,22 @@ class ConnectionsPage:
     """Everything that talks to the toolbox or that it talks to. /connections is the overview: one card per
     Connection (OBS, SAMMI, Mix It Up, ...) with its state, and the toolbox's own API. /connections?show=<id> is
     one connection's settings (the left menu lists them under Connections), ?show=toolbox the API and callers.
-    Connections are set up right here; the API and callers are changed in config/toolbox.toml (restart needed)."""
+    Connections are set up right here; the API and callers are changed in config/toolbox.toml (restart needed).
+    The overview and the menu leave out the connections his checks hide (`view`, Settings → What you see): such
+    a connection stays as it is (connected or not), and its address still opens it."""
 
     def __init__(self, config: ToolboxConfig, config_path: Path, ui_registry: UiRegistry,
-                 connections: ConnectionManager) -> None:
+                 connections: ConnectionManager, view: TestView | None = None) -> None:
         self._config = config
         self._path = config_path
         self._ui = ui_registry
         self._connections = connections
+        self._view = view
+
+    def shown(self) -> list[Connection]:
+        """The connections the overview and the side menu list now."""
+        return [connection for connection in self._connections.all()
+                if self._view is None or self._view.shows_key(f"{CONNECTION}:{connection.id}")]
 
     def build(self) -> None:
         show = ui.context.client.request.query_params.get("show", "")
@@ -42,9 +53,14 @@ class ConnectionsPage:
         ui.link("← All connections", "/connections").classes("text-sm")
 
     def _overview(self) -> None:
+        shown = self.shown()
+        hidden = len(self._connections.all()) - len(shown)
+        if hidden:
+            ui.label(f"{hidden} connections hidden: {self._view.why()}. They stay as they are (connected or "
+                     "not). Change it in Settings → What you see").classes("text-xs opacity-60")
         with ui.element("div").classes("grid gap-3 w-full sm:grid-cols-2 xl:grid-cols-3 items-stretch"):
             self._tile("lan", "Toolbox", TOOLBOX, "Its own API, and who may call it")
-            for connection in self._connections.all():
+            for connection in shown:
                 self._tile(connection.icon, connection.title, connection.id)
 
     def _tile(self, icon: str, title: str, show: str, note: str = "") -> None:

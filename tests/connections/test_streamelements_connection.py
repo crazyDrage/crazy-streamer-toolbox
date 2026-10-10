@@ -104,6 +104,8 @@ class TestStreamElementsConnection(unittest.IsolatedAsyncioTestCase):
             await server.ask_reconnect()
             await asyncio.wait_for(server.subscribed.wait(), 5)
             self.assertEqual(len(server.subscriptions), 2)
+            await self._settle()
+            self.assertEqual(server.open_lines, 1)  # the old line was closed
             await connection.stop()
 
     async def test_a_refused_token_shows_on_the_tab_and_isnt_asked_again(self) -> None:

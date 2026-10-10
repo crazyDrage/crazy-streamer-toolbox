@@ -1,4 +1,5 @@
 from collections.abc import Iterable
+from dataclasses import replace
 from typing import Any
 
 from streamer_toolbox.core.actions.registered_action import (ActionHandler, FillProvider, HintProvider, LightProvider,
@@ -45,6 +46,12 @@ class ActionRegistry:
                                                tuple(colors), dict(many or {}), dict(lights or {}),
                                                {k: (c, tuple(v)) for k, (c, v) in (shown or {}).items()},
                                                tuple(typed))
+
+    def mark(self, name: str, is_tested: bool, is_understandable: bool, is_usable: bool) -> None:
+        """Sets his three checks on a box (from the test record); unknown names are ignored."""
+        if name in self._actions:
+            self._actions[name] = replace(self._actions[name], is_tested=is_tested,
+                                          is_understandable=is_understandable, is_usable=is_usable)
 
     def remove(self, name: str) -> None:
         """Drops an action (an edited or deleted flow); unknown names are ignored."""

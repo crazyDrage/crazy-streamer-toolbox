@@ -97,7 +97,8 @@ class TestYouTubeConnection(unittest.IsolatedAsyncioTestCase):
                                           "platform": "youtube"}),
             ("youtube.gift_members", {"user": "Ann", "amount": 5, "level": "Lizard", "platform": "youtube"})])
         for kind, data in events:
-            self.assertEqual(set(data), set(EVENT_FIELDS[kind]))  # what the Start box offers is what comes
+            # what the Start box offers is what comes; role: the event bus adds it (RoleBook)
+            self.assertEqual(set(data) - {"role"}, set(EVENT_FIELDS[kind]) - {"role"})
         for kind in ("tombstone", "userBannedEvent", "giftMembershipReceivedEvent", "chatEndedEvent"):
             self.assertEqual(youtube_events(message(kind)), [])
         self.assertEqual(youtube_events({"snippet": "broken"}), [])

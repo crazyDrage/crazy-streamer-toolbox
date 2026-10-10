@@ -82,7 +82,7 @@ def _find(known: dict[str, str], name: str, what: str) -> str:
     wanted = str(name).strip()
     found = known.get(wanted) or next((i for n, i in known.items() if n.casefold() == wanted.casefold()), None)
     if found is None:
-        raise KeyError(f"Firebot has no {what} named {wanted!r}")
+        raise LookupError(f"Firebot has no {what} named {wanted!r}")
     return found
 
 

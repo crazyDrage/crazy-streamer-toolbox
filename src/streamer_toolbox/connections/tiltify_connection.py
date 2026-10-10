@@ -12,6 +12,8 @@ from streamer_toolbox.core.connections.connection_status import ConnectionStatus
 from streamer_toolbox.core.connections.secret_file import SecretFile
 from streamer_toolbox.core.connections.setting_field import SettingField
 from streamer_toolbox.core.events.event_bus import EventBus
+from streamer_toolbox.gui.components.outside_link import outside_link
+from streamer_toolbox.gui.components.secret_input import SecretInput
 
 APPS = "https://app.tiltify.com/developers"
 FASTEST = 5.0  # seconds; a fundraiser doesn't need faster, and Tiltify limits how often it may be asked
@@ -47,9 +49,9 @@ class TiltifyConnection(ConnectionBase):
                              f"a PC: the toolbox asks again and again. Not faster than every {FASTEST:g} seconds.")]
 
     def add_gui_settings(self) -> None:
-        ui.label(f"The client secret is read from {self._secret.path}: the secret of your Tiltify "
-                 "application, nothing else in the file.").classes("text-sm opacity-80")
-        ui.link("Tiltify's page for applications", APPS, new_tab=True).classes("text-sm")
+        SecretInput(self._secret, "Client secret")
+        ui.label("The client secret: the secret of your Tiltify application.").classes("text-sm opacity-80")
+        outside_link("Tiltify's page for applications", APPS).classes("text-sm")
         ui.label("Not tried with the real service yet. What comes in: each new donation to the campaign, as "
                  "the trigger \"Tiltify donation\" (not as a tip: it is the charity's money).") \
             .classes("text-xs opacity-60")

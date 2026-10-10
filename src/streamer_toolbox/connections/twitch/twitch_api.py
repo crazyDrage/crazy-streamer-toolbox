@@ -4,6 +4,7 @@ from typing import Any
 import httpx
 
 from streamer_toolbox.connections.twitch.twitch_api_error import TwitchApiError
+from streamer_toolbox.core.web.web_client import web_client
 
 HELIX = "https://api.twitch.tv/helix"
 
@@ -87,6 +88,6 @@ class TwitchApi:
         return response.json() if response.content else {}
 
     async def _send(self, method: str, path: str, token: str, **kwargs: Any) -> httpx.Response:
-        async with httpx.AsyncClient(transport=self._transport, timeout=10) as client:
+        async with web_client(self._transport, timeout=10) as client:
             return await client.request(method, f"{HELIX}/{path}", headers={
                 "Client-Id": self._client_id, "Authorization": f"Bearer {token}"}, **kwargs)

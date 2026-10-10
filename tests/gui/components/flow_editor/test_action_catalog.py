@@ -52,6 +52,11 @@ class TestActionCatalog(unittest.TestCase):
         self.assertEqual([a.name for _, items in catalog.search("volume") for a in items],
                          ["obs.get_volume", "obs.set_volume"])
 
+    def test_single_boxes_can_be_left_out(self) -> None:
+        catalog = ActionCatalog(self.actions, shows=lambda a: a.name != "obs.set_volume")
+        self.assertEqual((catalog.count(), ActionCatalog(self.actions).count()), (6, 7))
+        self.assertEqual([a.name for _, items in catalog.search("volume") for a in items], ["obs.get_volume"])
+
     def test_hidden_categories_are_left_out(self) -> None:
         catalog = ActionCatalog(self.actions, hide={"obs", "mixitup"})
         self.assertEqual([c for c, _, _ in catalog.categories()], ["logic", "flow"])

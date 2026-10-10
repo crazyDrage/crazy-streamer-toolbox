@@ -4,6 +4,7 @@ from urllib.parse import urlencode
 import httpx
 
 from streamer_toolbox.connections.youtube.youtube_api_error import YouTubeApiError
+from streamer_toolbox.core.web.web_client import web_client
 
 AUTHORIZE = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN = "https://oauth2.googleapis.com/token"
@@ -40,7 +41,7 @@ class YouTubeAuth:
         return await self._token({"grant_type": "refresh_token", "refresh_token": refresh_token})
 
     async def _token(self, data: dict[str, str]) -> dict[str, Any]:
-        async with httpx.AsyncClient(transport=self._transport, timeout=10) as client:
+        async with web_client(self._transport, timeout=10) as client:
             response = await client.post(TOKEN, data={"client_id": self.client_id,
                                                       "client_secret": self._client_secret, **data})
         if response.status_code >= 400:

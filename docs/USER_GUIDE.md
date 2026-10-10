@@ -26,9 +26,11 @@ To remove the toolbox, delete its folder.
 
 ### On Linux
 
-The same archive starts on Linux. **This is new and has not been tried on a real Linux PC yet.**
+The same archive starts on Linux. **This is new: it was started on Ubuntu 24.04 without a screen
+(the pages answer), but not yet used on a real Linux desktop.**
 
-1. You need `python3`, version 3.11 or newer, with `venv` (on Debian / Ubuntu: `sudo apt install python3-venv`).
+1. You need `python3`, version 3.12 or newer, with `venv`, and a C compiler (one library for the keyboard
+   triggers is built on your PC). On Debian / Ubuntu: `sudo apt install python3-venv python3-dev gcc`.
 2. Unpack the archive, then run `./start-linux.sh` in its folder (`./start-linux-browser.sh` for a browser tab).
 3. The first start gets the libraries from the internet into a `.venv` folder inside the toolbox's folder.
    Nothing is installed outside it.
@@ -197,6 +199,21 @@ Next to each platform's own triggers ("Follow" = Twitch, "Rumble follow", ...) t
 **(any platform)**: chat message, follow, sub, resub, gift subs, cheer, raid, redeem, stream online / offline.
 They start for every platform you connected; the Start box's `platform` says which one it was. Alerts and
 widgets work this way by themselves: a Rumble follow shows your Follow alert.
+
+## Sub, Resub and Gift subs: which one starts when
+
+| Trigger | Starts when | `user` is | Worth reading |
+|---|---|---|---|
+| **Sub** | someone gets a new sub: paid by themselves, or gifted to them | the new subscriber | `gift` (yes = it was gifted to them), `tier` |
+| **Resub** | someone shares another month in chat | the subscriber | `months`, `message`, `tier` |
+| **Gift subs** | someone gives subs away | the giver (empty when anonymous) | `amount` (how many), `tier`, `anonymous` |
+
+When a viewer gifts 5 subs, **Gift subs** starts once (the giver, `amount` = 5) and **Sub** starts five times
+(one per receiver, each with `gift` = yes). A flow on Sub that should only run for people who paid themselves
+checks `gift` with an If box; the Sub alert already leaves gifted ones out.
+
+Hard to make happen for a test? The last real one of every trigger is kept as a file in
+`cache\last_triggers\` in your settings folder, and a flow's **Test run** starts with its values.
 
 ## Points (your own currency)
 

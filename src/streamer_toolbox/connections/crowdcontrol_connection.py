@@ -8,6 +8,7 @@ from streamer_toolbox.connections.websocket.line_connection import LineConnectio
 from streamer_toolbox.connections.websocket.request_socket import RequestSocket
 from streamer_toolbox.core.connections.setting_field import SettingField
 from streamer_toolbox.core.events.event_bus import EventBus
+from streamer_toolbox.gui.components.outside_link import outside_link
 
 CROWD_CONTROL_URL = "wss://pubsub.crowdcontrol.live/"
 DOCS = "https://developer.crowdcontrol.live/sockets"
@@ -48,7 +49,7 @@ class CrowdControlConnection(LineConnection):
         ui.label("Not tried with the real service yet. What comes in: each effect a viewer asks for, and "
                  "whether the game did it. Flows: the trigger \"Crowd Control effect\".") \
             .classes("text-sm opacity-80")
-        ui.link("Crowd Control's page about the feed", DOCS, new_tab=True).classes("text-sm")
+        outside_link("Crowd Control's page about the feed", DOCS).classes("text-sm")
 
     def _url(self, settings: dict[str, Any]) -> str:
         if not self._topic(settings):

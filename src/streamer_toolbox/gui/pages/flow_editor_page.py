@@ -4,9 +4,11 @@ from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.actions.box_filter_store import BoxFilterStore
 from streamer_toolbox.gui.components.flow_editor.action_picker import SwitchedOff
 from streamer_toolbox.core.actions.registered_action import OptionsProvider
+from streamer_toolbox.core.events.last_events import LastEvents
 from streamer_toolbox.core.files.box_value_files import BoxValueFiles
 from streamer_toolbox.core.flows.flow_library import FlowLibrary
 from streamer_toolbox.core.flows.flow_runner import FlowRunner
+from streamer_toolbox.core.testing.test_view import TestView
 from streamer_toolbox.core.variables.variable_store import VariableStore
 from streamer_toolbox.gui.components.flow_editor.flow_draft import FlowDraft
 from streamer_toolbox.gui.components.flow_editor.flow_editor import FlowEditor
@@ -19,7 +21,10 @@ class FlowEditorPage:
     def __init__(self, library: FlowLibrary, actions: ActionRegistry, runner: FlowRunner,
                  variables: VariableStore, box_files: BoxValueFiles,
                  trigger_choices: dict[str, OptionsProvider] | None = None,
-                 box_filters: BoxFilterStore | None = None, switched_off: SwitchedOff | None = None) -> None:
+                 box_filters: BoxFilterStore | None = None, switched_off: SwitchedOff | None = None,
+                 last_events: LastEvents | None = None, test_view: TestView | None = None) -> None:
+        self._last_events = last_events
+        self._test_view = test_view
         self._library = library
         self._actions = actions
         self._runner = runner
@@ -50,4 +55,4 @@ class FlowEditorPage:
             draft = FlowDraft("", "New flow")
         FlowEditor(draft, old_name, self._library, self._actions, self._runner, self._variables,
                    self._box_files, self._trigger_choices, self._box_filters,
-                   self._switched_off).build()
+                   self._switched_off, self._last_events, self._test_view).build()

@@ -14,6 +14,8 @@ from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.connections.secret_file import SecretFile
 from streamer_toolbox.core.connections.setting_field import SettingField
 from streamer_toolbox.core.events.event_bus import EventBus
+from streamer_toolbox.gui.components.outside_link import outside_link
+from streamer_toolbox.gui.components.secret_input import SecretInput
 
 DOCS = "https://docs.streamer.bot/api/websocket"
 
@@ -26,7 +28,13 @@ class StreamerbotConnection(LineConnection):
     none.
 
     A password is only needed when Streamer.bot's server asks for one; it is kept in its own file
-    (config/streamerbot_password.txt). Built from Streamer.bot's docs, never run against the real program.
+    (config/streamerbot_password.txt). Built from Streamer.bot's docs. Tried on the real program (2026-10-10,
+    version 1.0.7, no password): it connects, subscribes to the named categories, runs an action by name (with
+    and without arguments; the name's upper / lower case doesn't matter to it), and Streamer.bot's own words
+    come back for an action or a global that is not there. It says "ok" to a code trigger nobody registered.
+    Writing in chat is refused without a password ("Authentication required to use this method", seen by him).
+    NOT TRIED: a registered code trigger, reading a real global, a chat line written, an event coming in, a server
+    with a password.
     Off until switched on."""
 
     id = "streamerbot"
@@ -51,11 +59,15 @@ class StreamerbotConnection(LineConnection):
                              "the toolbox's own Twitch connection is on too")]
 
     def add_gui_settings(self) -> None:
-        ui.label(f"Only if Streamer.bot's WebSocket server has Authentication on: put its password into "
-                 f"{self._password.path}, nothing else in the file.").classes("text-sm opacity-80")
-        ui.label("Not tried with the real program yet. Boxes: Run Streamer.bot action (picked from a list), "
+        SecretInput(self._password, "Password")
+        ui.label("The password: only if Streamer.bot's WebSocket server has Authentication on (Servers/Clients "
+                 "→ WebSocket Server). Streamer.bot wants one before it writes in chat.") \
+            .classes("text-sm opacity-80")
+        ui.label("It connects to the real program and runs an action; the other boxes and the trigger were "
+                 "not tried on it yet. Boxes: Run Streamer.bot action (picked from a list), Fire Streamer.bot "
+                 "trigger, "
                  "Get global, Write in chat. Trigger: \"Streamer.bot event\".").classes("text-xs opacity-60")
-        ui.link("Streamer.bot's page about it", DOCS, new_tab=True).classes("text-sm")
+        outside_link("Streamer.bot's page about it", DOCS).classes("text-sm")
 
     def add_actions(self, actions: ActionRegistry) -> None:
         StreamerbotActions(self._request).add_to(actions)
@@ -84,7 +96,8 @@ class StreamerbotConnection(LineConnection):
         if isinstance(asked, dict):
             password = self._password.read_or_empty()
             if not password:
-                raise PermissionError(f"Streamer.bot asks for a password: put it into {self._password.path}")
+                raise PermissionError("Streamer.bot asks for a password: type it into the Password field under "
+                                      "Connections → Streamer.bot")
             answer = await line.request({"request": "Authenticate", "authentication": authentication(
                 password, str(asked.get("salt") or ""), str(asked.get("challenge") or ""))})
             if answer.get("status") != "ok":

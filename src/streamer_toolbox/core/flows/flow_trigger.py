@@ -3,9 +3,12 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from streamer_toolbox.core.events.event_fields import CHAT_ROLES
+from streamer_toolbox.core.flows.number_match import fits_number
 
 WORDS = "words"
 WHO = "who"  # {"who": "mod"}: only mods and the broadcaster (the event's "role" must be at least this)
+WHO_MAX = "who_max"  # {"who_max": "vip"}: VIPs and down, so no mods (the "role" must be at most this)
+ROLES = "roles"  # {"roles": "viewer, sub, vip"}: the "role" must be one of these (what the editor saves)
 # an id key stands in for its name key: a redeem trigger with reward_id matches by id (a renamed reward still fits)
 ID_KEYS = {"reward_id": "reward"}
 REWARDS = "twitch.rewards"  # the toolbox's own event when Twitch connects: {"rewards": [{"id", "title"}, ...]}
@@ -18,7 +21,10 @@ class FlowTrigger:
     A trigger matches an event of the same kind whose data has every key/value in `match`, ignoring upper/lower
     case. A * stands for any text, like in SAMMI: {"message": "!qa *"} matches "!qa how are you?".
     The key "words" is special: {"words": "gay, bl"} matches a message that has one of those as a whole word;
-    so is "who": {"who": "vip"} matches a chat message from a VIP, mod or the broadcaster.
+    so are the role keys, on every event with a viewer's "role": {"roles": "vip, mod"} matches a VIP or a mod
+    (the editor's checkboxes save this one), {"who": "vip"} a VIP, a mod or the broadcaster, {"who_max": "vip"}
+    a VIP, a sub or a plain viewer.
+    A number in the event can be compared: {"bpm": ">120"} matches a heart rate above 120 ("<" lower, "=" equal).
     A redeem trigger saved with reward_id matches by that id only (its "reward" name is kept for showing and is
     updated when the reward is renamed on Twitch).
     """
@@ -53,7 +59,12 @@ def _fits(key: str, wanted: str, data: dict[str, Any]) -> bool:
         return _has_word(str(data.get("message", "")), wanted)
     if key == WHO:
         return _rank(str(data.get("role", "viewer"))) >= _rank(wanted)
-    return _same(str(data.get(key, "")), wanted)
+    if key == ROLES:
+        return str(data.get("role", "viewer")) in {role.strip().casefold() for role in wanted.split(",")}
+    if key == WHO_MAX:
+        return _rank(str(data.get("role", "viewer"))) <= _rank(wanted)
+    by_number = fits_number(data.get(key), wanted)  # {"bpm": ">120"}
+    return _same(str(data.get(key, "")), wanted) if by_number is None else by_number
 
 
 def _rank(role: str) -> int:

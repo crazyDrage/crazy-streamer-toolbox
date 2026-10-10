@@ -10,6 +10,8 @@ from streamer_toolbox.connections.websocket.line_connection import LineConnectio
 from streamer_toolbox.connections.websocket.request_socket import RequestSocket
 from streamer_toolbox.core.connections.secret_file import SecretFile
 from streamer_toolbox.core.connections.setting_field import SettingField
+from streamer_toolbox.gui.components.outside_link import outside_link
+from streamer_toolbox.gui.components.secret_input import SecretInput
 
 HYPERATE_URL = "wss://app.hyperate.io/socket/websocket?token="
 KEY_PAGE = "https://www.hyperate.io/api"
@@ -43,10 +45,10 @@ class HypeRateConnection(LineConnection):
                                                                     "(the end of your widget's address)")]
 
     def add_gui_settings(self) -> None:
-        ui.label(f"The websocket key is read from {self._key.path}: the key HypeRate gave you, nothing else "
-                 "in the file.").classes("text-sm opacity-80")
-        ui.link("Ask HypeRate for a key", KEY_PAGE, new_tab=True).classes("text-sm")
-        ui.link("HypeRate's page about the feed", DOCS, new_tab=True).classes("text-sm")
+        SecretInput(self._key, "Websocket key")
+        ui.label("The websocket key: the key HypeRate gave you.").classes("text-sm opacity-80")
+        outside_link("Ask HypeRate for a key", KEY_PAGE).classes("text-sm")
+        outside_link("HypeRate's page about the feed", DOCS).classes("text-sm")
         ui.label("Not tried with the real service yet. What comes in: the heart rate. Flows: the trigger "
                  "\"Heart rate changed\" and the box Get heart rate.").classes("text-xs opacity-60")
 

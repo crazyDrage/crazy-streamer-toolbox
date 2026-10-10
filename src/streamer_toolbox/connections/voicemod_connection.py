@@ -14,6 +14,8 @@ from streamer_toolbox.core.connections.connection_state import ConnectionState
 from streamer_toolbox.core.connections.connection_status import ConnectionStatus
 from streamer_toolbox.core.connections.secret_file import SecretFile
 from streamer_toolbox.core.connections.setting_field import SettingField
+from streamer_toolbox.gui.components.outside_link import outside_link
+from streamer_toolbox.gui.components.secret_input import SecretInput
 
 DOCS = "https://control-api.voicemod.net/"
 PORTS = (59129, 20000, 39273, 42152, 43782, 46667, 35679, 37170, 38501, 33952, 30546)  # Voicemod's own list
@@ -49,11 +51,12 @@ class VoicemodConnection(LineConnection):
                                                     "like ws://localhost:59129/v1")]
 
     def add_gui_settings(self) -> None:
-        ui.label(f"The API key is read from {self._key.path}: the key Voicemod mailed you, nothing else in "
-                 "the file. Ask for one on Voicemod's page (free, a short form).").classes("text-sm opacity-80")
+        SecretInput(self._key, "API key")
+        ui.label("The API key: the key Voicemod mailed you. "
+                 "Ask for one on Voicemod's page (free, a short form).").classes("text-sm opacity-80")
         ui.label("Not tried with the real program yet. Boxes: Set Voicemod voice, Random voice, Play / Stop "
                  "Voicemod sound, Flip Voicemod switch.").classes("text-xs opacity-60")
-        ui.link("Voicemod's Control API page", DOCS, new_tab=True).classes("text-sm")
+        outside_link("Voicemod's Control API page", DOCS).classes("text-sm")
 
     def add_actions(self, actions: ActionRegistry) -> None:
         VoicemodActions(self._request).add_to(actions)

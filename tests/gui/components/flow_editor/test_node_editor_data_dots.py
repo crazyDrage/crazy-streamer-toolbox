@@ -37,6 +37,16 @@ class TestNodeEditorDataDots(unittest.TestCase):
     def tearDown(self) -> None:
         self._dir.cleanup()
 
+    def test_a_wire_taken_away_in_the_panel_is_set_after_the_canvas_was_read(self) -> None:
+        split, calls = self.draft.node("n2"), []
+        self.editor._on_change = lambda **how: calls.append(how)
+        self.editor._set_param(split, "data", "${box}")  # the X on "from box"
+        self.assertEqual((split.params["data"], calls[0]["rebuild"]), ("${box.n1}", True))  # not yet
+        calls[0]["edit"]()  # the box view runs it once it has read the canvas, which still shows the old wire
+        self.assertEqual(split.params["data"], "${box}")
+        self.editor._set_param(split, "data", "5")  # another source: nothing on the canvas puts a wire back
+        self.assertEqual((split.params["data"], calls[1]), ("5", {"rebuild": False}))
+
     def test_a_result_with_keys_has_one_dot_and_its_keys_stay_in_the_list(self) -> None:
         video = self.draft.node("n1")
         self.assertEqual(self.editor.dots.data_outputs(video), [("", "result")])

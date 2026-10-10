@@ -4,6 +4,7 @@ from urllib.parse import urlencode
 import httpx
 
 from streamer_toolbox.connections.twitch.twitch_api_error import TwitchApiError
+from streamer_toolbox.core.web.web_client import web_client
 
 ID = "https://id.twitch.tv/oauth2"
 # the toolbox's own Twitch app ("crazy-streamer-tools", client type Public: it has no secret, so the id may be in
@@ -19,7 +20,9 @@ SCOPES = ("channel:read:redemptions", "channel:manage:redemptions", "user:read:c
 EXTRA_SCOPES = ("clips:edit", "moderator:manage:shoutouts", "moderator:manage:announcements",
                 "channel:manage:polls", "channel:manage:predictions", "channel:manage:raids",
                 "channel:edit:commercial", "moderator:manage:chat_settings", "moderator:manage:banned_users",
-                "moderator:read:chatters")
+                "moderator:read:chatters",
+                # Get viewer role (TwitchViewerActions; his wish 2026-10-10): is this user a mod / a VIP of mine
+                "moderation:read", "channel:read:vips")
 
 
 class TwitchAuth:
@@ -52,7 +55,7 @@ class TwitchAuth:
 
     async def device(self) -> dict[str, Any]:
         """Starts a login with a code: {device_code, user_code, verification_uri, interval, expires_in}."""
-        async with httpx.AsyncClient(transport=self._transport, timeout=10) as client:
+        async with web_client(self._transport, timeout=10) as client:
             response = await client.post(f"{ID}/device", data={"client_id": self.client_id,
                                                                "scopes": " ".join(SCOPES + EXTRA_SCOPES)})
         return _json(response)
@@ -72,12 +75,12 @@ class TwitchAuth:
 
     async def validate(self, access_token: str) -> dict[str, Any]:
         """{client_id, login, user_id, scopes, expires_in}; raises TwitchApiError(401) for a dead token."""
-        async with httpx.AsyncClient(transport=self._transport, timeout=10) as client:
+        async with web_client(self._transport, timeout=10) as client:
             response = await client.get(f"{ID}/validate", headers={"Authorization": f"OAuth {access_token}"})
         return _json(response)
 
     async def _token(self, data: dict[str, str]) -> dict[str, Any]:
-        async with httpx.AsyncClient(transport=self._transport, timeout=10) as client:
+        async with web_client(self._transport, timeout=10) as client:
             secret = {} if self.public else {"client_secret": self._client_secret}
             response = await client.post(f"{ID}/token", data={"client_id": self.client_id, **secret, **data})
         return _json(response)

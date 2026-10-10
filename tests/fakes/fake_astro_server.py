@@ -22,6 +22,10 @@ class FakeAstroServer:
     def url(self) -> str:
         return f"ws://127.0.0.1:{self._server.sockets[0].getsockname()[1]}"
 
+    @property
+    def open_lines(self) -> int:
+        return len(self._clients)
+
     async def __aenter__(self) -> "FakeAstroServer":
         self._server = await websockets.serve(self._handle, "127.0.0.1", 0)
         return self

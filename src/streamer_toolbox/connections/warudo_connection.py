@@ -10,6 +10,7 @@ from streamer_toolbox.core.connections.connection_state import ConnectionState
 from streamer_toolbox.core.connections.connection_status import ConnectionStatus
 from streamer_toolbox.core.connections.not_connected_error import NotConnectedError
 from streamer_toolbox.core.connections.setting_field import SettingField
+from streamer_toolbox.gui.components.outside_link import outside_link
 
 DOCS = "https://docs.warudo.app/docs/blueprints/overview"
 
@@ -37,7 +38,7 @@ class WarudoConnection(ConnectionBase):
                  'same name runs it.').classes("text-sm opacity-80")
         ui.label("Not tried with the real program yet: the message's shape may still need a fix.") \
             .classes("text-xs opacity-60")
-        ui.link("Warudo's handbook: blueprints", DOCS, new_tab=True).classes("text-sm")
+        outside_link("Warudo's handbook: blueprints", DOCS).classes("text-sm")
 
     async def start(self) -> None:
         self._set_status(await self.test(self._settings))

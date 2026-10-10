@@ -3,6 +3,7 @@ import logging
 import secrets
 import webbrowser
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -13,9 +14,15 @@ from streamer_toolbox.connections.oauth.oauth_code_listener import OAuthCodeList
 from streamer_toolbox.connections.twitch.eventsub_events import subscriptions, to_event
 from streamer_toolbox.connections.twitch.twitch_api import TwitchApi
 from streamer_toolbox.connections.twitch.twitch_api_error import TwitchApiError
-from streamer_toolbox.connections.twitch.twitch_auth import BUILT_IN_CLIENT_ID, SCOPES, TwitchAuth
+from streamer_toolbox.connections.twitch.twitch_auth import BUILT_IN_CLIENT_ID, EXTRA_SCOPES, SCOPES, TwitchAuth
 from streamer_toolbox.connections.twitch.twitch_channel_actions import TwitchChannelActions
+from streamer_toolbox.connections.twitch.twitch_clip_actions import TwitchClipActions
+from streamer_toolbox.connections.twitch.twitch_clip_downloader import (REPO, TwitchClipDownloader, program_name,
+                                                                        release_file)
+from streamer_toolbox.connections.twitch.twitch_clip_files import TwitchClipFiles
+from streamer_toolbox.connections.twitch.twitch_clip_question import TwitchClipQuestion
 from streamer_toolbox.connections.twitch.twitch_stream_actions import TwitchStreamActions
+from streamer_toolbox.connections.twitch.twitch_viewer_actions import TwitchViewerActions
 from streamer_toolbox.connections.twitch.twitch_reward import TwitchReward
 from streamer_toolbox.connections.oauth.oauth_token import OAuthToken
 from streamer_toolbox.connections.oauth.oauth_token_store import OAuthTokenStore
@@ -27,6 +34,7 @@ from streamer_toolbox.core.connections.not_connected_error import NotConnectedEr
 from streamer_toolbox.core.connections.setting_field import SettingField
 from streamer_toolbox.core.data.box_value import to_bool
 from streamer_toolbox.core.events.event_bus import EventBus
+from streamer_toolbox.core.system.github_program import GithubProgram
 from streamer_toolbox.core.flows.flow_trigger import REWARDS
 from streamer_toolbox.core.interfaces.reward_manager import RewardManager
 
@@ -34,6 +42,7 @@ REDEEM = "twitch.redeem"
 CHAT = "twitch.chat"
 log = logging.getLogger(__name__)
 PLATFORM = "twitch"  # every Twitch event says so (custom triggers pass it on to flows)
+STREAM_EVENTS = ("twitch.online", "twitch.offline")  # these also say the stream's title and category
 
 
 class TwitchConnection(ConnectionBase, RewardManager):
@@ -54,11 +63,14 @@ class TwitchConnection(ConnectionBase, RewardManager):
     def __init__(self, settings: dict[str, Any], tokens: OAuthTokenStore, events: EventBus,
                  transport: httpx.AsyncBaseTransport | None = None, ws_connect: Callable[..., Any] = websockets.connect,
                  eventsub_url: str = EVENTSUB_URL, open_browser: Callable[[str], Any] = webbrowser.open,
-                 login_timeout: float = 180, code_wait: float = 1.0) -> None:
+                 login_timeout: float = 180, code_wait: float = 1.0, folder: Path | None = None,
+                 raw: Callable[[str, dict[str, Any]], None] | None = None) -> None:
         super().__init__({"client_id": "", "client_secret": "", "redirect_url": "http://localhost:17563"},
                          settings)
         self._tokens = tokens
+        self._folder = folder  # the settings folder: where the clip downloader and its clips are kept
         self._events = events
+        self._raw = raw  # gets (event name, Twitch's own message) right before the event goes out
         self._transport = transport
         self._ws_connect = ws_connect
         self._eventsub_url = eventsub_url
@@ -115,7 +127,9 @@ class TwitchConnection(ConnectionBase, RewardManager):
         self._set_status(ConnectionStatus(ConnectionState.OFF))
 
     async def test(self, settings: dict[str, Any]) -> ConnectionStatus:
-        """Uses the saved login if it still works for this app, else logs in through the browser."""
+        """Uses the saved login if it still works for this app, else logs in through the browser. A login that
+        works but is from before a permission was added (EXTRA_SCOPES) logs in again too, so Connect brings the
+        new permissions; if that isn't finished, the saved login stays as it is."""
         if settings.get("client_secret") and not settings.get("client_id"):
             return ConnectionStatus(ConnectionState.ERROR, "A Client Secret needs its Client ID (or leave both "
                                                            "empty to use the toolbox's own Twitch app)")
@@ -124,6 +138,9 @@ class TwitchConnection(ConnectionBase, RewardManager):
                 token = await self._usable_token(settings, self._tokens.load())
             except PermissionError:
                 token = await self._login(settings)
+            else:
+                if set(EXTRA_SCOPES) - set(token.scopes):
+                    token = await self._login(settings)
         except Exception as e:
             return ConnectionStatus(ConnectionState.ERROR, _reason(e))
         return ConnectionStatus(ConnectionState.CONNECTED, "", (("Account", token.login),))
@@ -244,6 +261,15 @@ class TwitchConnection(ConnectionBase, RewardManager):
                     "find a moment later for a clip", "Stream marker", group="Stream")
         TwitchChannelActions(self._helix, self._need_token).add_to(actions)
         TwitchStreamActions(self._helix, self._need_token).add_to(actions)
+        TwitchViewerActions(self._helix, self._need_token).add_to(actions)
+        downloader = None
+        if self._folder is not None:
+            program = GithubProgram(REPO, release_file(), program_name(),
+                                    self._folder / "tools" / "twitch_downloader")
+            downloader = TwitchClipDownloader(program, self._folder / "cache" / "clips")
+        question = TwitchClipQuestion(self._folder / "cache" / "twitch_clip_question.json" if self._folder else None,
+                                      self._transport)
+        TwitchClipActions(TwitchClipFiles(self._transport, question=question), downloader).add_to(actions)
 
     # ---- internals ----
 
@@ -376,7 +402,23 @@ class TwitchConnection(ConnectionBase, RewardManager):
         found = to_event(kind, event)
         if found is not None:
             name, data = found
+            if name in STREAM_EVENTS:
+                data = {**data, **await self._stream_topic()}
+            if self._raw is not None:
+                self._raw(name, event)
             self._events.publish(name, {**data, "platform": PLATFORM})
+
+    async def _stream_topic(self) -> dict[str, str]:
+        """The stream's title and category (the game), asked when it goes live or ends: Twitch's message has
+        neither. Empty when Twitch doesn't answer; the event still goes out."""
+        try:
+            answer = await self._api().helix("GET", "channels",
+                                             params={"broadcaster_id": self._need_token().user_id})
+        except Exception as e:
+            log.info("Twitch: no title and category for the stream event (%s)", e)
+            answer = {}
+        info = (answer.get("data") or [{}])[0]
+        return {"title": str(info.get("title") or ""), "category": str(info.get("game_name") or "")}
 
     def _eventsub_state(self, text: str) -> None:
         self._listening = text

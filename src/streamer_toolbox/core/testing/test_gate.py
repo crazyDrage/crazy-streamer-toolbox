@@ -12,9 +12,9 @@ Items = Callable[[], list[TestItem]]
 class TestGate:
     """Decides what this copy of the toolbox offers, from the test record.
 
-    In the project folder (tested_only False) everything is on, and apply() tells the record what there is to
-    test (the files themselves are made by devtools/tested). In a build (tested_only True) only what is tested
-    is offered: keeps() answers for a connection while the connections are made, and apply() parks the untested boxes, leaves the
+    In the project folder and in a plain build (tested_only False) everything is on, and apply() tells the
+    record what there is to test (the files themselves are made by devtools/tested); what of it is shown is
+    TestView's. In a build made with `package tested_only` (tested_only True) only what is tested is there: keeps() answers for a connection while the connections are made, and apply() parks the untested boxes, leaves the
     untested triggers out, takes the untested tools off the list and names the untested pages
     (untested_pages, for the menu)."""
 
@@ -39,10 +39,14 @@ class TestGate:
         """Once every box, tool and trigger is there. `tools` is the list the Tools page shows (title second);
         `items` gives the toolbox's whole list of things to test (TestInventory)."""
         self.items = items
+        found = items()
+        for item in found:
+            if item.kind == BOX:  # the box carries his three checks (is_tested, ...): TestView shows by them
+                actions.mark(item.id, **self.tested.flags(item.key))
         if not self.tested_only:
-            self.tested.take(items())
+            self.tested.take(found)
             return
-        untested = {(item.kind, item.id) for item in items() if not self.tested.tested(item.key)}
+        untested = {(item.kind, item.id) for item in found if not self.tested.tested(item.key)}
         actions.park(self._parked | {name for kind, name in untested if kind == BOX})
         leave_out(self._untested_connections, {name for kind, name in untested if kind == TRIGGER})
         tools[:] = [tool for tool in tools if (TOOL, slug(tool[1])) not in untested]

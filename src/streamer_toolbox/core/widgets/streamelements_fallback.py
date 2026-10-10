@@ -3,6 +3,7 @@ from typing import Any
 import httpx
 
 from streamer_toolbox.core.config.config_table_writer import ConfigTableWriter
+from streamer_toolbox.core.web.web_client import web_client
 
 API = "https://api.streamelements.com/kappa/v2"
 TABLE, KEY = "widgets", "streamelements_fallback"
@@ -36,7 +37,7 @@ class StreamElementsFallback:
         if not self._on:
             return None
         try:
-            async with httpx.AsyncClient(transport=self._transport, timeout=10) as client:
+            async with web_client(self._transport, timeout=10) as client:
                 answer = await client.get(f"{API}/{path.lstrip('/')}", headers={"Accept": "application/json"})
             return answer.json() if answer.status_code == 200 else None
         except (httpx.HTTPError, ValueError):

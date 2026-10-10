@@ -1,4 +1,4 @@
-from collections.abc import Collection
+from collections.abc import Callable, Collection
 from itertools import groupby
 
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
@@ -13,14 +13,19 @@ class ActionCatalog:
     each has, a category's boxes by sub group, and a search over every box (all words must be somewhere in its
     name, description, category or group; boxes whose name starts with the search come first). With a
     BoxFilter only the boxes that fit it are there at all; `hide` leaves out whole categories (the programs
-    that are switched off under Connections)."""
+    that are switched off under Connections); `shows` leaves out single boxes (TestView.shows_box: the ones
+    his checks hide)."""
 
     def __init__(self, actions: ActionRegistry, exclude: str = "", box_filter: BoxFilter | None = None,
-                 hide: Collection[str] = ()) -> None:
+                 hide: Collection[str] = (), shows: Callable[[RegisteredAction], bool] | None = None) -> None:
         self._actions = sorted((a for a in actions.all(include_flow_only=True)
                                 if a.name != exclude and a.category not in hide
-                                and (box_filter is None or box_filter.fits(a))),
+                                and (box_filter is None or box_filter.fits(a))
+                                and (shows is None or shows(a))),
                                key=lambda a: (_category_order(a), a.group or GENERAL, a.title.casefold()))
+
+    def count(self) -> int:
+        return len(self._actions)
 
     def categories(self) -> list[tuple[str, str, int]]:
         """(category, its title, number of boxes)."""

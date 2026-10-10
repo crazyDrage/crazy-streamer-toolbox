@@ -23,6 +23,8 @@ def tits(message: dict, path: str) -> dict:
         back["data"] = {"items": ITEMS}
     elif kind == "TITSTriggerListRequest":
         back["data"] = {"triggers": TRIGGERS}
+    elif kind == "TITSItemInfoRequest":
+        back["data"] = {"ID": data["itemID"], "name": "Tomato", "encodedImage": "iVBOR" if data["sendImage"] else ""}
     elif kind == "TITSThrowItemsRequest":
         back["data"] = {"numberOfThrownItems": data["amountOfThrows"]}
     elif kind == "TITSTriggerActivateRequest" and data["triggerID"] != "t-1":
@@ -61,7 +63,13 @@ class TestTitsConnection(unittest.IsolatedAsyncioTestCase):
             await connection.start()
             await until(lambda: connection.status.state is ConnectionState.CONNECTED)
             await until(lambda: sorted(server.paths[-2:]) == ["/events", "/websocket"])
-            self.assertEqual(await actions.get("tits.throw").options["item"](), ["Plush", "Tomato"])
+            self.assertEqual(await actions.get("tits.throw").many["item"](), ["Plush", "Tomato"])
+            await actions.run("tits.throw", item="Plush, tomato", amount=5)  # several kinds: T.I.T.S. mixes them
+            self.assertEqual(server.received[-1]["data"]["items"], ["i-2", "i-1"])
+            self.assertEqual(await actions.run("tits.get_items"), {"count": 2, "names": ["Plush", "Tomato"]})
+            self.assertEqual(await actions.run("tits.get_triggers"), {"count": 1, "names": ["Rain"]})
+            self.assertEqual(await actions.run("tits.get_item", item="tomato"), {
+                "name": "Tomato", "item_id": "i-1", "picture": "data:image/png;base64,iVBOR"})
             self.assertEqual(await actions.get("tits.activate_trigger").options["trigger"](), ["Rain"])
             self.assertEqual(await actions.run("tits.throw", item="tomato", amount=3), {"thrown": 3})
             thrown = server.received[-1]
@@ -69,8 +77,10 @@ class TestTitsConnection(unittest.IsolatedAsyncioTestCase):
                              ("TITSPublicApi", ["i-1"], 3))
             await actions.run("tits.activate_trigger", trigger="Rain")
             self.assertEqual(server.received[-1]["data"], {"triggerID": "t-1", "triggerName": "Rain"})
-            with self.assertRaisesRegex(KeyError, "no item named"):
+            with self.assertRaisesRegex(LookupError, "^T.I.T.S. has no item named"):
                 await actions.run("tits.throw", item="Anvil")
+            with self.assertRaisesRegex(ValueError, "Which trigger"):
+                await actions.run("tits.activate_trigger", trigger=" ")
             await connection.stop()
 
     async def test_a_hit_and_a_trigger_start_flows(self) -> None:
@@ -85,7 +95,8 @@ class TestTitsConnection(unittest.IsolatedAsyncioTestCase):
                                "data": {"triggerID": "t-1", "triggerName": "Rain"}}, "/events")
             await until(lambda: len(self.seen) == 2)
             self.assertEqual(self.seen[0], ("tits.hit", {"item": "Tomato", "item_id": "i-1", "trigger": "",
-                                                         "trigger_id": "", "strength": 0.4}))
+                                                         "trigger_id": "", "strength": 0.4, "x": 0, "y": 1,
+                                                         "z": 0}))
             self.assertEqual(self.seen[1], ("tits.trigger_ended", {"trigger": "Rain", "trigger_id": "t-1"}))
             for kind, data in self.seen:
                 self.assertEqual(set(data), set(EVENT_FIELDS[kind]))
@@ -104,7 +115,7 @@ class TestTitsConnection(unittest.IsolatedAsyncioTestCase):
         self.assertIn("trying again", connection.status.detail)
         with self.assertRaisesRegex(NotConnectedError, "not connected"):
             await actions.run("tits.throw", item="Tomato")
-        self.assertEqual(await actions.get("tits.throw").options["item"](), [])
+        self.assertEqual(await actions.get("tits.throw").many["item"](), [])
         async with FakeJsonSocketServer(tits) as again:
             connection.configure({"enabled": True, "url": again.url})
             await until(lambda: connection.status.state is ConnectionState.CONNECTED)

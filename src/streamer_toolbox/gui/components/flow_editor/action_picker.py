@@ -5,6 +5,7 @@ from collections.abc import Callable
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.actions.box_filter_store import BoxFilterStore
 from streamer_toolbox.core.actions.registered_action import RegisteredAction
+from streamer_toolbox.core.testing.test_view import TestView
 from streamer_toolbox.gui.components.flow_editor.action_catalog import ActionCatalog
 from streamer_toolbox.gui.components.flow_editor.fold_group import FoldGroup
 
@@ -17,13 +18,16 @@ class ActionPicker:
     Searching lists the matching boxes of every category; Enter takes the first one. Show narrows all of it to
     one filter (the basic ones, and his own from Settings); the one picked stays for the next time. The boxes
     of programs that are switched off under Connections, and of plugins switched off under Plugins, are left
-    out, with one line to show them anyway."""
+    out, with one line to show them anyway. So are the boxes his checks hide (TestView, Settings → What you
+    see), with a line of their own."""
 
     def __init__(self, actions: ActionRegistry, exclude: str = "", filters: BoxFilterStore | None = None,
-                 switched_off: SwitchedOff | None = None) -> None:
+                 switched_off: SwitchedOff | None = None, view: TestView | None = None) -> None:
         self._actions = actions
         self._exclude = exclude  # the flow being edited, so it can't call itself
         self._filters = filters
+        self._view = view
+        self._show_unchecked = False
         has_boxes = {a.category for a in actions.all(include_flow_only=True)}
         # category → the program's name (a connection without boxes, like Keyboard, isn't named)
         self._off = {c: name for c, name in (switched_off() if switched_off else {}).items() if c in has_boxes}
@@ -34,8 +38,11 @@ class ActionPicker:
     def _use_filter(self, name: str) -> None:
         box_filter = self._filters.get(name) if self._filters and name else None  # a deleted one: all boxes
         self._filter = box_filter.name if box_filter else ""
-        self._catalog = ActionCatalog(self._actions, self._exclude, box_filter,
-                                      () if self._show_off else tuple(self._off))
+        hide = () if self._show_off else tuple(self._off)
+        everything = ActionCatalog(self._actions, self._exclude, box_filter, hide)
+        self._catalog = everything if self._view is None or self._show_unchecked else ActionCatalog(
+            self._actions, self._exclude, box_filter, hide, self._view.shows_box)
+        self._unchecked = everything.count() - self._catalog.count()  # how many his checks hide
         self._category = next(iter(self._catalog.categories()), ("", "", 0))[0]
 
     async def pick(self, title: str = "Add a box") -> str | None:
@@ -92,6 +99,13 @@ class ActionPicker:
                 ui.label(f"Switched off: {names}").classes("text-xs opacity-60")
                 ui.button("Hide them" if self._show_off else "Show them anyway", on_click=self._toggle_off) \
                     .props("flat dense no-caps size=sm").classes("self-start")
+        if self._unchecked or self._show_unchecked:
+            with ui.column().classes("gap-0 pt-2 px-1 shrink-0"):
+                ui.label("Shown anyway: what Settings → What you see hides" if self._show_unchecked else
+                         f"{self._unchecked} boxes hidden: {self._view.why()}. Change it in Settings → What "
+                         "you see").classes("text-xs opacity-60")
+                ui.button("Hide them" if self._show_unchecked else "Show them anyway",
+                          on_click=self._toggle_unchecked).props("flat dense no-caps size=sm").classes("self-start")
 
     @ui.refreshable_method
     def _boxes(self) -> None:
@@ -122,6 +136,12 @@ class ActionPicker:
 
     def _toggle_off(self) -> None:
         self._show_off = not self._show_off
+        self._use_filter(self._filter)
+        self._categories.refresh()
+        self._boxes.refresh()
+
+    def _toggle_unchecked(self) -> None:
+        self._show_unchecked = not self._show_unchecked
         self._use_filter(self._filter)
         self._categories.refresh()
         self._boxes.refresh()

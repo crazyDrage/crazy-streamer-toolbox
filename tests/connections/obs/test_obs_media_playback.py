@@ -57,6 +57,15 @@ class TestObsMediaPlayback(unittest.IsolatedAsyncioTestCase):
             "boundsHeight": 180.0}}])
         self.assertNotIn("GetSceneItemTransform", self.obs.kinds())
 
+    async def test_an_address_is_played_from_there_not_as_a_file(self) -> None:
+        address = "https://cdn.test/a/1080/index.mp4?sig=s&token=%7B%7D"
+        result = await self.actions.run("obs.play_video_once", scene="s", file=f" {address} ")
+        self.assertTrue(result["source"].startswith("toolbox video "))
+        settings = self.obs.sent("CreateInput")[0]["inputSettings"]
+        self.assertEqual((settings["input"], settings["is_local_file"]), (address, False))
+        self.assertNotIn("local_file", settings)
+        self.assertEqual((result["seconds"], self.obs.kinds()[-1]), (4.5, "RemoveInput"))
+
     async def test_a_clip_shorter_than_one_look_still_ends(self) -> None:
         self.obs.responses["GetMediaInputStatus"] = [OPENING, ENDED]
         await self.actions.run("obs.play_video_once", scene="s", file="C:\\a.mp4")

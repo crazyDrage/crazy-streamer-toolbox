@@ -34,12 +34,25 @@ core/                    shared building blocks, no service-specific code
                          docs/tested/, in git, sorted like the menu: <tab>/page.md, flows/triggers/<program>.md,
                          flows/boxes/<category>/<group>.md, tools/<tool>.md, connections/<id>.md; per row
                          "AI checked" (the day Hex tried it), three checks, the day and a note; tested = all
-                         three), release_marker (a build has the file tested_only.txt next to the code), TestGate
-                         (what main asks: in a build it parks every untested box, leaves untested
+                         three), release_marker (only a `package tested_only` build has the file tested_only.txt next
+                         to the code; a plain build carries everything since 10-10), TestGate
+                         (what main asks: in such a build it parks every untested box, leaves untested
                          connections / triggers out through left_out.leave_out, drops untested tools and gives
                          AppShell.left_out the untested pages' addresses (not in the menu, a line instead of
-                         the page); in the project folder everything is on). The files are made by
-                         devtools/tested, not at start, and ticked in its test window, not in the toolbox
+                         the page); in the project folder and in a plain build everything is on). The files are made by
+                         devtools/tested, not at start, and ticked in its test window, not in the toolbox.
+                         TestGate also writes the three checks onto every box (RegisteredAction.is_tested /
+                         is_understandable / is_usable). TestView: what he sees by them (Settings → What you
+                         see, gui/components/test_view_panel): mode "tested" (the checks he picks; works alone
+                         at first), "everything" or "testing" (only what misses a check, plus the Debug box (core/flows/debug_actions: takes a value,
+                         shows it in the Live page's Recent list, gives it on) and the Value box);
+                         the Add box window, the Add trigger window, the Tools page and the Connections page
+                         (overview and menu; a hidden connection stays connected, pages are never hidden) ask it. His own flows
+                         are always shown; a flow keeps what it already uses.
+                         TestFlows: a numbered flow per box (Start + the box) and per trigger into a settings folder's flows,
+                         for the test toolbox (docs/tested/test-toolbox.bat: `devtools.tested flows <folder>`,
+                         then the toolbox with `--settings <folder> --port 8855`); TestList.numbers gives the
+                         numbers, the test window shows the same ones; writing again keeps what a flow holds
   config/                ToolboxConfig + its dataclasses (reads config/toolbox.toml), ConfigTableWriter
   connections/           the framework around Connection: ConnectionBase, ConnectionManager,
                          ConnectionStatus, ConnectionState, SettingField, NotConnectedError
@@ -98,8 +111,14 @@ core/                    shared building blocks, no service-specific code
   web/                   HttpActions: web.request (GET/POST/..., query, JSON body, headers → {status, ok, body},
                          JSON body already read; httpx transport injectable for tests)
   events/                EventBus: events (twitch.redeem, twitch.chat, timer) go to every listener as tasks;
-                         EVENT_FIELDS: the data keys each event gives (Start box dots; keep in step with publish())
-  flows/                 Flow = FlowNode boxes + FlowWire wires (+ inputs, triggers); FlowStore (one .toml per flow,
+                         EVENT_FIELDS: the data keys each event gives (Start box dots; keep in step with publish());
+                         RoleBook: the bus's `fill`: every event that names a viewer gets a `role` (the one of
+                         their last chat message; only chat tells it), for a trigger's roles / who / who_max;
+                         RoleLoading (the setting: chat / start / every x minutes) + RoleLoader (loads a
+                         platform's lists into the book; Twitch: connections/twitch/twitch_role_list);
+                         ChatMemory: the newest chat messages by id, for the box "Get chat message"
+  flows/                 Flow = FlowNode boxes + FlowWire wires (+ inputs, triggers; `enabled` / `triggers_enabled`:
+                         his two switches, runner and trigger router leave a switched-off one alone); FlowStore (one .toml per flow,
                          also templates; reads old [[steps]] files as a chain); FlowRunner (runs from Start along
                          wires, parallel per output, If picks then/else, Repeat fires a list of ports in turn,
                          fills ${var.x} ${input.x} ${event.x} ${get.action} ${box.n3.x}, save_as); box_wire helpers
@@ -194,6 +213,11 @@ connections/             ONLY the connection classes, one per service
                          EventSubClient (websocket)
                          TwitchChannelActions (channel info, title, category, ads, users, followers; via
                          TwitchApi.helix)
+core/system/github_program  GithubProgram: a program fetched from a GitHub project's releases into the settings
+                         folder and kept up to date (SHA-256 checked, once a day); used for TwitchDownloaderCLI
+                         (connections/twitch/twitch_clip_downloader: the Download clip box)
+cli/                     ToolboxCli: the running toolbox from a terminal (toolbox.bat / toolbox.sh: list, info,
+                         run). Only calls the HTTP API, so it loads nothing of the toolbox but httpx
 api/                     the HTTP API (POST /action/<name>), callers, tokens, allowlists; overlay_router: the
                          alerts overlay for OBS's Browser source (GET /overlay/alerts = gui/static/overlay/, its
                          websocket, the alert files) and widget_router (/overlay/widget/<name>: a shell holding the page (.../page) in a frame, its
@@ -244,8 +268,8 @@ devtools/tested/         `python -m streamer_toolbox.devtools.tested`: makes doc
                          docs/tested (one file at a time in the menu's order, Back / Next, search, ticks, notes),
                          so it stays open next to the toolbox and through its restarts
 devtools/package/        `python -m streamer_toolbox.devtools.package`: Packager (the archive of the toolbox: what
-                         git tracks minus the developers' files, plus start scripts; only what is tested unless
-                         `everything`) and DocBuilder (the docs as their own download: the manual, the files for AI)
+                         git tracks minus the developers' files, plus start scripts; everything is in it and
+                         Settings → What you see chooses, unless `tested_only`) and DocBuilder (the docs as their own download: the manual, the files for AI)
 devtools/box_gen/        class generator for developers: a service spec (JSON with example answers) → answer
                          dataclasses, actions class, fake, test (docs/PLAN_box_maker.md; never overwrites)
 plugins/                 plugin loader, manifest (plugin.json), PluginSettings (the plugin interfaces are in

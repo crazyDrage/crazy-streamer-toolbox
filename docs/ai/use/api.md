@@ -43,6 +43,21 @@ The body is a JSON object of parameters, or empty. It is read as JSON whatever t
 
 With curl: `curl -X POST http://127.0.0.1:8850/action/hello.greet -H "Authorization: Bearer <token>" -d '{"name": "chat"}'`
 
+## From a terminal
+
+`toolbox.bat` (Linux: `./toolbox.sh`) in the project folder makes the same two requests:
+
+```
+toolbox list obs.*
+toolbox info hello.greet
+toolbox run hello.greet name=chat
+toolbox run hello.greet --json "{\"name\": \"chat\"}"
+```
+
+`name=value` is sent as text, `--json` keeps the values' kinds. Another address or a token: `--url` /
+`--token` before the command, or the variables `TOOLBOX_URL` / `TOOLBOX_TOKEN`. It prints the result and
+ends with exit code 0, or prints the reason and ends with 1.
+
 ## When it fails
 
 | Status | Meaning | What to do |

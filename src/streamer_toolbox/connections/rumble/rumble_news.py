@@ -32,7 +32,8 @@ class RumbleNews:
     def news(self, answer: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
         events: list[tuple[str, dict[str, Any]]] = []
         for one in _list(answer.get("followers"), "recent_followers"):
-            self._add(events, ("follow", _name(one), one.get("followed_on")), FOLLOW, {"user": _name(one)})
+            self._add(events, ("follow", _name(one), one.get("followed_on")), FOLLOW, {
+                "user": _name(one), "followed_at": str(one.get("followed_on") or "")})
         for one in _list(answer.get("subscribers"), "recent_subscribers"):
             self._add(events, ("sub", _name(one), one.get("subscribed_on")), SUB, {
                 "user": _name(one), "amount": _dollars(one)})

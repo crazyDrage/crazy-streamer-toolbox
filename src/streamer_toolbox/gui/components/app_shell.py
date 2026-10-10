@@ -23,6 +23,23 @@ PRIMARY = "#6d5dfc"
 HIDDEN_KEY = "menu_hidden"  # app.storage.general: the addresses of the menu items he hid
 SHOW_ALL_KEY = "menu_show_all"  # app.storage.general: the menu shows the hidden ones too, with their eyes
 SubItems = list[tuple[str, str, str]]
+# every menu click loads a new page, and a new page's menu starts at its top: with a long menu (the list of
+# connections) he had to scroll down again after each click. The browser tab remembers how far the menu was
+# scrolled and the next page puts it back there (waits until the menu's rows are drawn)
+KEEP_MENU_SCROLL = """
+(() => {
+  const KEY = 'tb-menu-scroll';
+  let tries = 0;
+  const timer = setInterval(() => {
+    const box = document.querySelector('.q-drawer--left .q-drawer__content');
+    if (++tries > 100) clearInterval(timer);
+    if (!box || !box.querySelector('.q-item')) return;
+    clearInterval(timer);
+    box.scrollTop = Number(sessionStorage.getItem(KEY) || 0);
+    box.addEventListener('scroll', () => sessionStorage.setItem(KEY, box.scrollTop), {passive: true});
+  }, 30);
+})();
+"""
 
 
 class AppShell:
@@ -80,6 +97,7 @@ class AppShell:
 
         with drawer:
             menu()
+        ui.add_body_html(f"<script>{KEEP_MENU_SCROLL}</script>")
 
         # phone and tablet: the core areas as bottom tabs, within thumb reach
         with ui.footer().classes("tb-tabs lg:hidden p-0 border-t border-gray-500/30"):

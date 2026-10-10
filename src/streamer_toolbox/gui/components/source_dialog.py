@@ -2,6 +2,9 @@ from collections.abc import Awaitable, Callable
 
 from nicegui import ui
 
+from streamer_toolbox.core.events.event_fields import EVENT_FIELDS
+from streamer_toolbox.core.flows.role_match import ROLE_TITLES, roles_match
+from streamer_toolbox.gui.components.role_picker import RolePicker
 from streamer_toolbox.core.flows.flow_trigger import FlowTrigger
 from streamer_toolbox.core.connections.left_out import left_out
 from streamer_toolbox.core.triggers.custom_trigger import CUSTOM
@@ -38,13 +41,21 @@ class SourceDialog:
             @ui.refreshable
             def value_field() -> None:
                 key, default = TRIGGER_KINDS[kind.value][2], TRIGGER_KINDS[kind.value][3]
-                if kind.value == "twitch.redeem" and rewards:
+                if not key:  # nothing to pick on it (Stream offline)
+                    state["field"] = None
+                    ui.label("Fires every time; it has nothing to filter by.").classes("text-xs opacity-60")
+                elif kind.value == "twitch.redeem" and rewards:
                     state["field"] = ui.select(rewards, label="Reward", with_input=True) \
                         .props("outlined dense").classes("w-full")
                 else:
                     state["field"] = ui.input(key.replace("_", " ").capitalize(), value=default) \
                         .props("outlined dense").classes("w-full")
                 state["key"] = key
+                state["who"] = None
+                if "role" in EVENT_FIELDS.get(kind.value, ()):
+                    with ui.row().classes("items-center gap-2"):
+                        ui.label("Who may fire it:").classes("text-sm")
+                        state["who"] = RolePicker(list(ROLE_TITLES))
 
             state: dict = {}
             kind.on_value_change(value_field.refresh)
@@ -54,9 +65,12 @@ class SourceDialog:
                 ui.button("Add", on_click=lambda: dialog.submit(True)).props("unelevated no-caps")
         ok = await dialog
         dialog.delete()
-        if not ok or not state["field"].value:
+        if not ok or (state["field"] is not None and not state["field"].value):
             return None
+        who = roles_match(state["who"].roles) if state["who"] is not None else {}
+        if state["field"] is None:
+            return FlowTrigger(kind.value, who)
         value = str(state["field"].value)
         if kind.value == "twitch.redeem" and value in rewards:
-            return FlowTrigger(kind.value, {"reward": rewards[value], "reward_id": value})
-        return FlowTrigger(kind.value, {state["key"]: value})
+            return FlowTrigger(kind.value, {"reward": rewards[value], "reward_id": value, **who})
+        return FlowTrigger(kind.value, {state["key"]: value, **who})

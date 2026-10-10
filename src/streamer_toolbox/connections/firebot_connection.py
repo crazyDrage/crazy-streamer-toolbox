@@ -10,6 +10,8 @@ from streamer_toolbox.core.connections.connection_state import ConnectionState
 from streamer_toolbox.core.connections.connection_status import ConnectionStatus
 from streamer_toolbox.core.connections.not_connected_error import NotConnectedError
 from streamer_toolbox.core.connections.setting_field import SettingField
+from streamer_toolbox.core.web.web_client import web_client
+from streamer_toolbox.gui.components.outside_link import outside_link
 
 DOCS = "https://docs.firebot.app/v5/dev/api"
 
@@ -36,7 +38,7 @@ class FirebotConnection(ConnectionBase):
         ui.label("Not tried with the real program yet. Boxes: Run Firebot effect list (picked from a list), "
                  "Firebot variables and counters. What happens is built in Firebot as a preset effect list.") \
             .classes("text-sm opacity-80")
-        ui.link("Firebot's page about its API", DOCS, new_tab=True).classes("text-sm")
+        outside_link("Firebot's page about its API", DOCS).classes("text-sm")
 
     async def start(self) -> None:
         self._set_status(await self.test(self._settings))
@@ -71,7 +73,7 @@ class FirebotConnection(ConnectionBase):
         return result
 
     async def _request(self, settings: dict[str, Any], method: str, path: str, **kwargs: Any) -> Any:
-        async with httpx.AsyncClient(transport=self._transport, timeout=5) as client:
+        async with web_client(self._transport, timeout=5) as client:
             response = await client.request(method, str(settings["url"]).rstrip("/") + "/" + path, **kwargs)
         response.raise_for_status()
         if not response.content:

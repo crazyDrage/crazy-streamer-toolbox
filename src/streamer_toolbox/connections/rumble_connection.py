@@ -12,6 +12,8 @@ from streamer_toolbox.core.connections.connection_state import ConnectionState
 from streamer_toolbox.core.connections.connection_status import ConnectionStatus
 from streamer_toolbox.core.connections.setting_field import SettingField
 from streamer_toolbox.core.events.event_bus import EventBus
+from streamer_toolbox.gui.components.outside_link import outside_link
+from streamer_toolbox.gui.components.secret_input import SecretInput
 
 KEY_PAGE = "https://rumble.com/account/livestream-api"
 FASTEST = 2.0  # seconds; Rumble doesn't say how often it may be asked
@@ -42,10 +44,11 @@ class RumbleConnection(ConnectionBase):
                              f"again and again. Not faster than every {FASTEST:g} seconds.")]
 
     def add_gui_settings(self) -> None:
-        ui.label(f"The address is read from {self._address_path}: your Live Stream API address, nothing else in "
-                 "the file (Rumble → account → Live Stream API). It holds your key and can only read.") \
+        SecretInput(self._address_path, "Live Stream API address", "address")
+        ui.label("The address: your Live Stream API address "
+                 "(Rumble → account → Live Stream API). It holds your key and can only read.") \
             .classes("text-sm opacity-80")
-        ui.link("Open Rumble's page with the address", KEY_PAGE, new_tab=True).classes("text-sm")
+        outside_link("Open Rumble's page with the address", KEY_PAGE).classes("text-sm")
         ui.label("What comes in: follows, subscribers, gifted subs, and while you are live chat messages and "
                  "rants (a rant also as the toolbox's Tip trigger and Tip alert). Nothing can be sent to Rumble.") \
             .classes("text-xs opacity-60")
@@ -96,7 +99,8 @@ class RumbleConnection(ConnectionBase):
     def _read_address(self) -> str:
         text = self._address_path.read_text(encoding="utf-8").strip() if self._address_path.is_file() else ""
         if not text:
-            raise ValueError(f"No address yet: put your Rumble Live Stream API address into {self._address_path}")
+            raise ValueError("No address yet: type your Rumble Live Stream API address into its field under "
+                             "Connections → Rumble")
         address = text.splitlines()[0].strip()
         parts = urlsplit(address)
         # the key must only ever go to Rumble: a pasted wrong address is refused before anything is sent

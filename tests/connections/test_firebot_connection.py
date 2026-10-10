@@ -57,7 +57,7 @@ class TestFirebotConnection(unittest.IsolatedAsyncioTestCase):
                                           {"args": {"user": "ann"}, "username": "ann"}))
         await actions.run("firebot.run_preset", preset="Lights out", wait=True)
         self.assertEqual(self.asked[-1], ("POST", "effects/preset/p-2", {"args": {}}))
-        with self.assertRaisesRegex(KeyError, "no preset effect list named"):
+        with self.assertRaisesRegex(LookupError, "no preset effect list named"):
             await actions.run("firebot.run_preset", preset="Rain")
 
     async def test_variables_and_counters_are_read_and_set(self) -> None:

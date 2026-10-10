@@ -26,12 +26,14 @@ class FlowDraft:
     user_cooldown: float = 0
     refund_on_fail: bool = False
     folder: str = ""
+    enabled: bool = True
+    triggers_enabled: bool = True
 
     @classmethod
     def from_flow(cls, flow: Flow) -> "FlowDraft":
         return cls(flow.name, flow.label, flow.description, [NodeDraft.from_node(n) for n in flow.nodes],
                    list(flow.wires), list(flow.inputs), list(flow.triggers), flow.when_busy, flow.cooldown,
-                   flow.user_cooldown, flow.refund_on_fail, flow.folder)
+                   flow.user_cooldown, flow.refund_on_fail, flow.folder, flow.enabled, flow.triggers_enabled)
 
     def to_flow(self) -> Flow:
         ids = {n.id for n in self.nodes} | {"start"}
@@ -44,7 +46,7 @@ class FlowDraft:
         return Flow(self.name, self.label.strip() or self.name, tuple(n.to_node() for n in self.nodes), wires,
                     tuple(self.triggers), self.description.strip(), tuple(self.inputs), self.when_busy,
                     float(self.cooldown or 0), float(self.user_cooldown or 0), self.refund_on_fail,
-                    self.folder.strip())
+                    self.folder.strip(), self.enabled, self.triggers_enabled)
 
     def node(self, node_id: str) -> NodeDraft | None:
         return next((n for n in self.nodes if n.id == node_id), None)

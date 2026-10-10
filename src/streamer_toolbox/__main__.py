@@ -1,5 +1,8 @@
-"""Start the toolbox: python -m streamer_toolbox [--config config/toolbox.toml] [--port 8850] [--plugins <folder>]
-[--open none|browser|window]
+"""Start the toolbox: python -m streamer_toolbox [--config config/toolbox.toml | --settings <folder>] [--port 8850]
+[--plugins <folder>] [--open none|browser|window]
+
+Everything the toolbox keeps (flows, variables, tokens, ...) is in the folder of its settings file, so
+--settings <folder> starts it on a whole other set, e.g. the test settings (docs/tested/test-toolbox.bat).
 
 This process is the launcher: it opens the page and runs the toolbox itself as a child (--child), which it starts
 again when the toolbox asks for a restart (Settings → Restart)."""
@@ -26,12 +29,17 @@ log = logging.getLogger("streamer_toolbox")
 def main() -> None:
     parser = argparse.ArgumentParser(prog="streamer_toolbox")
     parser.add_argument("--config", type=Path, default=REPO_ROOT / "config" / "toolbox.toml")
+    parser.add_argument("--settings", type=Path, default=None,
+                        help="another settings folder: its toolbox.toml, and its flows, variables, tokens ... "
+                             "(the same as --config <folder>/toolbox.toml)")
     parser.add_argument("--port", type=int, default=None, help="overrides [api] port")
     parser.add_argument("--plugins", type=Path, default=REPO_ROOT / "plugins")
     parser.add_argument("--open", choices=("none", "browser", "window"), default="none",
                         help="show the dashboard once running: browser tab or app window (Edge/Chrome)")
     parser.add_argument("--child", action="store_true", help=argparse.SUPPRESS)  # run by the launcher
     args = parser.parse_args()
+    if args.settings is not None:
+        args.config = args.settings / "toolbox.toml"
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     config = ToolboxConfig.read(args.config)
     if not args.child:

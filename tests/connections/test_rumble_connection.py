@@ -79,7 +79,7 @@ class TestRumbleConnection(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(news.news(ANSWER), [])
         events = news.news(later())
         self.assertEqual(events, [
-            ("rumble.follow", {"user": "bob", "platform": "rumble"}),
+            ("rumble.follow", {"user": "bob", "followed_at": "2026-10-04T10:05:00+00:00", "platform": "rumble"}),
             ("rumble.sub", {"user": "cy", "amount": 5, "platform": "rumble"}),
             ("rumble.gift", {"user": "dee", "amount": 3, "platform": "rumble"}),
             ("rumble.chat", {"user": "ann", "message": "hi", "command": "", "args": "", "role": "viewer",
@@ -90,7 +90,8 @@ class TestRumbleConnection(unittest.IsolatedAsyncioTestCase):
             ("tip", {"user": "eve", "amount": 2.5, "currency": "USD", "message": "for snacks", "platform": "rumble"}),
         ])
         for kind, data in events:
-            self.assertEqual(set(data), set(EVENT_FIELDS[kind]))  # what the Start box offers is what comes
+            # what the Start box offers is what comes; role: the event bus adds it (RoleBook)
+            self.assertEqual(set(data) - {"role"}, set(EVENT_FIELDS[kind]) - {"role"})
         self.assertEqual(news.news(later()), [])  # told once
 
     def test_going_live_and_ending(self) -> None:

@@ -59,6 +59,10 @@ class RegisteredAction:
     that take any kind of value and keep it (Set variable's value): what is typed into one by hand is read for
     what it holds (0.5 → a number, true → yes, JSON → a list or object; "007" and "+49" stay text, see
     box_value.understand). A value that comes by wire keeps the kind it has.
+
+    `is_tested`, `is_understandable` and `is_usable` are his three checks of the box (works, understandable,
+    usable). No box sets them itself: they are read from the test record at start (TestGate), and TestView
+    decides with them whether the Add box window offers the box.
     """
 
     name: str
@@ -87,6 +91,9 @@ class RegisteredAction:
     lights: dict[str, LightProvider] = field(default_factory=dict)
     shown: dict[str, tuple[str, tuple[str, ...]]] = field(default_factory=dict)
     typed: tuple[str, ...] = ()
+    is_tested: bool = False
+    is_understandable: bool = False
+    is_usable: bool = False
 
     def ports_for(self, params: Mapping[str, Any]) -> tuple[str, ...]:
         """A box's outputs: `ports`, after one per numbered field if it has port_fields."""

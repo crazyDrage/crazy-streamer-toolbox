@@ -23,6 +23,7 @@ from streamer_toolbox.core.connections.not_connected_error import NotConnectedEr
 from streamer_toolbox.core.connections.setting_field import SettingField
 from streamer_toolbox.core.data.box_value import to_bool
 from streamer_toolbox.core.events.event_bus import EventBus
+from streamer_toolbox.gui.components.outside_link import outside_link
 
 CONSOLE = "https://console.cloud.google.com/apis/credentials"
 FASTEST = 3.0  # seconds between two asks of the chat
@@ -79,7 +80,7 @@ class YouTubeConnection(ConnectionBase):
         ui.label("Needs a Google Cloud project of your own: switch on \"YouTube Data API v3\", make an OAuth "
                  "client (type Web application, redirect URI as above), put its Client ID and Secret here, press "
                  "Connect.").classes("text-sm opacity-80")
-        ui.link("Open the Google Cloud console", CONSOLE, new_tab=True).classes("text-sm")
+        outside_link("Open the Google Cloud console", CONSOLE).classes("text-sm")
         ui.label("What comes in while you are live: chat messages, Super Chats and Super Stickers (both also as "
                  "the toolbox's Tip trigger and Tip alert), new members, member milestones, gifted memberships. "
                  "YouTube has no event for a new subscriber.").classes("text-xs opacity-60")

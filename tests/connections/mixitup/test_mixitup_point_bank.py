@@ -23,7 +23,7 @@ class TestMixItUpPointBank(unittest.IsolatedAsyncioTestCase):
         self.currency = "gems"
         self.assertEqual(await self.bank.get("kit"), 1)
         self.currency = "gold"
-        with self.assertRaises(KeyError):
+        with self.assertRaises(LookupError):
             await self.bank.get("kit")
         self.currency = ""
         with self.assertRaises(RuntimeError):

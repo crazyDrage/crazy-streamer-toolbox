@@ -32,9 +32,17 @@ from streamer_toolbox.core.config.toolbox_config import ToolboxConfig
 from streamer_toolbox.core.connections.connection_manager import ConnectionManager
 from streamer_toolbox.core.connections.left_out import LEFT_OUT, left_out
 from streamer_toolbox.core.deck.deck_store import DeckStore
+from streamer_toolbox.core.events.chat_memory import ChatMemory
 from streamer_toolbox.core.events.common_events import CommonEvents
 from streamer_toolbox.core.events.event_bus import EventBus
+from streamer_toolbox.core.events.last_events import LastEvents
+from streamer_toolbox.connections.twitch.twitch_role_list import TwitchRoleList
+from streamer_toolbox.core.events.role_book import RoleBook
+from streamer_toolbox.core.events.role_loader import RoleLoader
+from streamer_toolbox.core.events.role_loading import RoleLoading
+from streamer_toolbox.gui.components.role_loading_panel import RoleLoadingPanel
 from streamer_toolbox.core.files.box_value_files import BoxValueFiles
+from streamer_toolbox.core.flows.debug_actions import DebugActions
 from streamer_toolbox.core.flows.flow_library import FlowLibrary
 from streamer_toolbox.core.flows.flow_runner import FlowRunner
 from streamer_toolbox.core.flows.flow_store import FlowStore
@@ -57,6 +65,7 @@ from streamer_toolbox.core.testing.release_marker import is_release
 from streamer_toolbox.core.testing.test_gate import TestGate
 from streamer_toolbox.core.testing.test_inventory import TestInventory
 from streamer_toolbox.core.testing.test_list import TestList
+from streamer_toolbox.core.testing.test_view import TestView
 from streamer_toolbox.core.tips.tip_actions import TipActions
 from streamer_toolbox.core.triggers.custom_trigger_actions import CustomTriggerActions
 from streamer_toolbox.core.triggers.custom_trigger_router import CustomTriggerRouter
@@ -79,6 +88,7 @@ from streamer_toolbox.core.widgets.widget_store import WidgetStore
 from streamer_toolbox.gui.components.alerts_tool.alerts_tool import AlertsTool
 from streamer_toolbox.gui.components.app_shell import AREAS, AppShell
 from streamer_toolbox.gui.components.box_filter_panel import BoxFilterPanel
+from streamer_toolbox.gui.components.test_view_panel import TestViewPanel
 from streamer_toolbox.gui.components.flow_editor.trigger_catalog import group_of
 from streamer_toolbox.gui.components.flow_editor.trigger_kinds import TRIGGER_KINDS
 from streamer_toolbox.gui.components.overlay_source import OverlaySource
@@ -118,13 +128,17 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
     actions = ActionRegistry()
     parked = set() if shows_wip(config.tables) else set(WIP_BOXES)
     actions.park(parked)
-    gate = TestGate(TestList(), is_release(), parked)  # a build only offers what the test record says is tested
+    gate = TestGate(TestList(), is_release(), parked)  # only a `package tested_only` build leaves things out
+    test_view = TestView(gate.tested, app.storage.general)  # what he sees of it (Settings → What you see)
     ui_registry = UiRegistry()
     pages = OpenPages()
     confirm = NiceGuiConfirmService(pages)
     activity = ActivityLog()
     shell = AppShell(ui_registry, pages)
-    events = EventBus()
+    twitch_tokens = OAuthTokenStore(args.config.parent / "twitch_token.json")
+    # every event that names a viewer gets their role (only chat tells it): the role filter of the triggers
+    roles = RoleBook(lambda: (twitch_tokens.load().user_id if twitch_tokens.load() else ""))
+    events = EventBus(roles.fill)
     loader = PluginLoader(args.plugins, lambda plugin_id, folder: NiceGuiPluginContext(
         plugin_id, actions, ui_registry, confirm, shell.frame, folder, args.config.parent, events))
     loader.load_all(config.plugins_enabled)
@@ -132,8 +146,11 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
 
     port = args.port or config.port
     events.subscribe(CommonEvents(events).handle)
-    twitch_tokens = OAuthTokenStore(args.config.parent / "twitch_token.json")
-    twitch = TwitchConnection(config.tables.get("twitch", {}), twitch_tokens, events)
+    last_events = LastEvents(args.config.parent / "cache" / "last_triggers")
+    events.subscribe(last_events.handle)
+    app.on_shutdown(last_events.flush)
+    twitch = TwitchConnection(config.tables.get("twitch", {}), twitch_tokens, events, folder=args.config.parent,
+                              raw=last_events.raw)
     probe = Mp4HeaderProbe()
 
     def wants_key(name: str) -> bool:
@@ -156,6 +173,10 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
         connection.add_actions(actions)
     variables = VariableStore(args.config.parent / "variables.json")
     LogicActions(variables).add_to(actions)
+    DebugActions(activity.add).add_to(actions)
+    chat_memory = ChatMemory()
+    events.subscribe(chat_memory.handle)
+    chat_memory.add_to(actions)
     custom_triggers = CustomTriggerStore(args.config.parent / "custom_triggers.json")
 
     plugin_switches = PluginSwitches(args.config.parent / "plugins_off.json")
@@ -234,7 +255,12 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
     app.on_startup(clock.start)
     payouts: list[asyncio.Task] = []  # keeps the task alive
 
+    # Settings → Viewer roles: Twitch's mod, VIP and sub lists into the role book, when he asks for it
+    role_loading = RoleLoading(app.storage.general)
+    role_loader = RoleLoader(roles, role_loading, TwitchRoleList(twitch.helix, twitch_tokens.load).read)
+
     async def start_payouts() -> None:
+        payouts.append(asyncio.get_running_loop().create_task(role_loader.run()))
         payouts.append(asyncio.get_running_loop().create_task(earner.run()))
         payouts.append(asyncio.get_running_loop().create_task(look_for_missed_subs()))
 
@@ -268,7 +294,8 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
                                                             BoxValueFiles(args.config.parent / "box_values"),
                                                             {"twitch.redeem": twitch.reward_choices,
                                                              "custom": custom_trigger_names},
-                                                            box_filters, switched_off).build)
+                                                            box_filters, switched_off, last_events,
+                                                            test_view).build)
     shell.page("Triggers", "/triggers", TriggersPage(custom_triggers, flows, fire_trigger,
                                                      twitch.reward_choices).build)
     shell.page("Variables", "/variables", VariablesPage(variables, flows).build)
@@ -284,20 +311,24 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
                     streamelements_import, widget_fallback, StreamElementsElements(streamelements_import),
                     StreamElementsSession(streamelements_import, history=history)),
         alert_queue, overlay_source, port).build)
-    shell.page("Tools", "/tools", ToolsPage(ui_registry).build)
+    tools_page = ToolsPage(ui_registry, test_view)
+    shell.page("Tools", "/tools", tools_page.build)
     shell.sub_items["/overlays"] = [("Alerts", "/overlays?show=alerts", "campaign"),
                                     ("Widgets", "/overlays?show=widgets", "widgets")]
     shell.sub_items["/tools"] = lambda: [(title, f"/tools?show={tool_slug(title)}", icon or "handyman")
-                                         for _, title, icon, *_ in ui_registry.tools]
-    shell.sub_items["/connections"] = [("Toolbox", "/connections?show=toolbox", "lan")] + [
-        (c.title, f"/connections?show={c.id}", c.icon) for c in connections.all()]
-    shell.page("Connections", "/connections", ConnectionsPage(config, args.config, ui_registry, connections).build)
+                                         for _, title, icon, *_ in tools_page.shown()]
+    connections_page = ConnectionsPage(config, args.config, ui_registry, connections, test_view)
+    shell.sub_items["/connections"] = lambda: [("Toolbox", "/connections?show=toolbox", "lan")] + [
+        (c.title, f"/connections?show={c.id}", c.icon) for c in connections_page.shown()]
+    shell.page("Connections", "/connections", connections_page.build)
     shell.page("Plugins", "/plugins", PluginsPage(
         lambda: (loader.loaded, loader.failed, loader.disabled, loader.manifests), ui_registry,
         plugin_switches).build)
     restart = ToolboxRestart(app.shutdown, available=args.child)
     settings_page = SettingsPage(args.config, ui_registry, access, devices, port,
-                                restart, BoxFilterPanel(box_filters, actions))
+                                restart, BoxFilterPanel(box_filters, actions),
+                                TestViewPanel(test_view, lambda: gate.items()),
+                                RoleLoadingPanel(role_loading, role_loader))
     shell.page("Settings", "/settings", settings_page.build)
     shell.sub_items["/settings"] = settings_page.sections
 

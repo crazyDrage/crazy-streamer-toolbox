@@ -13,13 +13,18 @@ from streamer_toolbox.gui.services.activity_log import ActivityLog
 
 VIEWS = {"list": "List", "cards": "Cards"}
 NO_FOLDER = "No folder"
+OPEN_FOLDERS = "flows_page_open_folders"  # in the page settings: the names of the folders that are open
+SEARCH_OPENS = 40  # a search opens the folders it found something in, up to this many flows
 
 
 class FlowsPage:
     """Every flow, sorted into folders (a flow's `folder`; the files and actions stay where they are): as a
     compact list (one row each) or as cards (with their boxes, folded), with a search. Per flow: Run, Edit, Move to
     folder, Duplicate, Save as template, Export, Delete; per folder: Rename, Dissolve. New flow (empty or from a
-    template), Import flow; the templates."""
+    template), Import flow; the templates.
+
+    A folder starts closed and its flows are only drawn when it is opened (hundreds of rows at once made the page
+    slow); which folders are open is kept."""
 
     def __init__(self, library: FlowLibrary, actions: ActionRegistry, activity: ActivityLog) -> None:
         self._library = library
@@ -43,6 +48,8 @@ class FlowsPage:
             search = ui.input(placeholder="Search flows").props("dense outlined clearable").classes("w-56")
             with search.add_slot("prepend"):
                 ui.icon("search")
+            ui.button(icon="unfold_less", on_click=lambda: self._close_all(search.value or "")) \
+                .props("flat round dense").tooltip("Close all folders")
             ui.toggle(VIEWS, value=app.storage.general.get("flows_page_view", "list"),
                       on_change=lambda e: self._set_view(e.value, search.value or "")).props("no-caps dense")
         search.on_value_change(lambda: self._flows.refresh(search.value or ""))
@@ -55,6 +62,10 @@ class FlowsPage:
 
     def _set_view(self, view: str, search: str) -> None:
         app.storage.general["flows_page_view"] = view
+        self._flows.refresh(search)
+
+    def _close_all(self, search: str) -> None:
+        app.storage.general[OPEN_FOLDERS] = []
         self._flows.refresh(search)
 
     @ui.refreshable_method
@@ -71,50 +82,102 @@ class FlowsPage:
                 ui.label(f"No flow matches {search!r}.").classes("opacity-70")
                 return
         cards = app.storage.general.get("flows_page_view", "list") == "cards"
+        # a search shows what it found, unless that is most of the list; it doesn't change what is kept as open
+        found = bool(words) and len(flows) <= SEARCH_OPENS
+        remembered = app.storage.general.get(OPEN_FOLDERS, [])
         folders = sorted({f.folder for f in flows if f.folder}, key=str.casefold) + [""]
         for folder in folders:
             inside = [f for f in flows if f.folder == folder]
             if inside:
-                self._folder(folder, inside, cards)
+                self._folder(folder, inside, cards, found or folder in remembered, keep=not found)
 
-    def _folder(self, folder: str, flows: list[Flow], cards: bool) -> None:
-        with ui.expansion(value=True).props("dense switch-toggle-side").classes("w-full") as section:
+    def _folder(self, folder: str, flows: list[Flow], cards: bool, opened: bool, keep: bool) -> None:
+        with ui.expansion(value=opened).props("dense switch-toggle-side").classes("w-full") as section:
             with section.add_slot("header"):
                 with ui.row().classes("items-center no-wrap w-full gap-2"):
                     ui.icon("folder" if folder else "folder_off").classes("text-primary text-xl")
                     ui.label(folder or NO_FOLDER).classes("font-semibold")
                     ui.label(str(len(flows))).classes("text-xs opacity-60")
-            if folder:
-                with ui.row().classes("gap-1 pl-2"):
-                    ui.button("Rename folder", icon="edit", on_click=lambda: self._rename_folder(folder)) \
-                        .props("flat dense no-caps size=sm")
-                    ui.button("Dissolve", icon="folder_off", on_click=lambda: self._dissolve(folder)) \
-                        .props("flat dense no-caps size=sm").tooltip(f"Its flows go to {NO_FOLDER}")
-            if cards:
-                with ui.element("div").classes("grid gap-4 w-full lg:grid-cols-2 items-start pt-1"):
-                    for flow in flows:
-                        self._card(flow)
-            else:
-                with ui.column().classes("w-full gap-0"):
-                    for flow in flows:
-                        self._row(flow)
+            content = ui.column().classes("w-full gap-0")
+        drawn = False
+
+        def draw() -> None:
+            nonlocal drawn
+            if not drawn:
+                drawn = True
+                with content:
+                    self._folder_content(folder, flows, cards)
+
+        def toggled(value: bool) -> None:
+            if value:
+                draw()
+            if keep:
+                self._remember(folder, value)
+
+        if opened:
+            draw()
+        section.on_value_change(lambda e: toggled(e.value))
+
+    def _folder_content(self, folder: str, flows: list[Flow], cards: bool) -> None:
+        if folder:
+            with ui.row().classes("gap-1 pl-2"):
+                ui.button("Rename folder", icon="edit", on_click=lambda: self._rename_folder(folder)) \
+                    .props("flat dense no-caps size=sm")
+                ui.button("Dissolve", icon="folder_off", on_click=lambda: self._dissolve(folder)) \
+                    .props("flat dense no-caps size=sm").tooltip(f"Its flows go to {NO_FOLDER}")
+        if cards:
+            with ui.element("div").classes("grid gap-4 w-full lg:grid-cols-2 items-start pt-1"):
+                for flow in flows:
+                    self._card(flow)
+        else:
+            with ui.column().classes("w-full gap-0"):
+                for flow in flows:
+                    self._row(flow)
+
+    @staticmethod
+    def _remember(folder: str, opened: bool) -> None:
+        names = [n for n in app.storage.general.get(OPEN_FOLDERS, []) if n != folder]
+        app.storage.general[OPEN_FOLDERS] = names + [folder] if opened else names
 
     def _row(self, flow: Flow) -> None:
         """One flow in the list: name (opens it), a short line under it, ⚡ for triggers, Run / Edit / more."""
         with ui.row().classes("items-center no-wrap w-full gap-2 px-2 py-1 rounded hover:bg-primary/10"):
-            ui.icon("account_tree").classes("text-primary")
-            with ui.column().classes("gap-0 min-w-0 flex-1"):
+            ui.icon("account_tree").classes("text-primary" if flow.enabled else "opacity-40")
+            with ui.column().classes("gap-0 min-w-0 flex-1" + ("" if flow.enabled else " opacity-50")):
                 ui.link(flow.label, f"/flows/edit?flow={flow.name}").classes("font-medium no-underline truncate")
                 inputs = ", ".join(i.name for i in flow.inputs)
                 line = flow.description or f"{len(flow.nodes)} boxes" + (f" · inputs: {inputs}" if inputs else "")
-                ui.label(line).classes("text-xs opacity-60 truncate w-full")
-            if flow.triggers:
-                ui.icon("bolt").classes("text-warning text-lg").tooltip("Also starts by itself: " + "; ".join(
-                    f"{t.kind} " + ", ".join(f"{k} = {v}" for k, v in t.match.items()) for t in flow.triggers))
+                ui.label(("Switched off · " if not flow.enabled else "") + line) \
+                    .classes("text-xs opacity-60 truncate w-full")
+            self._switches(flow)
             button = ui.button(icon="play_arrow").props("flat round dense").tooltip("Run")
             button.on_click(lambda f=flow, b=button: self._run(f, b))
             ui.button(icon="edit").props(f"flat round dense href=/flows/edit?flow={flow.name}").tooltip("Edit")
             self._more(flow)
+
+    def _switches(self, flow: Flow) -> None:
+        """The flow's two switches in the list: ⚡ its triggers (only when it has some), ⏻ the flow itself.
+        Lit = on. A click flips it and saves the flow."""
+        if flow.triggers:
+            listening = flow.enabled and flow.triggers_enabled
+            what = "; ".join(f"{t.kind} " + ", ".join(f"{k} = {v}" for k, v in t.match.items())
+                             for t in flow.triggers)
+            ui.button(icon="bolt" if flow.triggers_enabled else "flash_off",
+                      on_click=lambda f=flow: self._switch(f, triggers_enabled=not f.triggers_enabled)) \
+                .props("flat round dense " + ("color=warning" if listening else "color=grey")) \
+                .tooltip((f"Triggers on: also starts by itself ({what}). Click to switch its triggers off"
+                          if flow.triggers_enabled else
+                          f"Triggers off: {what} don't start it. Click to switch them on")
+                         + ("" if flow.enabled else ". The flow itself is switched off"))
+        ui.button(icon="power_settings_new", on_click=lambda f=flow: self._switch(f, enabled=not f.enabled)) \
+            .props("flat round dense " + ("color=positive" if flow.enabled else "color=grey")) \
+            .tooltip("Flow on. Click to switch it off: then nothing starts it" if flow.enabled else
+                     "Flow off: nothing starts it (button, SAMMI, API, other flows, triggers). Click to "
+                     "switch it on")
+
+    def _switch(self, flow: Flow, **switches: bool) -> None:
+        self._library.save(replace(flow, **switches))
+        self.build.refresh()
 
     def _more(self, flow: Flow) -> None:
         with ui.button(icon="more_vert").props("flat round dense"):
@@ -181,10 +244,13 @@ class FlowsPage:
         dialog.delete()
         if new and new.strip() and new.strip() != folder:
             self._library.rename_folder(folder, new.strip())
+            app.storage.general[OPEN_FOLDERS] = [new.strip() if n == folder else n  # an open one stays open
+                                                 for n in app.storage.general.get(OPEN_FOLDERS, [])]
             self.build.refresh()
 
     def _dissolve(self, folder: str) -> None:
         self._library.rename_folder(folder, "")
+        self._remember(folder, False)
         ui.notify(f"Folder {folder} dissolved: its flows are under {NO_FOLDER}")
         self.build.refresh()
 
@@ -211,6 +277,7 @@ class FlowsPage:
                         .classes("text-xs").tooltip("Also starts by itself: " + "; ".join(
                             f"{t.kind} " + ", ".join(f"{k} = {v}" for k, v in t.match.items()) for t in flow.triggers))
                 ui.space()
+                self._switches(flow)
                 button = ui.button("Run", icon="play_arrow").props("no-caps unelevated")
                 button.on_click(lambda f=flow, b=button: self._run(f, b))
                 ui.button("Edit", icon="edit").props(f"no-caps outline href=/flows/edit?flow={flow.name}")

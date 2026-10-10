@@ -19,16 +19,17 @@ SAME = {
 FIELDS: dict[str, dict[str, Any]] = {
     "chat": {"user": "", "user_login": "", "message": "", "command": "", "args": "", "role": "viewer",
              "user_id": "", "message_id": "", "color": "", "emotes": []},
-    "follow": {"user": "", "user_login": ""},
-    "sub": {"user": "", "user_login": "", "tier": 1, "gift": False},
-    "resub": {"user": "", "user_login": "", "tier": 1, "months": 0, "message": ""},
-    "gift": {"user": "", "user_login": "", "amount": 1, "tier": 1, "anonymous": False},
-    "cheer": {"user": "", "user_login": "", "bits": 0, "message": "", "anonymous": False},
-    "raid": {"user": "", "user_login": "", "viewers": 0},
-    "redeem": {"user": "", "user_login": "", "reward": "", "input": "", "cost": 0, "reward_id": "",
-               "redemption_id": ""},
-    "online": {"title": ""},
-    "offline": {"title": ""},
+    "follow": {"user": "", "user_login": "", "user_id": "", "followed_at": "", "role": "viewer"},
+    "sub": {"user": "", "user_login": "", "user_id": "", "tier": 1, "gift": False, "role": "viewer"},
+    "resub": {"user": "", "user_login": "", "user_id": "", "tier": 1, "months": 0, "message": "", "role": "viewer"},
+    "gift": {"user": "", "user_login": "", "user_id": "", "amount": 1, "tier": 1, "anonymous": False, "role": "viewer"},
+    "cheer": {"user": "", "user_login": "", "user_id": "", "bits": 0, "message": "", "anonymous": False,
+              "role": "viewer"},
+    "raid": {"user": "", "user_login": "", "user_id": "", "viewers": 0, "role": "viewer"},
+    "redeem": {"user": "", "user_login": "", "user_id": "", "reward": "", "input": "", "cost": 0, "reward_id": "",
+               "redemption_id": "", "role": "viewer"},
+    "online": {"title": "", "category": ""},
+    "offline": {"title": "", "category": ""},
 }
 
 

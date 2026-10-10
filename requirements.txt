@@ -4,3 +4,5 @@ tomlkit==0.15.1      # writes config/toolbox.toml keeping comments (OBS form); 2
 miniaudio==1.71       # plays sound files (ogg/mp3/wav/flac) for the sound.play box; 2026-09-28 night
 pynput==1.8.2         # keyboard triggers (system-wide key listener, no admin); 2026-09-30, his ATTENTION answer
 # Twitch: no library, own small client on httpx + websockets (twitchAPI was broken last time, his note)
+# dev only, not needed to run the toolbox (so not installed from here): py-spy==0.4.2, to see what a running
+# toolbox is busy with without stopping it (temp/probes/memory_watch.py is the other tool); 2026-10-09

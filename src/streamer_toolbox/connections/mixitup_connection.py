@@ -9,6 +9,7 @@ from streamer_toolbox.core.connections.connection_state import ConnectionState
 from streamer_toolbox.core.connections.connection_status import ConnectionStatus
 from streamer_toolbox.core.connections.not_connected_error import NotConnectedError
 from streamer_toolbox.core.connections.setting_field import SettingField
+from streamer_toolbox.core.web.web_client import web_client
 
 
 class MixItUpConnection(ConnectionBase):
@@ -67,7 +68,7 @@ class MixItUpConnection(ConnectionBase):
         return result
 
     async def _request(self, settings: dict[str, Any], method: str, path: str, **kwargs: Any) -> Any:
-        async with httpx.AsyncClient(transport=self._transport, timeout=5) as client:
+        async with web_client(self._transport, timeout=5) as client:
             response = await client.request(method, settings["url"].rstrip("/") + "/" + path, **kwargs)
         response.raise_for_status()
         if not response.content:

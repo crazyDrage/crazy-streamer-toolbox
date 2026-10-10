@@ -47,7 +47,8 @@ class TestStreamSocketConnection(unittest.IsolatedAsyncioTestCase):
         event = streamsocket_event(REDEEMED)
         self.assertEqual(event, {"event": "Lizard", "event_id": "ev1", "bits": 100, "user": "Kit", "user_id": "77",
                                  "categories": ["fun"], "test": True, "platform": "twitch"})
-        self.assertEqual(set(event), set(EVENT_FIELDS["streamsocket.event"]))
+        # role: the event bus adds it (RoleBook)
+        self.assertEqual(set(event) | {"role"}, set(EVENT_FIELDS["streamsocket.event"]))
         self.assertEqual(streamsocket_event({"event_id": "ev2", "product_bits": "free"})["event"], "ev2")
 
     async def test_it_is_off_until_switched_on_and_needs_the_secret_and_a_channel(self) -> None:

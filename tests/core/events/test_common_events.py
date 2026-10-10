@@ -13,7 +13,8 @@ class TestCommonEvents(unittest.IsolatedAsyncioTestCase):
 
     def test_what_a_platform_doesnt_know_is_empty_and_the_platform_is_said(self) -> None:
         self.assertEqual(common("rumble.follow", {"user": "Ann", "platform": "rumble"}), {
-            "user": "Ann", "user_login": "ann", "platform": "rumble", "source": "rumble.follow"})
+            "user": "Ann", "user_login": "ann", "user_id": "", "followed_at": "", "role": "viewer",
+            "platform": "rumble", "source": "rumble.follow"})
         chat = common("youtube.chat", {"user": "Kit", "message": "!hi there", "command": "!hi", "args": "there",
                                        "role": "mod", "user_id": "UC2", "message_id": "m1", "platform": "youtube"})
         self.assertEqual((chat["command"], chat["role"], chat["emotes"], chat["color"], chat["platform"]),

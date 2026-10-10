@@ -1,4 +1,4 @@
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 from streamer_toolbox.connections.obs.obs_requests import ObsRequests
@@ -74,7 +74,7 @@ class ObsOutputActions:
         image_format = IMAGE_FORMATS.get(path.suffix.casefold())
         if image_format is None:
             raise ValueError(f"the file should end in {', '.join(IMAGE_FORMATS)}, not {path.name!r}")
-        if not path.is_absolute():
+        if not (path.is_absolute() or PureWindowsPath(path).is_absolute()):  # OBS may run on another system
             raise ValueError(f"OBS needs the full path (like C:\\clips\\shot.png), not {str(file)!r}")
         data: dict[str, Any] = {"sourceName": source, "imageFormat": image_format, "imageFilePath": str(path)}
         if width not in (None, ""):

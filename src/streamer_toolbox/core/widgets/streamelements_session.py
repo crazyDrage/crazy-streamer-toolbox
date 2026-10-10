@@ -4,6 +4,7 @@ from typing import Any
 import httpx
 
 from streamer_toolbox.core.history.event_history import EventHistory
+from streamer_toolbox.core.web.web_client import web_client
 from streamer_toolbox.core.widgets.streamelements_import import StreamElementsImport
 from streamer_toolbox.core.widgets.widget_session import KINDS, WidgetSession
 
@@ -30,7 +31,7 @@ class StreamElementsSession:
     async def bring(self, session: WidgetSession) -> list[str]:
         """The kinds that were filled ("subscriber", "cheer", ...). PermissionError says what is missing."""
         token, channel = self._importer.credentials()
-        async with httpx.AsyncClient(transport=self._transport, timeout=20) as client:
+        async with web_client(self._transport, timeout=20) as client:
             answer = await client.get(f"{API}/{channel}", headers={"Authorization": f"Bearer {token}",
                                                                    "Accept": "application/json"})
         if answer.status_code in (401, 403):

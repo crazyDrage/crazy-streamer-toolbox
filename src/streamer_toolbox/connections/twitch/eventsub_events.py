@@ -29,7 +29,9 @@ def subscriptions(user_id: str) -> list[tuple[str, str, dict[str, str]]]:
 
 def to_event(kind: str, e: dict[str, Any]) -> tuple[str, dict[str, Any]] | None:
     """A Twitch notification as (toolbox event, data); None for one the toolbox leaves out."""
-    user = {"user": e.get("user_name") or "", "user_login": e.get("user_login") or ""}
+    user = {"user": e.get("user_name") or "", "user_login": e.get("user_login") or "",
+            "user_id": e.get("user_id") or ""}
+    nobody = {"user": "", "user_login": "", "user_id": ""}  # an anonymous gift or cheer
     if kind == REDEMPTION:
         reward = e.get("reward", {})
         return "twitch.redeem", {
@@ -59,7 +61,7 @@ def to_event(kind: str, e: dict[str, Any]) -> tuple[str, dict[str, Any]] | None:
     if kind == CHAT_CLEARED:
         return "twitch.chat_deleted", {"user": "", "user_login": "", "user_id": "", "message_id": ""}
     if kind == "channel.follow":
-        return "twitch.follow", user
+        return "twitch.follow", {**user, "followed_at": e.get("followed_at") or ""}
     if kind == "channel.subscribe":
         return "twitch.sub", {**user, "tier": _tier(e), "gift": bool(e.get("is_gift"))}
     if kind == "channel.subscription.message":
@@ -67,17 +69,16 @@ def to_event(kind: str, e: dict[str, Any]) -> tuple[str, dict[str, Any]] | None:
                                 "message": (e.get("message") or {}).get("text", "")}
     if kind == "channel.subscription.gift":
         anonymous = bool(e.get("is_anonymous"))
-        return "twitch.gift", {"user": "" if anonymous else user["user"],
-                               "user_login": "" if anonymous else user["user_login"],
+        return "twitch.gift", {**(nobody if anonymous else user),
                                "amount": e.get("total", 0), "tier": _tier(e), "anonymous": anonymous}
     if kind == "channel.cheer":
         anonymous = bool(e.get("is_anonymous"))
-        return "twitch.cheer", {"user": "" if anonymous else user["user"],
-                                "user_login": "" if anonymous else user["user_login"],
+        return "twitch.cheer", {**(nobody if anonymous else user),
                                 "bits": e.get("bits", 0), "message": e.get("message", ""), "anonymous": anonymous}
     if kind == "channel.raid":
         return "twitch.raid", {"user": e.get("from_broadcaster_user_name", ""),
-                               "user_login": e.get("from_broadcaster_user_login", ""), "viewers": e.get("viewers", 0)}
+                               "user_login": e.get("from_broadcaster_user_login", ""),
+                               "user_id": e.get("from_broadcaster_user_id", ""), "viewers": e.get("viewers", 0)}
     if kind == "stream.online":
         return "twitch.online", {"type": e.get("type", "live")}
     if kind == "stream.offline":

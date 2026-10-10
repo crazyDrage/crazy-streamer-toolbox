@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 from streamer_toolbox.core.testing.release_marker import RELEASE_MARKER, is_release
-from streamer_toolbox.devtools.package.packager import Packager
+from streamer_toolbox.devtools.package.packager import LINUX, WINDOWS, Packager
 from tests.fakes.listed_packager import TRACKED, ListedPackager
 
 
@@ -29,13 +29,12 @@ class TestPackager(unittest.TestCase):
         self.assertEqual(copied, len(files))
         self.assertEqual((self.out / "README.md").read_text(encoding="utf-8"), "docs/USER_GUIDE.md")  # the guide
 
-    def test_a_build_is_marked_as_tested_only_unless_asked_for_everything(self) -> None:
+    def test_a_build_carries_everything_unless_asked_for_tested_only(self) -> None:
         marker = self.out / "src" / "streamer_toolbox" / RELEASE_MARKER
         ListedPackager(self.repo, self.out)._files(self.out)
-        self.assertTrue(is_release(marker.parent))
-        marker.unlink()
-        ListedPackager(self.repo, self.out, tested_only=False)._files(self.out)
         self.assertFalse(is_release(marker.parent))
+        ListedPackager(self.repo, self.out, tested_only=True)._files(self.out)
+        self.assertTrue(is_release(marker.parent))
         self.assertFalse(is_release())  # the project folder itself never is
 
     def test_the_archive_gets_start_scripts_for_windows_and_linux(self) -> None:
@@ -49,6 +48,23 @@ class TestPackager(unittest.TestCase):
         self.assertIn(b'--open window "$@"', linux)
         self.assertIn(b"requirements.txt || {\n", linux)  # the doubled braces of the template became one
         self.assertIn(b'--open browser "$@"', (self.out / "start-linux-browser.sh").read_bytes())
+
+    def test_a_build_for_one_system_gets_only_its_start_scripts(self) -> None:
+        for target, scripts in ((WINDOWS, ["Start in the browser.bat", "Start streamer-toolbox.bat"]),
+                                (LINUX, ["start-linux-browser.sh", "start-linux.sh"])):
+            folder = self.out / target
+            folder.mkdir(parents=True)
+            Packager._start_scripts(folder, target)
+            self.assertEqual(sorted(p.name for p in folder.iterdir()), scripts)
+
+    def test_a_linux_build_carries_no_python(self) -> None:
+        archive = ListedPackager(self.repo, self.out, target=LINUX).build()
+        self.assertEqual(archive.name, "crazy-streamer-toolbox-linux.zip")
+        with zipfile.ZipFile(archive) as packed:
+            names = packed.namelist()
+        self.assertIn("crazy-streamer-toolbox-linux/start-linux.sh", names)
+        self.assertIn("crazy-streamer-toolbox-linux/requirements.txt", names)
+        self.assertFalse([name for name in names if "/python/" in name or name.endswith(".bat")])
 
     def test_a_shell_script_is_runnable_in_the_archive(self) -> None:
         self.out.mkdir()

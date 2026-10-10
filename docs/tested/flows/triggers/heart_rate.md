@@ -2,4 +2,4 @@
 
 | What | Name in the code | AI checked | Works | Understandable | Usable | Last change | Note |
 |---|---|---|---|---|---|---|---|
-| Heart rate changed | `heartrate` | - | - | - | - | - |  |
+| Heart rate changed | `heartrate` | 2026-10-09 | yes | yes | yes | 2026-10-10 |  |

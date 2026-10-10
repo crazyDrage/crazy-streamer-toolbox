@@ -16,7 +16,7 @@ class TestSecretFile(unittest.TestCase):
     def test_a_missing_or_empty_file_is_said_with_where_the_secret_comes_from(self) -> None:
         secret = SecretFile(self.path, "token", "Thing → Settings")
         self.assertEqual(secret.read_or_empty(), "")
-        with self.assertRaisesRegex(ValueError, r"No token yet: put the token \(Thing → Settings\) into .*thing_token"):
+        with self.assertRaisesRegex(ValueError, r"No token yet: type the token \(Thing → Settings\) into its field"):
             secret.read()
         self.path.write_text("  \n", encoding="utf-8")
         with self.assertRaises(ValueError):
@@ -28,6 +28,14 @@ class TestSecretFile(unittest.TestCase):
         secret = SecretFile(self.path, "API key")
         self.assertEqual(secret.read(), "abc123")
         self.assertEqual(secret.hide("failed at ws://x?token=abc123"), "failed at ws://x?token=<API key>")
+
+    def test_the_tabs_field_writes_it_and_an_empty_one_takes_it_away(self) -> None:
+        secret = SecretFile(self.path.parent / "new" / "thing_token.txt", "token")
+        secret.write("  pasted-with-spaces \nand a second line")
+        self.assertEqual((secret.read(), secret.path.read_text(encoding="utf-8")),
+                         ("pasted-with-spaces", "pasted-with-spaces\n"))
+        secret.write("  ")
+        self.assertEqual(secret.read_or_empty(), "")
 
 
 if __name__ == "__main__":

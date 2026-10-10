@@ -7,16 +7,21 @@ from streamer_toolbox.core.security.signed_in_devices import SignedInDevices
 from streamer_toolbox.core.system.toolbox_restart import ToolboxRestart
 from streamer_toolbox.gui.components.app_shell import AppShell
 from streamer_toolbox.gui.components.box_filter_panel import BoxFilterPanel
+from streamer_toolbox.gui.components.role_loading_panel import RoleLoadingPanel
+from streamer_toolbox.gui.components.test_view_panel import TestViewPanel
 from streamer_toolbox.gui.services.ui_registry import UiRegistry
 
 
 class SettingsPage:
     """How the toolbox looks, where its settings file is, Restart, who may open it from other devices, his own
-    filters for the Add box window, and settings panels from plugins."""
+    filters for the Add box window, what he sees by his checks (TestViewPanel), when viewer roles are loaded
+    (RoleLoadingPanel), and settings panels from plugins."""
 
     def __init__(self, config_path: Path, ui_registry: UiRegistry, access: RemoteAccess, devices: SignedInDevices,
                  port: int, restart: ToolboxRestart | None = None,
-                 box_filters: BoxFilterPanel | None = None) -> None:
+                 box_filters: BoxFilterPanel | None = None, seen: TestViewPanel | None = None,
+                 roles: RoleLoadingPanel | None = None) -> None:
+        self._roles = roles
         self._path = config_path
         self._ui = ui_registry
         self._access = access
@@ -24,6 +29,7 @@ class SettingsPage:
         self._port = port
         self._restart = restart
         self._box_filters = box_filters
+        self._seen = seen
 
     def sections(self) -> list[tuple[str, str, str]]:
         """The page's parts, for the side menu: (title, address, icon). /settings shows all of them,
@@ -31,6 +37,10 @@ class SettingsPage:
         parts = [("General", "general", "tune"), ("Other devices", "devices", "devices")]
         if self._box_filters is not None:
             parts.append(("Add box filters", "boxes", "filter_list"))
+        if self._seen is not None:
+            parts.append(("What you see", "seen", "visibility"))
+        if self._roles is not None:
+            parts.append(("Viewer roles", "roles", "groups"))
         if self._ui.panels_for("settings"):
             parts.append(("Plugins", "plugins", "extension"))
         return [(title, f"/settings?show={key}", icon) for title, key, icon in parts]
@@ -67,6 +77,12 @@ class SettingsPage:
             if shown("boxes") and self._box_filters is not None:
                 with ui.card().classes("w-full"):
                     self._box_filters.build()
+            if shown("seen") and self._seen is not None:
+                with ui.card().classes("w-full"):
+                    self._seen.build()
+            if shown("roles") and self._roles is not None:
+                with ui.card().classes("w-full"):
+                    self._roles.build()
             if shown("plugins"):
                 for _, title, builder in self._ui.panels_for("settings"):
                     with ui.card().classes("w-full"):

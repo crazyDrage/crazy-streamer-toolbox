@@ -77,7 +77,7 @@ class MixItUpPointBank(PointBank):
         wanted = self._currency().strip().casefold()
         found = next((one["ID"] for one in currencies if not wanted or str(one["Name"]).casefold() == wanted), None)
         if found is None:
-            raise KeyError(f"Mix It Up has no currency named {self._currency()!r}" if wanted
+            raise LookupError(f"Mix It Up has no currency named {self._currency()!r}" if wanted
                            else "Mix It Up has no currency yet")
         return found
 
@@ -89,7 +89,7 @@ class MixItUpPointBank(PointBank):
         answer = await self._send("GET", f"users/{where}/{name}")
         user = answer.get("User", answer) if isinstance(answer, dict) else None
         if not isinstance(user, dict) or "ID" not in user:
-            raise KeyError(f"Mix It Up doesn't know the viewer {name!r} on {where}")
+            raise LookupError(f"Mix It Up doesn't know the viewer {name!r} on {where}")
         return user["ID"]
 
 

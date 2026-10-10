@@ -101,10 +101,13 @@ class RedeemsTab:
                         ui.menu_item("Add it to a flow that exists", on_click=lambda: self._add_to_flow(reward))
                         ui.menu_item("Fire a custom trigger", on_click=lambda: self._to_trigger(reward))
                 if reward.by_toolbox:
+                    # the word first, then its switch (left-label): he read "paused ○ on ○" the wrong way round
                     ui.switch("paused", value=reward.paused,
-                              on_change=lambda e: self._save(replace(reward, paused=e.value))).props("dense")
+                              on_change=lambda e: self._save(replace(reward, paused=e.value))) \
+                        .props("dense left-label")
                     ui.switch("on", value=reward.enabled,
-                              on_change=lambda e: self._save(replace(reward, enabled=e.value))).props("dense")
+                              on_change=lambda e: self._save(replace(reward, enabled=e.value))) \
+                        .props("dense left-label")
                     ui.button(icon="edit", on_click=lambda: self._edit(reward)).props("flat round dense") \
                         .tooltip("Edit")
                     ui.button(icon="delete", on_click=lambda: self._delete(reward)) \

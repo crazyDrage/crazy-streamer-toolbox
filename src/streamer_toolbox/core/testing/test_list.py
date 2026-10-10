@@ -3,9 +3,10 @@ from collections.abc import Callable, Iterable
 from datetime import date
 from pathlib import Path
 
-from streamer_toolbox.core.testing.test_item import KIND_FOLDERS, PAGE, PAGE_FILE, TestItem
+from streamer_toolbox.core.testing.test_item import BOX, KIND_FOLDERS, PAGE, PAGE_FILE, TestItem
 
 CHECKS = {"works": "Works", "understandable": "Understandable", "usable": "Usable"}
+FLAGS = {"works": "is_tested", "understandable": "is_understandable", "usable": "is_usable"}  # on a box
 TESTING_FOLDER = Path(__file__).resolve().parents[4] / "docs" / "tested"  # in the project; a build carries it along
 HEAD = "| What | Name in the code | AI checked | Works | Understandable | Usable | Last change | Note |"
 RULE = "|---|---|---|---|---|---|---|---|"
@@ -29,14 +30,29 @@ A row counts as tested with all three. "Last change" is the day a check of that 
 **AI checked** comes before those: the day Hex (the AI that builds the toolbox) last tried that thing in the
 running toolbox, or `-` when it never did. It is not one of the three checks and opens nothing in a build.
 For a page that means: it was opened, it drew and showed no error; not that every button on it was pressed.
+For a trigger of a platform or program (Twitch, YouTube, VTube Studio, ...) it means: a stand-in for that
+program sent the running toolbox a message in the shape the program documents, the trigger's flow ran and
+its Start box got every field. For a connection: its tab drew and showed "connected" to such a stand-in.
+The real program was not asked; that is what **Works** is for. A box that talks to a program is only marked
+when it was tried on the real program (the example lamp's pretend lamp is its program).
 
-A build of the toolbox only offers what is tested here: an untested page is not in its menu, an untested
-trigger, box, tool or connection is not there. In the project folder everything is on.
+A build of the toolbox carries everything, tested or not. What of it is shown is chosen in Settings → What
+you see, which starts on "Tested": only the boxes, triggers and tools with the check Works. (A build made
+with `devtools.package tested_only` leaves out what is not tested here.)
 
 Tick the checks in the **test window**, a small window of its own next to the toolbox (it stays open while
 the toolbox is restarted, and writes the row's file at once):
 
     test-window.bat          (Linux: ./test-window.sh)      both are in this folder
+
+To try the boxes without building a flow for each, start the **test toolbox** next to it: a second toolbox on
+its own settings folder (`temp/test_settings`) and port 8855, with a flow for every box (Start and that box)
+and for every trigger (the trigger and a box that does nothing: when it fires, the flow shows as run).
+The flows are numbered in the order of this record ("012 Mute", "T003 Follow"), and the test window shows the
+same number on the row.
+What you set in a test flow stays when the flows are written again.
+
+    test-toolbox.bat         (Linux: ./test-toolbox.sh)
 
 You can also write `yes` or `-` into a file by hand, and anything into "Note" (not the sign `|`); press
 Reload in the test window after that. The toolbox reads the files when it starts.
@@ -77,6 +93,10 @@ class TestList:
         entry = self._entries.get(key, {})
         return {check: entry.get(check) is True for check in CHECKS}
 
+    def flags(self, key: str) -> dict[str, bool]:
+        """The three checks under the names a box has them ({"is_tested": True, ...})."""
+        return {FLAGS[check]: done for check, done in self.checks(key).items()}
+
     def note(self, key: str) -> str:
         return str(self._entries.get(key, {}).get("note", ""))
 
@@ -111,6 +131,14 @@ class TestList:
             if "file" in entry:
                 files.setdefault(entry["file"].relative_to(self._folder).with_suffix("").as_posix(), []).append(key)
         return files
+
+    def numbers(self, kind: str = BOX) -> dict[str, int]:
+        """A running number for every box (or trigger) that is still in the toolbox, in the record's order
+        ("box:obs.mute" → 12): what its row in the test window and its flow in the test settings (TestFlows)
+        both show. Boxes and triggers are each counted from 1."""
+        keys = [key for keys in self.files().values() for key in keys
+                if key.startswith(f"{kind}:") and not self.is_gone(key)]
+        return {key: number for number, key in enumerate(keys, 1)}
 
     def heading(self, where: str) -> str:
         """A file's title ("Flows > Boxes > OBS > Scenes")."""

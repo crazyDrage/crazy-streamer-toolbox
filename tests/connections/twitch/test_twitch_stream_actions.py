@@ -52,6 +52,12 @@ class TestTwitchStreamActions(unittest.IsolatedAsyncioTestCase):
         self.helix.answers[("GET", "clips")] = {"data": []}
         self.assertEqual((await self.run_box("get_clips"))["url"], "")  # none: empty, not an error
 
+    async def test_only_featured_clips_is_a_filter_twitch_does(self) -> None:
+        await self.run_box("get_clips", featured="true")
+        await self.run_box("get_clips", featured=False)
+        self.assertEqual([params for params, _ in self.helix.sent("GET", "clips")], [
+            {"broadcaster_id": "42", "first": 50, "is_featured": "true"}, {"broadcaster_id": "42", "first": 50}])
+
     async def test_clip_shoutout_announcement_raid_ad(self) -> None:
         self.helix.answers[("POST", "clips")] = {"data": [{"id": "Z", "edit_url": "https://edit"}]}
         self.assertEqual((await self.run_box("create_clip"))["url"], "https://clips.twitch.tv/Z")
@@ -117,7 +123,7 @@ class TestTwitchStreamActions(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([body for _, body in self.helix.sent("PATCH", "predictions")], [
             {"broadcaster_id": "42", "id": "x1", "status": "RESOLVED", "winning_outcome_id": "o2"},
             {"broadcaster_id": "42", "id": "x1", "status": "CANCELED"}])
-        with self.assertRaisesRegex(KeyError, "it has: Win, Lose"):
+        with self.assertRaisesRegex(LookupError, "it has: Win, Lose"):
             await self.run_box("end_prediction", how="winner", winner="draw")
 
 

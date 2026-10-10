@@ -13,6 +13,9 @@ from streamer_toolbox.core.connections.connection_status import ConnectionStatus
 from streamer_toolbox.core.connections.not_connected_error import NotConnectedError
 from streamer_toolbox.core.connections.secret_file import SecretFile
 from streamer_toolbox.core.connections.setting_field import SettingField
+from streamer_toolbox.core.web.web_client import web_client
+from streamer_toolbox.gui.components.outside_link import outside_link
+from streamer_toolbox.gui.components.secret_input import SecretInput
 
 HOSTS = ("discord.com", "discordapp.com", "canary.discord.com", "ptb.discord.com")
 HELP = "https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks"
@@ -41,10 +44,11 @@ class DiscordConnection(ConnectionBase):
         return []
 
     def add_gui_settings(self) -> None:
-        ui.label(f"The webhook's address is read from {self._webhook.path}: Discord → the channel's settings "
-                 "→ Integrations → Webhooks → New Webhook → Copy Webhook URL, nothing else in the file. "
+        SecretInput(self._webhook, "Webhook address")
+        ui.label("The webhook's address: Discord → the channel's settings "
+                 "→ Integrations → Webhooks → New Webhook → Copy Webhook URL. "
                  "Whoever has it can post in that channel.").classes("text-sm opacity-80")
-        ui.link("Discord's page about webhooks", HELP, new_tab=True).classes("text-sm")
+        outside_link("Discord's page about webhooks", HELP).classes("text-sm")
         ui.label("Not tried with the real service yet. Box: Post to Discord.").classes("text-xs opacity-60")
 
     async def start(self) -> None:
@@ -77,7 +81,7 @@ class DiscordConnection(ConnectionBase):
         doesn't answer, RuntimeError with Discord's words when it refuses."""
         address = self._address()
         try:
-            async with httpx.AsyncClient(transport=self._transport, timeout=10) as client:
+            async with web_client(self._transport, timeout=10) as client:
                 response = await client.request(method, address, **kwargs)
         except httpx.HTTPError as e:  # its text would name the address
             raise NotConnectedError(f"can't reach Discord ({type(e).__name__})") from None

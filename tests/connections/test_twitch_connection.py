@@ -47,6 +47,7 @@ class TestTwitchConnection(unittest.IsolatedAsyncioTestCase):
         self.twitch = FakeTwitch()
         self.events = EventBus()
         self.seen: list[tuple[str, dict]] = []
+        self.raw: list[tuple[str, dict]] = []  # Twitch's own message of each event
         self.reward_lists: list[dict] = []  # the reward list it announces when it connects (kept apart)
 
         async def record(kind, data):
@@ -63,7 +64,8 @@ class TestTwitchConnection(unittest.IsolatedAsyncioTestCase):
     def connection(self, url: str = "ws://127.0.0.1:9", **settings) -> TwitchConnection:
         return TwitchConnection({"enabled": True, "client_id": "cid", "client_secret": "secret", **settings},
                                 self.store, self.events,
-                                self.twitch.transport, eventsub_url=url, login_timeout=5)
+                                self.twitch.transport, eventsub_url=url, login_timeout=5,
+                                raw=lambda kind, message: self.raw.append((kind, message)))
 
     def save_token(self, access: str = "access-1", expires_in: float = 3600) -> None:
         self.store.save(OAuthToken(access, "refresh-1", time.time() + expires_in, tuple(SCOPES)))
@@ -109,7 +111,7 @@ class TestTwitchConnection(unittest.IsolatedAsyncioTestCase):
             await twitch.stop()
         self.assertEqual(self.seen[0], ("twitch.redeem", {
             "reward": "Big Action: clean screen", "reward_id": "r1", "cost": 500, "user": "VexFan",
-            "user_login": "vexfan", "input": "hi", "redemption_id": "red1", "platform": "twitch"}))
+            "user_login": "vexfan", "user_id": "", "input": "hi", "redemption_id": "red1", "platform": "twitch"}))
         self.assertEqual(self.seen[1][1]["user"], "Kit")
         self.assertEqual(self.seen[0][1]["user"], "VexFan")
         types = [s["type"] for s in self.twitch.subscriptions]
@@ -156,6 +158,20 @@ class TestTwitchConnection(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(query["scope"][0].split(), SCOPES + list(EXTRA_SCOPES))  # the extra ones are asked for
         # ... and a login without them (the fake grants only the basic ones) still connects
         self.assertEqual(self.store.load().access_token, "access-2")
+
+    async def test_connect_logs_in_again_when_the_saved_login_lacks_a_newer_permission(self) -> None:
+        self.twitch.client_id = BUILT_IN_CLIENT_ID
+        self.save_token()  # works, but from before the extra permissions
+        opened = []
+        twitch = TwitchConnection({"enabled": True}, self.store, self.events, self.twitch.transport,
+                                  open_browser=opened.append, login_timeout=5, code_wait=0.01)
+        status = await twitch.test(twitch.settings)
+        self.assertEqual(status.state, ConnectionState.CONNECTED, status.detail)
+        self.assertEqual(len(opened), 1)
+        self.assertEqual(self.store.load().access_token, "access-2")  # the new login is the saved one
+        self.twitch.scopes = SCOPES + list(EXTRA_SCOPES)  # a login that has everything: no page opens
+        await twitch.test(twitch.settings)
+        self.assertEqual(len(opened), 1)
 
     async def test_without_an_own_app_connect_logs_in_with_a_code_and_no_secret(self) -> None:
         self.twitch.client_id = BUILT_IN_CLIENT_ID
@@ -230,6 +246,19 @@ class TestTwitchConnection(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([r.title for r in await twitch.list_rewards()], ["Big Action: clean screen"])
         await twitch.stop()
 
+    async def test_going_live_and_ending_say_the_title_and_the_category(self) -> None:
+        self.save_token()
+        async with FakeEventSubServer() as server:
+            twitch = self.connection(server.url)
+            await twitch.start()
+            await until(lambda: dict(twitch.status.facts).get("Events") == "listening")
+            await server.notify("stream.online", {"type": "live"}, message_id="on1")
+            await server.notify("stream.offline", {}, message_id="off1")
+            await until(lambda: len(self.seen) == 2)
+            await twitch.stop()
+        topic = {"title": "Lizard time", "category": "Just Chatting", "platform": "twitch"}
+        self.assertEqual(self.seen, [("twitch.online", {"type": "live", **topic}), ("twitch.offline", topic)])
+
     async def test_refused_subscriptions_are_skipped_and_shown(self) -> None:
         self.save_token()
         self.twitch.refused = {"channel.subscribe", "channel.cheer"}
@@ -238,11 +267,15 @@ class TestTwitchConnection(unittest.IsolatedAsyncioTestCase):
             await twitch.start()
             await until(lambda: dict(twitch.status.facts).get("Events") == "listening")
             await server.notify("channel.raid", {"from_broadcaster_user_name": "Vex", "from_broadcaster_user_login":
-                                                 "vex", "viewers": 12}, message_id="r1")
+                                                 "vex", "from_broadcaster_user_id": "9", "viewers": 12},
+                                message_id="r1")
             await until(lambda: self.seen)
             await twitch.stop()
-        self.assertEqual(self.seen, [("twitch.raid", {"user": "Vex", "user_login": "vex", "viewers": 12,
-                                                     "platform": "twitch"})])
+        self.assertEqual(self.seen, [("twitch.raid", {"user": "Vex", "user_login": "vex", "user_id": "9",
+                                                     "viewers": 12, "platform": "twitch"})])
+        self.assertEqual(self.raw, [("twitch.raid", {  # as Twitch sent it, for the last trigger's file
+            "from_broadcaster_user_name": "Vex", "from_broadcaster_user_login": "vex",
+            "from_broadcaster_user_id": "9", "viewers": 12})])
         self.assertEqual(dict(twitch.status.facts).get("Not available", ""), "")  # stop() clears the status
         self.assertNotIn("channel.subscribe", [s["type"] for s in self.twitch.subscriptions])
         self.assertIn("stream.online", [s["type"] for s in self.twitch.subscriptions])

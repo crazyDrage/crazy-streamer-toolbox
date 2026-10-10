@@ -2,6 +2,7 @@ from dataclasses import replace
 
 from nicegui import ui
 
+from streamer_toolbox.core.flows.role_match import ROLE_KEYS, roles_match, roles_of, roles_text
 from streamer_toolbox.core.flows.flow import Flow
 from streamer_toolbox.core.flows.flow_library import FlowLibrary
 from streamer_toolbox.core.flows.flow_trigger import FlowTrigger
@@ -142,8 +143,10 @@ class TriggersPage:
 def _source_text(source: FlowTrigger) -> str:
     """"Redeem: Lizard", "Chat message: !lizard"."""
     text = source_kinds().get(source.kind, source.kind)
-    shown = {k: v for k, v in source.match.items() if not k.endswith("_id")}
-    return f"{text}: " + ", ".join(str(v) for v in shown.values()) if shown else text
+    shown = [str(v) for k, v in source.match.items() if not k.endswith("_id") and k not in ROLE_KEYS]
+    if roles_match(roles_of(source.match)):
+        shown.append("only " + roles_text(roles_of(source.match)))
+    return f"{text}: " + ", ".join(shown) if shown else text
 
 
 async def _ask_name(title: str, name: str, description: str) -> tuple[str, str] | None:

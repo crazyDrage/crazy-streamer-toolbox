@@ -28,6 +28,8 @@ class Flow:
     user_cooldown: float = 0      # seconds before the same viewer's trigger may start it again
     refund_on_fail: bool = False  # a redeem that started it gets its points back if it fails or is held back
     folder: str = ""              # where the Flows page lists it ("" = no folder); the file and action stay put
+    enabled: bool = True          # off: it doesn't start at all (button, SAMMI, API, another flow, trigger)
+    triggers_enabled: bool = True  # off: its triggers don't start it; its button and the others still do
 
     @property
     def action_name(self) -> str:

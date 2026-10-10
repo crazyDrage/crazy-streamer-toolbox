@@ -7,6 +7,10 @@ from streamer_toolbox.core.actions.action_registry import ActionRegistry
 Ask = Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]  # one request → Streamer.bot's answer
 NOT_AN_OBJECT = 'The arguments must be an object like {"user": "ann"}'
 PLATFORMS = ["twitch", "kick", "youtube"]
+# Streamer.bot's own words are "Authentication required to use this method" (seen 2026-10-10): what to do about it
+NEEDS_PASSWORD = ("Streamer.bot only writes in chat for a program that gave its password. In Streamer.bot: "
+                  "Servers/Clients → WebSocket Server → tick Authentication and set a password. Type the same "
+                  "password into the Password field under Connections → Streamer.bot and press Connect")
 
 
 class StreamerbotActions:
@@ -23,7 +27,8 @@ class StreamerbotActions:
                     hints={"args": 'Optional: an object like {"user": "ann"}; the action gets each as %user%'})
         actions.add("streamerbot.code_trigger", self.code_trigger, "Fires a custom trigger made in "
                     "Streamer.bot's C# code: every action with that trigger runs", "Fire Streamer.bot trigger",
-                    hints={"trigger": "The trigger's name, exactly as registered in Streamer.bot",
+                    hints={"trigger": "The trigger's name, exactly as registered in Streamer.bot. Streamer.bot "
+                                      "doesn't say when no trigger has that name: then nothing happens",
                            "args": 'Optional: an object like {"user": "ann"}'})
         actions.add("streamerbot.get_global", self.get_global, "The value of one of Streamer.bot's global "
                     "variables", "Get Streamer.bot global", outputs={"value": "text"},
@@ -69,8 +74,13 @@ class StreamerbotActions:
             raise ValueError(f"Streamer.bot writes on {', '.join(PLATFORMS)}; not on {platform!r}")
         if not str(message).strip():
             raise ValueError("What should be written?")
-        await self._ask({"request": "SendMessage", "platform": platform, "bot": bool(bot), "internal": False,
-                         "message": str(message)})
+        try:
+            await self._ask({"request": "SendMessage", "platform": platform, "bot": bool(bot), "internal": False,
+                             "message": str(message)})
+        except RuntimeError as e:
+            if "authentication required" not in str(e).casefold():
+                raise
+            raise PermissionError(NEEDS_PASSWORD) from None
 
 
 def _object(values: Any) -> dict[str, Any]:

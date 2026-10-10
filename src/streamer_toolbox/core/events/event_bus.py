@@ -14,7 +14,8 @@ class EventBus:
     connection that reported the event. A failing listener is logged and doesn't affect the others.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, fill: Callable[[str, dict[str, Any]], dict[str, Any]] | None = None) -> None:
+        self._fill = fill  # adds what an event doesn't say itself (RoleBook: the viewer's role)
         self._handlers: list[EventHandler] = []
         self._tasks: set[asyncio.Task] = set()
 
@@ -22,6 +23,8 @@ class EventBus:
         self._handlers.append(handler)
 
     def publish(self, kind: str, data: dict[str, Any]) -> None:
+        if self._fill is not None:
+            data = self._fill(kind, data)
         log.debug("event %s %s", kind, data)  # timers fire every second; the activity list shows runs
         for handler in list(self._handlers):
             task = asyncio.get_running_loop().create_task(self._call(handler, kind, data))

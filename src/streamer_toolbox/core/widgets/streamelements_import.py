@@ -5,6 +5,7 @@ from typing import Any
 
 import httpx
 
+from streamer_toolbox.core.web.web_client import web_client
 from streamer_toolbox.core.widgets.widget import Widget
 from streamer_toolbox.core.widgets.widget_store import parse_fields
 
@@ -35,7 +36,7 @@ class StreamElementsImport:
     async def overlays(self) -> dict[str, str]:
         """His overlays on StreamElements: id → name, newest change first."""
         token, channel = self._token()
-        async with httpx.AsyncClient(transport=self._transport, timeout=20) as client:
+        async with web_client(self._transport, timeout=20) as client:
             answer = await client.get(f"{API}/{channel}", params={"limit": 100},
                                       headers={"Authorization": f"Bearer {token}", "Accept": "application/json"})
         if answer.status_code in (401, 403):
@@ -51,7 +52,7 @@ class StreamElementsImport:
         """The overlay as StreamElements has it."""
         overlay = self.overlay_id(text)
         token, channel = self._token()
-        async with httpx.AsyncClient(transport=self._transport, timeout=20) as client:
+        async with web_client(self._transport, timeout=20) as client:
             answer = await client.get(f"{API}/{channel}/{overlay}",
                                       headers={"Authorization": f"Bearer {token}", "Accept": "application/json"})
         if answer.status_code in (401, 403):

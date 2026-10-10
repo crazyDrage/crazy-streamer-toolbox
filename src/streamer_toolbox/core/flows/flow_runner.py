@@ -12,6 +12,7 @@ from streamer_toolbox.core.flows.flow import END_ACTION, END_KEY, OUTPUT_ACTION,
 from streamer_toolbox.core.flows.flow_gate import FlowGate
 from streamer_toolbox.core.flows.flow_node import FlowNode
 from streamer_toolbox.core.flows.flow_run import FlowRun
+from streamer_toolbox.core.flows.flow_skipped import FlowSkipped
 from streamer_toolbox.core.flows.flow_step_error import FlowStepError
 from streamer_toolbox.core.flows.flow_wire import DONE, START
 from streamer_toolbox.core.variables.variable_store import VariableStore
@@ -51,8 +52,11 @@ class FlowRunner:
 
     async def run(self, flow: Flow, event: dict[str, Any] | None = None,
                   inputs: dict[str, Any] | None = None) -> list[dict[str, Any]]:
-        """Runs it to the end; the result of every box that ran. Raises FlowSkipped if it's set to skip and
-        already running. A start that stretched a running wait doesn't run: one "stretched" result."""
+        """Runs it to the end; the result of every box that ran. Raises FlowSkipped if it's switched off, or
+        set to skip and already running. A start that stretched a running wait doesn't run: one "stretched" result."""
+        if not flow.enabled:
+            raise FlowSkipped(f"flow {flow.label!r} is switched off (Flows page, or its settings in the "
+                              "editor)")
         if self.gate.stretch(flow):
             return [dict(STRETCHED)]
         async with self.gate.enter(flow):
@@ -112,6 +116,9 @@ class FlowRunner:
         ends = flow.ends
 
         async def run_flow(**inputs: Any) -> Any:
+            if not flow.enabled:
+                raise FlowSkipped(f"flow {flow.label!r} is switched off (Flows page, or its settings in the "
+                                  "editor)")
             if self.gate.stretch(flow):
                 return {} if flow.outputs or ends else [dict(STRETCHED)]
             ended: asyncio.Future = asyncio.get_running_loop().create_future()

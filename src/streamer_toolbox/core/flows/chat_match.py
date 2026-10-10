@@ -6,10 +6,6 @@ MODES = {"command": ("Command", "e.g. !cat (with or without text after it)"),
          "pattern": ("Pattern", "* = any text, e.g. !qa * or * lizard *")}
 
 
-WHO = {"viewer": "Everyone", "sub": "Subs and up", "vip": "VIPs and up", "mod": "Mods and you",
-       "broadcaster": "Only you"}
-
-
 def mode_of(match: dict[str, Any]) -> tuple[str, str]:
     """A chat trigger's match as (mode, the text the streamer typed). Stored as event fields:
     command → {"command": "!cat"}; contains → {"words": "gay, bl"}; pattern → {"message": "..."}."""

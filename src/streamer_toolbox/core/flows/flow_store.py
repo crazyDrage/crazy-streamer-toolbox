@@ -65,13 +65,17 @@ class FlowStore:
         return Flow(name, data.get("label", name.replace("_", " ").capitalize()), nodes, wires, triggers,
                     data.get("description", ""), inputs, data.get("when_busy", "alongside"),
                     float(data.get("cooldown", 0)), float(data.get("user_cooldown", 0)),
-                    bool(data.get("refund_on_fail", False)), str(data.get("folder", "")).strip())
+                    bool(data.get("refund_on_fail", False)), str(data.get("folder", "")).strip(),
+                    bool(data.get("enabled", True)), bool(data.get("triggers_enabled", True)))
 
     @staticmethod
     def to_data(flow: Flow) -> dict[str, Any]:
         data: dict[str, Any] = {"label": flow.label}
         if flow.folder:
             data["folder"] = flow.folder
+        for key in ("enabled", "triggers_enabled"):  # only said when switched off
+            if not getattr(flow, key):
+                data[key] = False
         if flow.description:
             data["description"] = flow.description
         if flow.when_busy != "alongside":

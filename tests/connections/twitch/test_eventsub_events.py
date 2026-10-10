@@ -43,11 +43,24 @@ class TestEventSubEvents(unittest.TestCase):
                          {"user": "Kit", "user_login": "kit", "user_id": "7", "message_id": ""})
         self.assertEqual(to_event("channel.chat.clear", {})[1]["user_id"], "")
 
+    def test_a_follow_and_a_raid_say_who_by_id_too(self) -> None:
+        self.assertEqual(to_event("channel.follow", {"user_name": "Kit", "user_login": "kit", "user_id": "7",
+                                                     "followed_at": "2026-10-09T18:00:00Z"}),
+                         ("twitch.follow", {"user": "Kit", "user_login": "kit", "user_id": "7",
+                                            "followed_at": "2026-10-09T18:00:00Z"}))
+        self.assertEqual(to_event("channel.raid", {"from_broadcaster_user_name": "Big",
+                                                   "from_broadcaster_user_login": "big",
+                                                   "from_broadcaster_user_id": "9", "viewers": 40}),
+                         ("twitch.raid", {"user": "Big", "user_login": "big", "user_id": "9", "viewers": 40}))
+
     def test_subs_gifts_cheers(self) -> None:
-        self.assertEqual(to_event("channel.subscribe", {"user_name": "A", "user_login": "a", "tier": "2000"}),
-                         ("twitch.sub", {"user": "A", "user_login": "a", "tier": 2, "gift": False}))
-        self.assertEqual(to_event("channel.subscription.gift", {"user_name": "A", "total": 5, "is_anonymous": True}),
-                         ("twitch.gift", {"user": "", "user_login": "", "amount": 5, "tier": 1, "anonymous": True}))
+        self.assertEqual(to_event("channel.subscribe", {"user_name": "A", "user_login": "a", "user_id": "7",
+                                                        "tier": "2000"}),
+                         ("twitch.sub", {"user": "A", "user_login": "a", "user_id": "7", "tier": 2, "gift": False}))
+        self.assertEqual(to_event("channel.subscription.gift", {"user_name": "A", "user_id": "7", "total": 5,
+                                                                "is_anonymous": True}),
+                         ("twitch.gift", {"user": "", "user_login": "", "user_id": "", "amount": 5, "tier": 1,
+                                          "anonymous": True}))
         self.assertEqual(to_event("channel.cheer", {"user_name": "B", "user_login": "b", "bits": 100,
                                                     "message": "Cheer100 hi"})[1]["bits"], 100)
         self.assertEqual(to_event("channel.ad_break.begin", {"duration_seconds": 90, "is_automatic": True}),

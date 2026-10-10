@@ -18,16 +18,19 @@ Fields per event (the common ones, the same on every platform; each also has `pl
 | Event | Fields |
 |---|---|
 | chat | user, user_login, message, command, args, role, user_id, message_id, color, emotes |
-| follow | user, user_login |
-| sub | user, user_login, tier, gift |
-| resub | user, user_login, tier, months, message |
-| gift | user, user_login, amount, tier, anonymous |
-| cheer | user, user_login, bits, message, anonymous |
-| raid | user, user_login, viewers |
-| redeem | user, user_login, reward, input, cost, reward_id, redemption_id |
-| online / offline | title |
+| follow | user, user_login, user_id, followed_at |
+| sub | user, user_login, user_id, tier, gift |
+| resub | user, user_login, user_id, tier, months, message |
+| gift | user, user_login, user_id, amount, tier, anonymous |
+| cheer | user, user_login, user_id, bits, message, anonymous |
+| raid | user, user_login, user_id, viewers |
+| redeem | user, user_login, user_id, reward, input, cost, reward_id, redemption_id |
+| online / offline | title, category (Twitch: the game; empty on YouTube and Rumble) |
 | tip | user, amount, currency, message |
 | custom | trigger, user, user_login, input (plus the fields of the event behind it) |
+
+`sub` is per receiver (`gift` = true when it was gifted to them), `gift` is per giver (`amount` = how many):
+5 gifted subs are one `gift` and five `sub` with `gift` = true.
 
 The full list, with each platform's own events: `src/streamer_toolbox/core/events/event_fields.py`.
 
@@ -44,6 +47,9 @@ raids, tips, with sums per session / week / month. Good for "who was the last fo
 live.
 
 ## The other direction
+
+The last event of every kind is kept as a file: `<settings folder>/cache/last_triggers/<event>.json` with
+`trigger`, `at`, `data` (the fields above) and, for Twitch, `raw` (the message as Twitch sent it).
 
 To make the toolbox react to something *you* noticed: `trigger.fire` or `tip.fire`
 (`docs/ai/use/actions.md`).

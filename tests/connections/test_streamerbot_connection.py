@@ -36,6 +36,8 @@ def streamerbot(password: str = ""):
                                           {"enabled": True, "id": "g3", "name": "Confetti"}])
         elif kind == "GetGlobal":
             back["variable"] = {"name": message["variable"], "value": 7, "lastWrite": "x"}
+        elif kind == "SendMessage" and message["platform"] == "twitch" and not password:
+            back.update(status="error", error="Authentication required to use this method")  # its words, 10-10
         elif kind == "DoAction" and message["action"]["name"] == "Missing":
             back.update(status="error", error="Action not found")
         return back
@@ -105,6 +107,8 @@ class TestStreamerbotConnection(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await actions.run("streamerbot.get_global", variable="deaths"), {"value": 7})
             await actions.run("streamerbot.send_chat", message="hi", platform="Kick")
             self.assertEqual((server.received[-1]["platform"], server.received[-1]["bot"]), ("kick", True))
+            with self.assertRaisesRegex(PermissionError, "tick Authentication and set a password"):
+                await actions.run("streamerbot.send_chat", message="hi")  # no password: Streamer.bot refuses
             with self.assertRaisesRegex(RuntimeError, "Action not found"):
                 await actions.run("streamerbot.do_action", action="Missing")
             with self.assertRaises(ValueError):

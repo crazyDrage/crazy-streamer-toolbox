@@ -14,6 +14,8 @@ from streamer_toolbox.core.connections.connection_state import ConnectionState
 from streamer_toolbox.core.connections.connection_status import ConnectionStatus
 from streamer_toolbox.core.connections.setting_field import SettingField
 from streamer_toolbox.core.events.event_bus import EventBus
+from streamer_toolbox.gui.components.outside_link import outside_link
+from streamer_toolbox.gui.components.secret_input import SecretInput
 
 TOKEN_PAGE = "https://streamelements.com/dashboard/account/channels"
 
@@ -45,10 +47,11 @@ class StreamElementsConnection(ConnectionBase):
         return []  # the token isn't typed into the tab: see add_gui_settings
 
     def add_gui_settings(self) -> None:
-        ui.label(f"The token is read from {self._token_path}: your JWT Token on line 1 (StreamElements dashboard → "
+        SecretInput(self._token_path, "JWT Token", "token")
+        ui.label("The token: your JWT Token (StreamElements dashboard → "
                  "your profile → Channels → Show secrets). It gives full access to your StreamElements account, so "
-                 "treat that file like a password. The toolbox only listens with it.").classes("text-sm opacity-80")
-        ui.link("Open StreamElements' page with the token", TOKEN_PAGE, new_tab=True).classes("text-sm")
+                 "treat it like a password. The toolbox only listens with it.").classes("text-sm opacity-80")
+        outside_link("Open StreamElements' page with the token", TOKEN_PAGE).classes("text-sm")
         ui.label("What comes in: tips (also as the toolbox's Tip trigger and Tip alert), store redemptions, merch, "
                  "charity donations, and the dashboard's test buttons. Flows: the trigger \"StreamElements "
                  "activity\".").classes("text-xs opacity-60")
@@ -100,7 +103,8 @@ class StreamElementsConnection(ConnectionBase):
         text = self._token_path.read_text(encoding="utf-8") if self._token_path.is_file() else ""
         lines = [line.strip() for line in text.splitlines() if line.strip()]
         if not lines:
-            raise ValueError(f"No token yet: put your StreamElements JWT Token into {self._token_path}")
+            raise ValueError("No token yet: type your StreamElements JWT Token into its field under Connections "
+                             "→ StreamElements")
         return lines[0], lines[1] if len(lines) > 1 else _channel_in(lines[0])
 
 

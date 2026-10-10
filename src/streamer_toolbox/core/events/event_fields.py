@@ -9,29 +9,31 @@ EVENT_FIELDS: dict[str, tuple[str, ...]] = {
     # with `platform` = where it came from and `source` = the platform's event
     "chat": ("user", "user_login", "message", "command", "args", "role", "user_id", "message_id", "color",
              "emotes", "platform", "source"),
-    "follow": ("user", "user_login", "platform", "source"),
-    "sub": ("user", "user_login", "tier", "gift", "platform", "source"),
-    "resub": ("user", "user_login", "tier", "months", "message", "platform", "source"),
-    "gift": ("user", "user_login", "amount", "tier", "anonymous", "platform", "source"),
-    "cheer": ("user", "user_login", "bits", "message", "anonymous", "platform", "source"),
-    "raid": ("user", "user_login", "viewers", "platform", "source"),
-    "redeem": ("user", "user_login", "reward", "input", "cost", "reward_id", "redemption_id", "platform", "source"),
-    "online": ("title", "platform", "source"),
-    "offline": ("title", "platform", "source"),
-    "twitch.redeem": ("user", "user_login", "reward", "input", "cost", "reward_id", "redemption_id", "platform"),
+    "follow": ("user", "user_login", "user_id", "followed_at", "role", "platform", "source"),
+    "sub": ("user", "user_login", "user_id", "tier", "gift", "role", "platform", "source"),
+    "resub": ("user", "user_login", "user_id", "tier", "months", "message", "role", "platform", "source"),
+    "gift": ("user", "user_login", "user_id", "amount", "tier", "anonymous", "role", "platform", "source"),
+    "cheer": ("user", "user_login", "user_id", "bits", "message", "anonymous", "role", "platform", "source"),
+    "raid": ("user", "user_login", "user_id", "viewers", "role", "platform", "source"),
+    "redeem": ("user", "user_login", "user_id", "reward", "input", "cost", "reward_id", "redemption_id", "role",
+               "platform", "source"),
+    "online": ("title", "category", "platform", "source"),
+    "offline": ("title", "category", "platform", "source"),
+    "twitch.redeem": ("user", "user_login", "user_id", "reward", "input", "cost", "reward_id", "redemption_id",
+                      "role", "platform"),
     "twitch.chat": ("user", "user_login", "message", "command", "args", "message_id", "role", "user_id", "color",
                     "emotes", "platform"),
     # a chat message was removed: one (message_id), all of one chatter's (a ban / timeout: no message_id), or
     # the whole chat (no user either)
-    "twitch.chat_deleted": ("user", "user_login", "user_id", "message_id", "platform"),
-    "twitch.follow": ("user", "user_login", "platform"),
-    "twitch.sub": ("user", "user_login", "tier", "gift", "platform"),
-    "twitch.resub": ("user", "user_login", "tier", "months", "message", "platform"),
-    "twitch.gift": ("user", "user_login", "amount", "tier", "anonymous", "platform"),
-    "twitch.cheer": ("user", "user_login", "bits", "message", "anonymous", "platform"),
-    "twitch.raid": ("user", "user_login", "viewers", "platform"),
-    "twitch.online": ("type", "platform"),
-    "twitch.offline": ("platform",),
+    "twitch.chat_deleted": ("user", "user_login", "user_id", "message_id", "role", "platform"),
+    "twitch.follow": ("user", "user_login", "user_id", "followed_at", "role", "platform"),
+    "twitch.sub": ("user", "user_login", "user_id", "tier", "gift", "role", "platform"),
+    "twitch.resub": ("user", "user_login", "user_id", "tier", "months", "message", "role", "platform"),
+    "twitch.gift": ("user", "user_login", "user_id", "amount", "tier", "anonymous", "role", "platform"),
+    "twitch.cheer": ("user", "user_login", "user_id", "bits", "message", "anonymous", "role", "platform"),
+    "twitch.raid": ("user", "user_login", "user_id", "viewers", "role", "platform"),
+    "twitch.online": ("type", "title", "category", "platform"),
+    "twitch.offline": ("title", "category", "platform"),
     "twitch.ad_break": ("seconds", "automatic", "platform"),
     # a tip / donation, told to the toolbox by the Tip came in box (tip.fire); platform = where it came from
     "tip": ("user", "amount", "currency", "message", "platform"),
@@ -41,27 +43,28 @@ EVENT_FIELDS: dict[str, tuple[str, ...]] = {
     "streamlabs.activity": ("type", "user", "amount", "currency", "message", "product", "test", "platform"),
     # Rumble (RumbleNews): its chat, follows, subs, gifted subs, rants (paid messages; also a tip), live or not
     "rumble.chat": ("user", "message", "command", "args", "role", "platform"),
-    "rumble.follow": ("user", "platform"),
-    "rumble.sub": ("user", "amount", "platform"),
-    "rumble.gift": ("user", "amount", "platform"),
-    "rumble.rant": ("user", "amount", "message", "platform"),
+    "rumble.follow": ("user", "followed_at", "role", "platform"),
+    "rumble.sub": ("user", "amount", "role", "platform"),
+    "rumble.gift": ("user", "amount", "role", "platform"),
+    "rumble.rant": ("user", "amount", "message", "role", "platform"),
     "rumble.online": ("title", "platform"),
     "rumble.offline": ("title", "platform"),
     # YouTube (youtube_events): everything comes through the live chat; a Super Chat / Sticker is also a tip
     "youtube.chat": ("user", "message", "command", "args", "role", "user_id", "message_id", "platform"),
-    "youtube.superchat": ("user", "amount", "currency", "message", "platform"),
-    "youtube.supersticker": ("user", "amount", "currency", "message", "platform"),
-    "youtube.member": ("user", "level", "upgrade", "platform"),
-    "youtube.member_milestone": ("user", "months", "level", "message", "platform"),
-    "youtube.gift_members": ("user", "amount", "level", "platform"),
+    "youtube.superchat": ("user", "amount", "currency", "message", "role", "platform"),
+    "youtube.supersticker": ("user", "amount", "currency", "message", "role", "platform"),
+    "youtube.member": ("user", "level", "upgrade", "role", "platform"),
+    "youtube.member_milestone": ("user", "months", "level", "message", "role", "platform"),
+    "youtube.gift_members": ("user", "amount", "level", "role", "platform"),
     "youtube.online": ("title", "platform"),
     "youtube.offline": ("title", "platform"),
     # a viewer redeemed an event in the Twitch extension "StreamSocket Events" (bits: 0 = free)
     # veadotube mini shows another avatar state (names; previous = the one before)
     "veadotube.state": ("state", "state_id", "previous"),
-    "streamsocket.event": ("event", "event_id", "bits", "user", "user_id", "categories", "test", "platform"),
-    # T.I.T.S.: something hit the model (item = what was thrown), a trigger started / ended
-    "tits.hit": ("item", "item_id", "trigger", "trigger_id", "strength"),
+    "streamsocket.event": ("event", "event_id", "bits", "user", "user_id", "categories", "test", "role", "platform"),
+    # T.I.T.S.: something hit the model (item = what was thrown; x, y, z = the direction it flew, each -1 to 1),
+    # a trigger started / ended
+    "tits.hit": ("item", "item_id", "trigger", "trigger_id", "strength", "x", "y", "z"),
     "tits.trigger_started": ("trigger", "trigger_id"),
     "tits.trigger_ended": ("trigger", "trigger_id"),
     # anything Streamer.bot tells: source + type as it names them ("Kick" + "Follow"); data = all it sent
@@ -83,8 +86,10 @@ EVENT_FIELDS: dict[str, tuple[str, ...]] = {
     "vts.model_moved": ("model", "x", "y", "rotation", "size"),
     "key.pressed": ("key",),
     # a custom trigger: the source event's fields come along too (a redeem's reward, a chat's message, ...)
-    "custom": ("trigger", "platform", "source", "user", "user_login", "input"),
+    "custom": ("trigger", "platform", "source", "user", "user_login", "input", "role"),
 }
 
-# a chat message's "role", lowest to highest; a chat trigger's "who" is the lowest role that may start it
+# a viewer's "role", lowest to highest. Only a chat message tells it; every other event with "role" above gets
+# it from the RoleBook (the role the viewer had in their last chat message). A trigger's "who" is the lowest
+# role that may start it, its "who_max" the highest
 CHAT_ROLES = ("viewer", "sub", "vip", "mod", "broadcaster")

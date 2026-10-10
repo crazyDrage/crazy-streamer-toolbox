@@ -4,6 +4,7 @@ from typing import Any
 import httpx
 
 from streamer_toolbox.connections.youtube.youtube_api_error import YouTubeApiError
+from streamer_toolbox.core.web.web_client import web_client
 
 API = "https://www.googleapis.com/youtube/v3"
 
@@ -61,6 +62,6 @@ class YouTubeApi:
         return response.json() if response.content else {}
 
     async def _send(self, method: str, path: str, token: str, **kwargs: Any) -> httpx.Response:
-        async with httpx.AsyncClient(transport=self._transport, timeout=10) as client:
+        async with web_client(self._transport, timeout=10) as client:
             return await client.request(method, f"{API}/{path}", headers={"Authorization": f"Bearer {token}"},
                                         **kwargs)

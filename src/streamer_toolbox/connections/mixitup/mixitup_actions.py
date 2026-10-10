@@ -77,7 +77,7 @@ class MixItUpActions:
         found = next((c["ID"] for c in commands if c["Name"] == name), None) or \
             next((c["ID"] for c in commands if c["Name"].casefold() == str(name).casefold()), None)
         if found is None:
-            raise KeyError(f"Mix It Up has no command named {name!r}")
+            raise LookupError(f"Mix It Up has no command named {name!r}")
         return found
 
     async def run_command(self, command: str, arguments: str = "", platform: str = "Twitch",
@@ -112,7 +112,7 @@ class MixItUpActions:
         answer = await self._send("GET", f"users/{platform or 'Twitch'}/{_part(name)}")
         user = answer.get("User", answer) if isinstance(answer, dict) else None  # the real one: {"User": {...}}
         if not isinstance(user, dict) or "ID" not in user:
-            raise KeyError(f"Mix It Up doesn't know the viewer {name!r} on {platform}")
+            raise LookupError(f"Mix It Up doesn't know the viewer {name!r} on {platform}")
         return user
 
     async def get_user(self, username: str, platform: str = "Twitch") -> dict[str, Any]:
@@ -131,7 +131,7 @@ class MixItUpActions:
         found = next((c["ID"] for c in await self._send("GET", "currency") or []
                       if c["Name"].casefold() == str(name).casefold()), None)
         if found is None:
-            raise KeyError(f"Mix It Up has no currency named {name!r}")
+            raise LookupError(f"Mix It Up has no currency named {name!r}")
         return found
 
     async def _money(self, method: str, currency: str, username: str, platform: str, **body: Any) -> Any:
@@ -166,7 +166,7 @@ class MixItUpActions:
                 if entry["Name"].casefold() == wanted_item.casefold():
                     user = await self._user(username, platform)
                     return f"inventory/{inventory['ID']}/{entry['ID']}/{user['ID']}"
-        raise KeyError(f"Mix It Up has no inventory item {item!r}")
+        raise LookupError(f"Mix It Up has no inventory item {item!r}")
 
     async def get_item(self, item: str, username: str, platform: str = "Twitch") -> int:
         return _amount(await self._send("GET", await self._item_path(item, username, platform)))

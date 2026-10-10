@@ -6,6 +6,7 @@ from typing import Any
 import httpx
 
 from streamer_toolbox.connections.rumble.rumble_news import RumbleNews
+from streamer_toolbox.core.web.web_client import web_client
 
 HOST = "rumble.com"
 log = logging.getLogger(__name__)
@@ -32,7 +33,7 @@ class RumbleFeed:
     async def ask(self) -> dict[str, Any]:
         """One answer. PermissionError if Rumble refuses the address, ConnectionError for anything else."""
         try:
-            async with httpx.AsyncClient(transport=self._transport, timeout=10) as client:
+            async with web_client(self._transport, timeout=10) as client:
                 answer = await client.get(self._address)
         except httpx.HTTPError as e:
             raise ConnectionError(type(e).__name__) from None  # its text would name the address

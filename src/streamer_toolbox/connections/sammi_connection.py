@@ -10,6 +10,7 @@ from streamer_toolbox.core.connections.connection_state import ConnectionState
 from streamer_toolbox.core.connections.connection_status import ConnectionStatus
 from streamer_toolbox.core.connections.not_connected_error import NotConnectedError
 from streamer_toolbox.core.connections.setting_field import SettingField
+from streamer_toolbox.core.web.web_client import web_client
 
 
 DECK_STATES = {"on": 1, "off": 0, "toggle": 2}  # changeDeckStatus
@@ -170,7 +171,7 @@ class SammiConnection(ConnectionBase):
 
     async def _request(self, settings: dict[str, Any], method: str, **kwargs: Any) -> Any:
         headers = {"Authorization": settings["password"]} if settings["password"] else {}
-        async with httpx.AsyncClient(transport=self._transport, timeout=5) as client:
+        async with web_client(self._transport, timeout=5) as client:
             response = await client.request(method, settings["url"].rstrip("/") + "/api", headers=headers, **kwargs)
         response.raise_for_status()
         return response.json().get("data")

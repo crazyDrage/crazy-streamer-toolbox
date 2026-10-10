@@ -3,6 +3,7 @@ from typing import Any
 
 import httpx
 
+from streamer_toolbox.core.web.web_client import web_client
 from streamer_toolbox.core.widgets.kept_answers import KeptAnswers
 
 BTTV = "https://api.betterttv.net/3/cached"
@@ -47,7 +48,7 @@ class EmoteLookup:
     async def _ask(self, url: str) -> Any | None:
         """The answer; {} when the service doesn't know the channel; None when it can't be reached."""
         try:
-            async with httpx.AsyncClient(transport=self._transport, timeout=10) as client:
+            async with web_client(self._transport, timeout=10) as client:
                 answer = await client.get(url, headers={"Accept": "application/json"})
             if answer.status_code == 404:
                 return {}

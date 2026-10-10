@@ -6,11 +6,12 @@ from nicegui import ui
 
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.actions.box_filter_store import BoxFilterStore
+from streamer_toolbox.core.testing.test_view import TestView
 from streamer_toolbox.core.actions.numbered_fields import count_field, numbered_fields
 from streamer_toolbox.core.actions.registered_action import RegisteredAction
 from streamer_toolbox.core.data.box_value import kind_of, understand
 from streamer_toolbox.core.files.box_value_files import BoxValueFiles
-from streamer_toolbox.core.flows.box_wire import WIRE_IN, box_ref, box_source, field_of
+from streamer_toolbox.core.flows.box_wire import WIRE_IN, box_ref, box_source, field_of, is_wire_in
 from streamer_toolbox.core.flows.flow_runner import FlowRunner
 from streamer_toolbox.core.flows.flow_wire import START
 from streamer_toolbox.core.variables.variable_store import VariableStore
@@ -34,7 +35,8 @@ class NodeEditor:
 
     def __init__(self, actions: ActionRegistry, runner: FlowRunner, variables: VariableStore,
                  box_files: BoxValueFiles, draft: FlowDraft, on_change: Callable[..., None],
-                 box_filters: BoxFilterStore | None = None, switched_off: SwitchedOff | None = None) -> None:
+                 box_filters: BoxFilterStore | None = None, switched_off: SwitchedOff | None = None,
+                 test_view: TestView | None = None) -> None:
         self._actions = actions
         self._runner = runner
         self._variables = variables
@@ -43,11 +45,12 @@ class NodeEditor:
         self._on_change = on_change
         self._box_filters = box_filters
         self._switched_off = switched_off
+        self._test_view = test_view
         self.dots = BoxDots(actions, runner, draft)
 
     def picker(self) -> ActionPicker:
         return ActionPicker(self._actions, f"flow.{self._draft.name}" if self._draft.name else "",
-                            self._box_filters, self._switched_off)
+                            self._box_filters, self._switched_off, self._test_view)
 
     def prepare(self, node: NodeDraft) -> None:
         """A new box: a Split box's data comes in by wire, so it starts with that dot; a Switch with two cases."""
@@ -225,8 +228,7 @@ class NodeEditor:
         fields = [name for name in box_parameters(action) if name != action.data_outputs]
 
         def apply(chosen: dict[str, str]) -> None:
-            node.params.update(chosen)
-            self._on_change(rebuild=True)
+            self._on_change(rebuild=True, edit=lambda: node.params.update(chosen))  # see _set_param
 
         WireByNameDialog(fields, self.dots.wire_sources(node), node.params, apply).open()
 
@@ -235,6 +237,11 @@ class NodeEditor:
         if action is not None and name in action.fills:  # e.g. the Raw request's data template
             node.params.update(action.filled(node.params, name, value))
             rebuild = True
+        if is_wire_in(value) and is_wire_in(node.params.get(name)):
+            # a wire picked or taken away (the X) in the panel: the canvas still shows the old wire and would put
+            # it back when it is read, so the change is made after that
+            self._on_change(rebuild=True, edit=lambda: node.params.__setitem__(name, value))
+            return
         node.params[name] = value
         self._on_change(rebuild=rebuild)
 

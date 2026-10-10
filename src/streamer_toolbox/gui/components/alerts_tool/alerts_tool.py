@@ -1,5 +1,5 @@
 from dataclasses import replace
-from pathlib import Path
+from pathlib import PureWindowsPath
 
 from nicegui import ui
 
@@ -61,8 +61,9 @@ class AlertsTool:
 def summary(rule: AlertRule) -> str:
     """"party.gif · ding.ogg · 5 s · on the picture: name, amount" / "no picture · no sound · 5 s"."""
     on_picture = [part.title.casefold() for part in rule.parts if part.on_picture]
-    bits = [Path(rule.image).name if rule.image else "no picture", Path(rule.sound).name if rule.sound else "no sound",
-            f"{rule.seconds:g} s"]
+    # PureWindowsPath reads both \ and /: an alert set up on Windows shows the same on Linux
+    bits = [PureWindowsPath(rule.image).name if rule.image else "no picture",
+            PureWindowsPath(rule.sound).name if rule.sound else "no sound", f"{rule.seconds:g} s"]
     if on_picture:
         bits.append("on the picture: " + ", ".join(on_picture))
     if rule.variations:

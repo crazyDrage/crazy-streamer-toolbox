@@ -68,7 +68,7 @@ class TwitchChannelActions:
         found = _first(await self._helix("GET", "games", params={"name": name})) or \
             _first(await self._helix("GET", "search/categories", params={"query": name, "first": 1}))
         if not found:
-            raise KeyError(f"Twitch has no category like {name!r}")
+            raise LookupError(f"Twitch has no category like {name!r}")
         await self._helix("PATCH", "channels", params={"broadcaster_id": self._me().user_id},
                           json={"game_id": found["id"]})
         return found["name"]
@@ -100,7 +100,7 @@ class TwitchChannelActions:
             raise ValueError("which user? (the name is empty)")
         found = _first(await self._helix("GET", "users", params={"login": login}))
         if not found:
-            raise KeyError(f"Twitch has no user {login!r}")
+            raise LookupError(f"Twitch has no user {login!r}")
         return found
 
 

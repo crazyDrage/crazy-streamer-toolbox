@@ -36,7 +36,8 @@ class FlowTriggerRouter:
             return
         # side by side, so a flow waiting in line doesn't hold back the others
         await asyncio.gather(*(self._run(flow, kind, data) for flow in self._library.all()
-                               if any(t.matches(kind, data) for t in flow.triggers)))
+                               if flow.enabled and flow.triggers_enabled  # a switched-off one stays quiet
+                               and any(t.matches(kind, data) for t in flow.triggers)))
 
     async def _run(self, flow: Flow, kind: str, data: dict[str, Any]) -> None:
         key = (flow.name, kind)
