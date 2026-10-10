@@ -15,11 +15,17 @@ to a server of ours: there is none.
 
 1. Unpack the archive anywhere you like (for example `Documents\streamer-toolbox`). Not inside `Program Files`:
    the toolbox writes its settings into its own folder.
-2. Double-click **Start streamer-toolbox.bat**.
+2. Double-click **crazy-streamer-toolbox.exe**.
    - The toolbox opens in its own window. Closing that window stops the toolbox.
+   - No `.exe` in your archive? **Start streamer-toolbox.bat** does the same, with a black console window
+     next to it.
    - **Start in the browser.bat** opens it as a browser tab instead and keeps running when the tab is closed
      (close the black console window to stop it).
-3. The first time, Windows may show "Windows protected your PC" for the .bat file: *More info* → *Run anyway*.
+3. The first time, Windows may show "Windows protected your PC": *More info* → *Run anyway*. The program is
+   not signed yet; that is all the warning means.
+
+If it does not start, the file `start.log` next to the program says why (the `.exe` writes there what the
+toolbox prints).
 
 Nothing is installed. Python and every library the toolbox needs are in the `python` folder of the archive.
 To remove the toolbox, delete its folder.

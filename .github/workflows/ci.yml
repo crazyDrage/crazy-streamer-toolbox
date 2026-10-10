@@ -62,6 +62,11 @@ jobs:
       - run: python -m streamer_toolbox.devtools.package ${{ matrix.target }}
         env:
           PYTHONPATH: src
+      # without a compiler the packager leaves the start program out and only says so: here that is an error
+      - name: The Windows download has its start program
+        if: matrix.target == 'windows'
+        shell: bash
+        run: unzip -l build/${{ matrix.file }} | grep -q "crazy-streamer-toolbox-windows/crazy-streamer-toolbox.exe"
       - uses: actions/upload-artifact@v4
         with:
           name: crazy-streamer-toolbox-${{ matrix.target }}
