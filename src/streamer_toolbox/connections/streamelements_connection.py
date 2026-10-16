@@ -27,7 +27,7 @@ class StreamElementsConnection(ConnectionBase):
     widgets). It only listens: nothing on the StreamElements account is changed.
 
     The token is the account's JWT (dashboard → profile → Channels → Show secrets). It gives full access to the
-    account, so it's kept in its own file next to the settings (config/streamelements_token.txt: the JWT on line
+    account, so it's kept in its own file next to the settings (config/secrets/streamelements_token.txt: the JWT on line
     1, optionally the account id on line 2), never in toolbox.toml and never shown. Off until switched on."""
 
     id = "streamelements"

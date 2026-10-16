@@ -171,20 +171,28 @@ class TestVtsConnection(unittest.IsolatedAsyncioTestCase):
         async with FakeVtsServer() as server:
             self.token.write_text("paired", encoding="utf-8")
             server.valid_tokens.add("paired")
-            connection = VtsConnection({"enabled": True, "url": server.url}, self.token, self.positions, events=events)
+            connection = VtsConnection({"enabled": True, "url": server.url}, self.token, self.positions, events=events,
+                                       tracking_seconds=0)
             await connection.start()
             await server.send_event("TrackingStatusChangedEvent", {"faceFound": False, "leftHandFound": True,
                                                                    "rightHandFound": False})
             await server.send_event("HotkeyTriggeredEvent", {"hotkeyName": "Tail", "hotkeyID": "h1",
-                                                             "hotkeyAction": "TriggerAnimation", "modelName": "Dragon"})
+                                                             "hotkeyAction": "TriggerAnimation", "modelName": "Dragon",
+                                                             "hotkeyTriggeredByAPI": True})
+            await server.send_event("ModelConfigChangedEvent", {"modelID": "m1", "modelName": "Dragon",
+                                                                "hotkeyConfigChanged": True})
             for _ in range(50):
-                if len(seen) == 2:
+                if len(seen) == 3:
                     break
                 await asyncio.sleep(0.02)
             subscribed = [d["eventName"] for k, d in server.requests if k == "EventSubscriptionRequest"]
             await connection.stop()
-        self.assertEqual(seen[0], ("vts.tracking", {"face": False, "left_hand": True, "right_hand": False}))
-        self.assertEqual(seen[1][1]["hotkey"], "Tail")
+        self.assertIn(("vts.tracking", {"face": False, "left_hand": True, "right_hand": False}), seen)
+        self.assertEqual(dict(seen)["vts.hotkey"], {"hotkey": "Tail", "hotkey_id": "h1", "model": "Dragon",
+                                                    "action": "TriggerAnimation", "by_plugin": True})
+        self.assertEqual(dict(seen)["vts.model_config"], {
+            "model": "Dragon", "model_id": "m1", "hotkeys_changed": True,
+            "data": {"modelID": "m1", "modelName": "Dragon", "hotkeyConfigChanged": True}})
         self.assertIn("TrackingStatusChangedEvent", subscribed)
 
     async def test_denied_popup_is_explained(self) -> None:

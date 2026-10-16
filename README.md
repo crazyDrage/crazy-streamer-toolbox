@@ -1,8 +1,10 @@
 # crazy-streamer-toolbox
 
 > **AI agents should read [llms.txt](llms.txt) instead.**
->
-> This software is made with the help of AI: the code is written with Claude Code.
+
+## This software is made with the help of AI: the code is written with Claude Code.
+
+**This is a WIP project and still needs testing.**
 
 One program for the things a stream needs glued together: buttons that do something in OBS, VTube Studio,
 SAMMI, Mix It Up or on Twitch, flows that run when a viewer follows, subscribes or redeems, and alerts and
@@ -32,9 +34,10 @@ Nothing is installed on your PC. The toolbox lives in its own folder; to remove 
 
 1. Download the Windows archive and unpack it anywhere you like (not inside `Program Files`: the toolbox
    writes its settings into its own folder).
-2. Double-click **Start streamer-toolbox.bat**. It opens in its own window; closing the window stops it.
+2. Double-click **crazy-streamer-toolbox.exe**. It opens in its own window; closing the window stops it.
    **Start in the browser.bat** opens it as a browser tab instead.
-3. The first time, Windows may show "Windows protected your PC": *More info* → *Run anyway*.
+3. The first time, Windows may show "Windows protected your PC": *More info* → *Run anyway*. The program is
+   not signed yet; that is all the warning means.
 
 Python and every library it needs are in the archive.
 

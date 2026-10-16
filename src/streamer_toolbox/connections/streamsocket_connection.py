@@ -25,7 +25,7 @@ class StreamSocketConnection(ConnectionBase):
     like a channel point redeem that lives in an extension. It only listens.
 
     The secret comes from the extension's configuration page and is his: kept in its own file next to the
-    settings (config/streamsocket_secret.txt), never in toolbox.toml and never shown. The channel is his Twitch
+    settings (config/secrets/streamsocket_secret.txt), never in toolbox.toml and never shown. The channel is his Twitch
     id: the one typed on the tab, else the one of the toolbox's Twitch login. Off until switched on."""
 
     id = "streamsocket"

@@ -2,7 +2,7 @@ from collections.abc import Callable
 
 from nicegui import ui
 
-from streamer_toolbox.core.testing.test_flows import SHOWN
+from streamer_toolbox.core.testing.test_item import BOX
 from streamer_toolbox.core.testing.test_list import CHECKS, TestList
 
 HELP = {"works": "It does what it says, on the real program",
@@ -70,11 +70,9 @@ class TestWindow:
         return found
 
     def number(self, key: str) -> str:
-        """What a box's or trigger's flow in the test toolbox is numbered ("012", "T003"); "" for the rest."""
-        for kind, shown in SHOWN.items():
-            if key in self._tested.numbers(kind):
-                return f"{shown}{self._tested.numbers(kind)[key]:03d}"
-        return ""
+        """What a box's flow in the test toolbox is numbered ("012"); "" for the rest (triggers have no flow)."""
+        numbers = self._tested.numbers(BOX)
+        return f"{numbers[key]:03d}" if key in numbers else ""
 
     def step(self, by: int) -> None:
         """To the file after (1) or before (-1) the one shown; stays at the ends."""

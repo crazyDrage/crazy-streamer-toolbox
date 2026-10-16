@@ -13,7 +13,7 @@ FILES = {"image-input": IMAGE_TYPES, "video-input": VIDEO_TYPES, "sound-input": 
 
 class WidgetFieldsForm:
     """A widget's settings, drawn from its FIELDS like StreamElements' editor does: one input per field by its
-    type (text, number, slider, checkbox, colorpicker, dropdown, googleFont; image / video / sound pick a file on
+    type (text, textarea, number, slider, checkbox, colorpicker, dropdown, googleFont; image / video / sound pick a file on
     this PC; a button sends its event), each group a section that opens and closes. on_change(values) after
     every change;
     on_button(field, value) when a button field is pressed."""
@@ -70,6 +70,10 @@ class WidgetFieldsForm:
                       on_change=lambda e: self._set(key, e.value)).props(FIELD).classes("w-full")
         elif kind in FILES:
             self._file(key, label, str(value or ""), FILES[kind])
+        elif kind == "textarea":  # the toolbox's own kind: a text of several lines (an Element's texts)
+            ui.textarea(label, value="" if value is None else str(value),
+                        on_change=lambda e: self._set(key, e.value or "")) \
+                .props(FIELD + " autogrow debounce=500").classes("w-full")
         else:  # text, googleFont, and kinds this form doesn't know: plain text
             ui.input(label, value="" if value is None else str(value),
                      on_change=lambda e: self._set(key, e.value)).props(FIELD + " debounce=500").classes("w-full")

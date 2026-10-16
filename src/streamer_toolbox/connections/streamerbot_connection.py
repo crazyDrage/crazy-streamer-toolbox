@@ -28,7 +28,7 @@ class StreamerbotConnection(LineConnection):
     none.
 
     A password is only needed when Streamer.bot's server asks for one; it is kept in its own file
-    (config/streamerbot_password.txt). Built from Streamer.bot's docs. Tried on the real program (2026-10-10,
+    (config/secrets/streamerbot_password.txt). Built from Streamer.bot's docs. Tried on the real program (2026-10-10,
     version 1.0.7, no password): it connects, subscribes to the named categories, runs an action by name (with
     and without arguments; the name's upper / lower case doesn't matter to it), and Streamer.bot's own words
     come back for an action or a global that is not there. It says "ok" to a code trigger nobody registered.

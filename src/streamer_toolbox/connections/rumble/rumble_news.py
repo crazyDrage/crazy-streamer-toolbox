@@ -1,6 +1,8 @@
 from collections import deque
 from typing import Any
 
+from streamer_toolbox.core.events.chat_command import chat_command
+
 CHAT = "rumble.chat"
 FOLLOW = "rumble.follow"
 SUB = "rumble.sub"
@@ -46,10 +48,10 @@ class RumbleNews:
             chat = stream.get("chat") if isinstance(stream.get("chat"), dict) else {}
             for one in _list(chat, "recent_messages"):
                 text = str(one.get("text") or "")
-                command, _, args = text.partition(" ")
+                command, args = chat_command(text)
                 self._add(events, ("chat", _name(one), one.get("created_on"), text), CHAT, {
                     "user": _name(one), "message": text,
-                    "command": command.casefold() if command.startswith("!") else "", "args": args.strip(),
+                    "command": command, "args": args,
                     "role": _role(one.get("badges"))})
             for one in _list(chat, "recent_rants"):
                 text = str(one.get("text") or "")

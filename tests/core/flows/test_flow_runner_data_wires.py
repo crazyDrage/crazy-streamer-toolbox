@@ -3,7 +3,6 @@ import unittest
 from pathlib import Path
 
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
-from streamer_toolbox.core.data.split_actions import SplitActions
 from streamer_toolbox.core.flows.flow import Flow
 from streamer_toolbox.core.flows.flow_input import FlowInput
 from streamer_toolbox.core.flows.flow_node import FlowNode
@@ -36,7 +35,6 @@ class TestFlowRunnerDataWires(unittest.IsolatedAsyncioTestCase):
         self.actions.add("a.position", position)
         self.actions.add("a.model", model)
         LogicActions(self.variables).add_to(self.actions)
-        SplitActions().add_to(self.actions)
         self.runner = FlowRunner(self.actions, self.variables)
 
     def tearDown(self) -> None:
@@ -51,16 +49,14 @@ class TestFlowRunnerDataWires(unittest.IsolatedAsyncioTestCase):
         await self.runner.run(flow)
         self.assertEqual(self.calls, [{"side": "then"}])
 
-    async def test_split_gives_each_field_as_its_kind(self) -> None:
-        # his example: VTS get model position → Split data → If
+    async def test_a_field_of_a_result_is_wired_on_its_own(self) -> None:
+        # his example: VTS get model position → If (Split data is gone: a field is a wire of its own)
         flow = Flow("f", "F", (FlowNode("n1", "a.position"),
-                               FlowNode("n2", "data.split", {"data": "${box.n1}",
-                                                             "fields": {"x": "number", "model": "text"}}),
-                               FlowNode("n3", "logic.if", {"left": "${box.n2.x}", "op": ">", "right": 0}),
-                               FlowNode("n4", "a.record", {"x": "${box.n2.x}", "model": "${box.n2.model}"})),
+                               FlowNode("n3", "logic.if", {"left": "${box.n1.x}", "op": ">", "right": 0}),
+                               FlowNode("n4", "a.record", {"x": "${box.n1.x}", "model": "${box.n1.model}"})),
                     (FlowWire("start", "out", "n3"), FlowWire("n3", "then", "n4")))
         await self.runner.run(flow)
-        self.assertEqual(self.calls, [{"x": 0.5, "model": "Dragon"}])
+        self.assertEqual(self.calls, [{"x": "0.5", "model": "Dragon"}])
         self.assertEqual(self.reads, 2)  # read fresh for each box that needs it, once per box
 
     async def test_helpers_on_a_wire_give_keys_kinds_and_counts(self) -> None:
@@ -181,12 +177,12 @@ class TestFlowRunnerDataWires(unittest.IsolatedAsyncioTestCase):
 
     async def test_test_run_takes_inputs_and_lists_boxes_run_for_a_wire(self) -> None:
         flow = Flow("f", "F", (FlowNode("n1", "a.record", {"x": "${box.n2.x}", "who": "${box.start.who}"}),
-                               FlowNode("n2", "data.split", {"data": "${box.n3}", "fields": {"x": "number"}}),
+                               FlowNode("n2", "logic.value", {"values": {"x": "${box.n3.x}"}}),
                                FlowNode("n3", "a.position")),
                     (FlowWire("start", "out", "n1"),), inputs=(FlowInput("who", None),))
         results, error = await self.runner.test_run(flow, {"who": "Kit"})
         self.assertIsNone(error)
-        self.assertEqual(self.calls, [{"x": 0.5, "who": "Kit"}])
+        self.assertEqual(self.calls, [{"x": "0.5", "who": "Kit"}])  # a wired value keeps its kind
         self.assertEqual([(r["box"], r.get("for_wire", False)) for r in results],
                          [("n3", True), ("n2", True), ("n1", False)])
 

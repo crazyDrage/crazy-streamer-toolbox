@@ -37,7 +37,7 @@ The real program was not asked; that is what **Works** is for. A box that talks 
 when it was tried on the real program (the example lamp's pretend lamp is its program).
 
 A build of the toolbox carries everything, tested or not. What of it is shown is chosen in Settings → What
-you see, which starts on "Tested": only the boxes, triggers and tools with the check Works. (A build made
+you see, which starts on Normal with Works ticked: only the boxes, triggers and tools with the check Works. (A build made
 with `devtools.package tested_only` leaves out what is not tested here.)
 
 Tick the checks in the **test window**, a small window of its own next to the toolbox (it stays open while
@@ -46,11 +46,12 @@ the toolbox is restarted, and writes the row's file at once):
     test-window.bat          (Linux: ./test-window.sh)      both are in this folder
 
 To try the boxes without building a flow for each, start the **test toolbox** next to it: a second toolbox on
-its own settings folder (`temp/test_settings`) and port 8855, with a flow for every box (Start and that box)
-and for every trigger (the trigger and a box that does nothing: when it fires, the flow shows as run).
-The flows are numbered in the order of this record ("012 Mute", "T003 Follow"), and the test window shows the
+its own settings folder (`temp/test_settings`) and port 8855, with a flow for every box (Start and that box).
+Triggers get none: you set them up in a flow of your own.
+The flows are numbered in the order of this record ("012 Mute"), and the test window shows the
 same number on the row.
-What you set in a test flow stays when the flows are written again.
+What you set in a test flow stays when the flows are written again, and a test flow you delete stays deleted
+(`temp/test_settings/test_flows.json` lists the written ones: delete that file to get them all back).
 
     test-toolbox.bat         (Linux: ./test-toolbox.sh)
 

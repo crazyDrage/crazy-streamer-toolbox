@@ -53,7 +53,7 @@ class TwitchConnection(ConnectionBase, RewardManager):
     Login only happens on Connect; starting the toolbox never opens it. Without an app of his own (Client ID
     and Secret empty) it uses the toolbox's built-in app: Twitch's page opens with a short code to confirm, no
     setup. With an app of his own, a browser tab asks to allow it (like VTube Studio's popup). The login is kept
-    in config/twitch_token.json and renewed by itself.
+    in config/secrets/twitch_token.json and renewed by itself.
     """
 
     id = "twitch"

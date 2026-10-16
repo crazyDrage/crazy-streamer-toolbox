@@ -6,8 +6,8 @@ SECTIONS = ("live", "connections", "settings")  # where a plugin panel can go
 
 
 class UiRegistry:
-    """What plugins add to the GUI: their own pages (listed under Plugins in the menu), panels inside the core
-    areas, tabs on the Tools page, a display name per action category, and their connections."""
+    """What plugins add to the GUI: their own pages (in the Plugins tab's side list, under the plugin), panels
+    (Connections, or under Plugins → the plugin), tabs on the Tools page, a display name per action category, and their connections."""
 
     def __init__(self) -> None:
         self.pages: list[tuple[str, str, str]] = []                        # (title, path, icon)

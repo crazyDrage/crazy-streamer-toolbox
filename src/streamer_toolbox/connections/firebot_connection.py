@@ -19,8 +19,9 @@ DOCS = "https://docs.firebot.app/v5/dev/api"
 class FirebotConnection(ConnectionBase):
     """Firebot's local API on port 7472 (docs.firebot.app/v5/dev/api); its boxes are in FirebotActions.
     No login. The toolbox only sends: Firebot also has a websocket that tells its events, but its docs don't
-    show what an event looks like, so nothing listens to it yet. Built from Firebot's docs, never run
-    against the real program. Off until switched on."""
+    show what an event looks like, so nothing listens to it yet. Built from Firebot's docs. Tried on the
+    real program (2026-10-11): the connection and the two variable boxes; no effect list and no counter
+    existed there, so those boxes only showed their "Firebot has no ... named" answer. Off until switched on."""
 
     id = "firebot"
     title = "Firebot"
@@ -35,7 +36,7 @@ class FirebotConnection(ConnectionBase):
         return [SettingField("url", "Address", hint="Firebot must be running; its API is on by itself")]
 
     def add_gui_settings(self) -> None:
-        ui.label("Not tried with the real program yet. Boxes: Run Firebot effect list (picked from a list), "
+        ui.label("Boxes: Run Firebot effect list (picked from a list), "
                  "Firebot variables and counters. What happens is built in Firebot as a preset effect list.") \
             .classes("text-sm opacity-80")
         outside_link("Firebot's page about its API", DOCS).classes("text-sm")

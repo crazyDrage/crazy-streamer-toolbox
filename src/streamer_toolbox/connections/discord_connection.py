@@ -26,7 +26,7 @@ class DiscordConnection(ConnectionBase):
     (DiscordActions). No bot, no login, nothing is read.
 
     The webhook's address lets anyone who has it post there, so it is kept in its own file
-    (config/discord_webhook.txt), never in toolbox.toml, and never put into an error text or a log. Built
+    (config/secrets/discord_webhook.txt), never in toolbox.toml, and never put into an error text or a log. Built
     from what is known of Discord's webhooks, never run against the real service. Off until switched on."""
 
     id = "discord"

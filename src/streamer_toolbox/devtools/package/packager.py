@@ -8,6 +8,7 @@ from pathlib import Path
 
 from streamer_toolbox.core.testing.release_marker import RELEASE_MARKER
 from streamer_toolbox.devtools.package.linux_python import LinuxPython
+from streamer_toolbox.devtools.package.windows_launcher import EXE, WindowsLauncher
 
 PYTHON_ZIP = "https://www.python.org/ftp/python/{version}/python-{version}-embed-amd64.zip"
 # what goes into the archive from the repo: only files git knows, and only these. Never config/ (his settings
@@ -73,23 +74,28 @@ class Packager:
     the downloaded Python is kept in <build>/cache for the next time.
 
     A build carries everything, with the test record (docs/tested/, see TestList): what of it people see they
-    choose themselves in Settings → What you see, which starts on "Tested" (TestView). tested_only=True builds
+    choose themselves in Settings → What you see, which starts on Normal with Works ticked (TestView). tested_only=True builds
     one that leaves out what is not ticked off there: it gets the marker file that tells the toolbox so.
 
     target = WINDOWS or LINUX builds a download for that system only (the releases, built by GitHub), each
     with its own Python, so nothing is installed on the other PC: crazy-streamer-toolbox-windows.zip (the .bat
     scripts) and crazy-streamer-toolbox-linux.tar.gz (the .sh scripts; a tar keeps what Linux needs: which
     files may run, and links). The Windows one can be built on Linux: the libraries are then taken as
-    ready-made Windows packages. The Linux one only on Linux (see LinuxPython)."""
+    ready-made Windows packages. The Linux one only on Linux (see LinuxPython).
+
+    With a Windows Python the archive also gets crazy-streamer-toolbox.exe, a start program to double-click
+    (WindowsLauncher), if the PC that builds has a compiler for it; without one it has only the .bat files."""
 
     def __init__(self, repo: Path, build: Path, version: str = "", tested_only: bool = False,
-                 target: str = "", linux_python: LinuxPython | None = None) -> None:
+                 target: str = "", linux_python: LinuxPython | None = None,
+                 launcher: WindowsLauncher | None = None) -> None:
         self._repo = repo
         self._build = build
         self._tested_only = tested_only
         self._target = target
         self._version = version or "{}.{}.{}".format(*sys.version_info[:3])
         self._linux_python = linux_python or LinuxPython(build / "cache", ".".join(self._version.split(".")[:2]))
+        self._launcher = launcher or WindowsLauncher()
 
     def build(self, name: str = "") -> Path:
         name = name or (f"crazy-streamer-toolbox-{self._target}" if self._target else "streamer-toolbox")
@@ -104,6 +110,8 @@ class Packager:
         else:
             self._python(folder / "python")
             self._libraries(folder / "python" / "Lib" / "site-packages")
+            if not self._launcher.build(folder):
+                print(f"no {EXE} in this build (this PC has no gcc for Windows programs): only the .bat files")
         self._start_scripts(folder, self._target)
         archive = self._tar(folder, name) if self._target == LINUX else self._zip(folder, name)
         # no arrow in it: not every console can print one

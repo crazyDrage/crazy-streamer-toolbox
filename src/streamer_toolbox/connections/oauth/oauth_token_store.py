@@ -5,7 +5,7 @@ from streamer_toolbox.connections.oauth.oauth_token import OAuthToken
 
 
 class OAuthTokenStore:
-    """A login, kept in its own file next to the settings (config/twitch_token.json, config/youtube_token.json),
+    """A login, kept in its own file next to the settings (config/secrets/twitch_token.json, config/secrets/youtube_token.json),
     never in toolbox.toml."""
 
     def __init__(self, path: Path) -> None:

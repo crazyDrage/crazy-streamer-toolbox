@@ -35,6 +35,14 @@ EVENT_FIELDS: dict[str, tuple[str, ...]] = {
     "twitch.online": ("type", "title", "category", "platform"),
     "twitch.offline": ("title", "category", "platform"),
     "twitch.ad_break": ("seconds", "automatic", "platform"),
+    # a viewer spent bits on a Power-up; kind = message_effect, celebration or gigantify_an_emote; emote =
+    # the emote's name where the Power-up has one
+    "twitch.power_up": ("user", "user_login", "user_id", "bits", "kind", "message", "emote", "role", "platform"),
+    # a chatter Twitch or a mod flagged as suspicious wrote. reason = the heaviest of reasons (ban_evader,
+    # banned_in_shared_channel, manually_added); ban_evader = how sure Twitch is (unknown, possible, likely);
+    # status = what the mods set for them (monitored, restricted, none)
+    "twitch.suspicious_user": ("user", "user_login", "user_id", "message", "message_id", "reason", "reasons",
+                               "ban_evader", "status", "role", "platform"),
     # a tip / donation, told to the toolbox by the Tip came in box (tip.fire); platform = where it came from
     "tip": ("user", "amount", "currency", "message", "platform"),
     # anything in StreamElements' activity feed, by its type (tip, merch, redemption, ...); test = a test button
@@ -81,8 +89,9 @@ EVENT_FIELDS: dict[str, tuple[str, ...]] = {
     "vts.model_loaded": ("model", "model_id"),
     "vts.tracking": ("face", "left_hand", "right_hand"),
     "vts.background": ("background",),
-    "vts.hotkey": ("hotkey", "hotkey_id", "action", "by_toolbox", "model"),
-    "vts.model_config": ("model", "hotkeys_changed"),
+    "vts.hotkey": ("hotkey", "hotkey_id", "action", "by_plugin", "model"),
+    # data = everything VTube Studio sent (modelID, modelName, hotkeyConfigChanged)
+    "vts.model_config": ("model", "model_id", "hotkeys_changed", "data"),
     "vts.model_moved": ("model", "x", "y", "rotation", "size"),
     "key.pressed": ("key",),
     # a custom trigger: the source event's fields come along too (a redeem's reward, a chat's message, ...)

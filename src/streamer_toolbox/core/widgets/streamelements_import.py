@@ -16,7 +16,7 @@ FRAME_KEYS = ("width", "height", "top", "left")
 
 class StreamElementsImport:
     """Takes the custom widgets out of one of his StreamElements overlays: asks StreamElements' API for the
-    overlay (read only, with the JWT in config/streamelements_token.txt, the same file the connection uses) and
+    overlay (read only, with the JWT in config/secrets/streamelements_token.txt, the same file the connection uses) and
     turns every custom widget in it into a Widget: its HTML, CSS, JS, FIELDS, the values he set there, and where
     it sat on the overlay. Their built-in widgets (alert box, labels, ...) have no code to take."""
 

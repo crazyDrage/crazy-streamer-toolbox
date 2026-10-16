@@ -8,7 +8,7 @@ from streamer_toolbox.connections.vtube_studio.vts_position import VtsPosition
 class VtsPositionStore:
     """Saved model positions per model and name, e.g. ["CrazyDrage (Ready to Rig)"]["just_chatting"].
 
-    One file (config/vts_positions.toml), so the same name ("just_chatting") works for every model: the
+    One file (config/boxes/vts/position/positions.toml), so the same name ("just_chatting") works for every model: the
     currently loaded model picks its own.
     """
 

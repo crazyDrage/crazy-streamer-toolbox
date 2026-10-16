@@ -55,10 +55,9 @@ class TriggerPicker:
         for group, count in self._catalog.groups():
             shown = count if counts is None else counts.get(group, 0)
             chosen = counts is None and group == self._group
-            button = ui.button(on_click=lambda g=group: self._choose(g)) \
-                .props(f"no-caps dense {'unelevated color=primary' if chosen else 'flat'}") \
-                .classes("shrink-0 justify-start sm:w-full" + (" opacity-40" if counts is not None and not shown
-                                                               else ""))
+            button = ui.button(on_click=lambda g=group: self._choose(g)).props("no-caps dense flat") \
+                .classes("shrink-0 justify-start sm:w-full" + (" tb-chosen" if chosen else "")
+                         + (" opacity-40" if counts is not None and not shown else ""))
             with button, ui.row().classes("no-wrap items-center w-full gap-2"):
                 ui.label(group).classes("text-left flex-1 whitespace-nowrap")
                 ui.label(str(shown)).classes("text-xs opacity-60")

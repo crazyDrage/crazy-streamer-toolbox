@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -26,7 +27,7 @@ class StreamlabsConnection(ConnectionBase):
     Sticker also the toolbox's `tip` event (Tip trigger, Tip alert, widgets). It only listens.
 
     The token is the Socket API Token (dashboard → Settings → API Settings → API Tokens). It can only listen, but
-    it's still his account's: kept in its own file next to the settings (config/streamlabs_token.txt), never in
+    it's still his account's: kept in its own file next to the settings (config/secrets/streamlabs_token.txt), never in
     toolbox.toml and never shown. Off until switched on."""
 
     id = "streamlabs"
@@ -34,12 +35,14 @@ class StreamlabsConnection(ConnectionBase):
     icon = "savings"
 
     def __init__(self, settings: dict[str, Any], token_path: Path, events: EventBus, url: str = STREAMLABS_URL,
-                 connect: Any = websockets.connect) -> None:
+                 connect: Any = websockets.connect,
+                 raw: Callable[[str, dict[str, Any]], None] | None = None) -> None:
         super().__init__({}, settings)
         self._token_path = token_path
         self._events = events
         self._url = url
         self._connect = connect
+        self._raw = raw  # gets (event name, Streamlabs' own message) right before the event goes out
         self._listener: asyncio.Task | None = None
 
     def fields(self) -> list[SettingField]:
@@ -97,6 +100,8 @@ class StreamlabsConnection(ConnectionBase):
 
     async def _handle(self, payload: dict[str, Any]) -> None:
         for kind, data in streamlabs_events(payload):
+            if self._raw is not None:
+                self._raw(kind, payload)
             self._events.publish(kind, data)
 
     def _read_token(self) -> str:

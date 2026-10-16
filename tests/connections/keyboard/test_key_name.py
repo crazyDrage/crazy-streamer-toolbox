@@ -14,6 +14,15 @@ class TestKeyName(unittest.TestCase):
         self.assertEqual(KeyName.of(Key(name=None, char=None, vk=173), {"win"}), "win+vk173")
         self.assertEqual(KeyName.of(Key(name=None, char="#", vk=None), set()), "#")
 
+    def test_a_name_is_taken_apart_and_put_together(self) -> None:
+        self.assertEqual(KeyName.parts("Ctrl+Shift+K "), (["ctrl", "shift"], "k"))
+        self.assertEqual(KeyName.parts("shift+ctrl+f23"), (["ctrl", "shift"], "f23"))
+        self.assertEqual(KeyName.parts("f23"), ([], "f23"))
+        self.assertEqual(KeyName.parts("ctrl++"), (["ctrl"], "+"))
+        self.assertEqual(KeyName.parts(""), ([], ""))
+        self.assertEqual(KeyName.join({"shift", "ctrl"}, "k"), "ctrl+shift+k")
+        self.assertEqual(KeyName.join([], "f23"), "f23")
+
     def test_modifiers_and_text(self) -> None:
         self.assertEqual([KeyName.modifier(Key(name=n)) for n in ("ctrl_r", "alt_gr", "shift", "cmd", "f1")],
                          ["ctrl", "alt", "shift", "win", ""])

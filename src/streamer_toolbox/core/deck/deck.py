@@ -24,7 +24,9 @@ class Deck:
         """The starting deck: one page with a button per flow, colours taking turns."""
         buttons = [DeckButton(f.label, f.action_name, color=COLORS[i % len(COLORS)])
                    for i, f in enumerate(sorted(flows, key=lambda f: f.label.casefold()))]
-        return cls([DeckPage("Flows", buttons)])
+        page = DeckPage("Flows", buttons)
+        page.place()
+        return cls([page])
 
     def page(self, name: str) -> DeckPage | None:
         return next((p for p in self.pages if p.name == name), None)

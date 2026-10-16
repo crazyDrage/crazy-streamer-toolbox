@@ -31,17 +31,26 @@ from streamer_toolbox.core.config.config_table_writer import ConfigTableWriter
 from streamer_toolbox.core.config.toolbox_config import ToolboxConfig
 from streamer_toolbox.core.connections.connection_manager import ConnectionManager
 from streamer_toolbox.core.connections.left_out import LEFT_OUT, left_out
+from streamer_toolbox.core.connections.secrets_folder import SecretsFolder
+from streamer_toolbox.core.deck.deck_images import URL as DECK_IMAGES_URL
+from streamer_toolbox.core.deck.deck_images import DeckImages
 from streamer_toolbox.core.deck.deck_store import DeckStore
 from streamer_toolbox.core.events.chat_memory import ChatMemory
 from streamer_toolbox.core.events.common_events import CommonEvents
 from streamer_toolbox.core.events.event_bus import EventBus
+from streamer_toolbox.core.events.event_recording import EventRecording
 from streamer_toolbox.core.events.last_events import LastEvents
 from streamer_toolbox.connections.twitch.twitch_role_list import TwitchRoleList
 from streamer_toolbox.core.events.role_book import RoleBook
 from streamer_toolbox.core.events.role_loader import RoleLoader
 from streamer_toolbox.core.events.role_loading import RoleLoading
 from streamer_toolbox.gui.components.role_loading_panel import RoleLoadingPanel
+from streamer_toolbox.gui.components.secrets_login_panel import SecretsLoginPanel
+from streamer_toolbox.gui.pages.unlock_page import UnlockPage
+from streamer_toolbox.gui.services.secrets_lock_middleware import UNLOCK, SecretsLockMiddleware
+from streamer_toolbox.core.system.start_once import StartOnce
 from streamer_toolbox.core.files.box_value_files import BoxValueFiles
+from streamer_toolbox.core.files.move_once import move_once
 from streamer_toolbox.core.flows.debug_actions import DebugActions
 from streamer_toolbox.core.flows.flow_library import FlowLibrary
 from streamer_toolbox.core.flows.flow_runner import FlowRunner
@@ -88,6 +97,7 @@ from streamer_toolbox.core.widgets.widget_store import WidgetStore
 from streamer_toolbox.gui.components.alerts_tool.alerts_tool import AlertsTool
 from streamer_toolbox.gui.components.app_shell import AREAS, AppShell
 from streamer_toolbox.gui.components.box_filter_panel import BoxFilterPanel
+from streamer_toolbox.gui.components.event_recording_panel import EventRecordingPanel
 from streamer_toolbox.gui.components.test_view_panel import TestViewPanel
 from streamer_toolbox.gui.components.flow_editor.trigger_catalog import group_of
 from streamer_toolbox.gui.components.flow_editor.trigger_kinds import TRIGGER_KINDS
@@ -135,7 +145,8 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
     confirm = NiceGuiConfirmService(pages)
     activity = ActivityLog()
     shell = AppShell(ui_registry, pages)
-    twitch_tokens = OAuthTokenStore(args.config.parent / "twitch_token.json")
+    secrets = SecretsFolder(args.config.parent)  # tokens, keys and logins: config/secrets/
+    twitch_tokens = OAuthTokenStore(secrets.path("twitch_token.json"))
     # every event that names a viewer gets their role (only chat tells it): the role filter of the triggers
     roles = RoleBook(lambda: (twitch_tokens.load().user_id if twitch_tokens.load() else ""))
     events = EventBus(roles.fill)
@@ -145,12 +156,21 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
     ui_registry.category_titles.update({pid: m.name for pid, m in loader.manifests.items()})
 
     port = args.port or config.port
+    boxes = args.config.parent / "boxes"  # what a box saves for itself: boxes/<program>/<box>/ (his sorting, round 43)
+    move_once(args.config.parent / "box_values" / "vts_animation", boxes / "vts" / "animation")
     events.subscribe(CommonEvents(events).handle)
     last_events = LastEvents(args.config.parent / "cache" / "last_triggers")
     events.subscribe(last_events.handle)
     app.on_shutdown(last_events.flush)
+    recording = EventRecording(args.config.parent / "cache" / "events", app.storage.general)  # Settings: off by default
+    events.subscribe(recording.handle)
+
+    def raw_event(kind: str, message: dict) -> None:
+        last_events.raw(kind, message)
+        recording.raw(kind, message)
+
     twitch = TwitchConnection(config.tables.get("twitch", {}), twitch_tokens, events, folder=args.config.parent,
-                              raw=last_events.raw)
+                              raw=raw_event)
     probe = Mp4HeaderProbe()
 
     def wants_key(name: str) -> bool:
@@ -162,7 +182,7 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
     if not left_out(HEART_RATE):
         heart.add_to(actions)
     connections = ConnectionManager([connection for connection in [
-        *BuiltInConnections(config.tables, config.obs, args.config.parent, events).build(
+        *BuiltInConnections(config.tables, config.obs, args.config.parent, events, secrets, raw_event).build(
             probe, twitch, twitch_tokens, mixitup, heart, wants_key,
             lambda: toolbox_deck(actions, config.callers, port)),
         *ui_registry.connections,  # a plugin's own (ctx.add_connection)
@@ -171,7 +191,7 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
         connection.configure(config.tables.get(connection.id, {}))
     for connection in connections.all():
         connection.add_actions(actions)
-    variables = VariableStore(args.config.parent / "variables.json")
+    variables = VariableStore(args.config.parent / "variables", args.config.parent / "variables.json")
     LogicActions(variables).add_to(actions)
     DebugActions(activity.add).add_to(actions)
     chat_memory = ChatMemory()
@@ -183,7 +203,10 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
 
     def switched_off() -> dict[str, str]:
         """Box category → program, for the connections and plugins that are off: their boxes stay out of the
-        Add box window and their triggers out of Add trigger."""
+        Add box window and their triggers out of Add trigger. Nothing is left out while "Disconnected" is ticked
+        (Settings → What you see)."""
+        if test_view.disconnected:
+            return {}
         off = {BOX_CATEGORY.get(c.id, c.id): c.title for c in connections.all() if not c.settings["enabled"]}
         plugins_off = {pid: f"{loader.manifests[pid].name if pid in loader.manifests else pid} (plugin)"
                        for pid in plugin_switches.off() if pid in loader.loaded}
@@ -216,7 +239,7 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
         twitch_side = {"username": token.login, "providerId": token.user_id} if token else {}
         return {**twitch_side, "id": streamelements_import.account_id()}
 
-    streamelements_import = StreamElementsImport(args.config.parent / "streamelements_token.txt")
+    streamelements_import = StreamElementsImport(secrets.path("streamelements_token.txt"))
     history = EventHistory(args.config.parent / "history" / "events.jsonl")
     HistoryActions(history).add_to(actions)
     widget_hub = WidgetHub(WidgetSession(args.config.parent / "cache" / "widget_session.json", history),
@@ -251,8 +274,6 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
     async def custom_trigger_names() -> list[str]:
         return custom_triggers.names()
     clock = TimerClock(flows, events)
-    app.on_startup(connections.start_all)
-    app.on_startup(clock.start)
     payouts: list[asyncio.Task] = []  # keeps the task alive
 
     # Settings → Viewer roles: Twitch's mod, VIP and sub lists into the role book, when he asks for it
@@ -270,7 +291,16 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
         if found:
             log.info("%d sub(s) came in while the toolbox was off", len(found))
 
-    app.on_startup(start_payouts)
+    # with a login set (Settings → Login) nothing starts before the password was typed (UnlockPage)
+    work = StartOnce([connections.start_all, clock.start, start_payouts])
+
+    async def start_unless_locked() -> None:
+        if secrets.vault.unlocked:
+            await work.run()
+        else:
+            log.info("locked: waiting for the login before anything starts")
+
+    app.on_startup(start_unless_locked)
     app.on_shutdown(connections.stop_all)
     app.on_shutdown(clock.stop)
 
@@ -279,6 +309,8 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
                           ConfigTableWriter(args.config))
     devices = SignedInDevices(args.config.parent / "signed_in_devices.json")
     app.add_middleware(WidgetSandboxMiddleware)
+    app.add_middleware(SecretsLockMiddleware, vault=secrets.vault)
+    ui.page(UNLOCK, title=f"Log in · {APP_NAME}")(UnlockPage(secrets.vault, LoginThrottle(), work.run).build)
     app.add_middleware(RemoteLoginMiddleware, access=access, devices=devices, is_login_client=_is_login_client)
     ui.page("/login", title=f"Sign in · {APP_NAME}")(LoginPage(access, LoginThrottle(), devices).build)
     app.include_router(build_action_router(actions, CallerAuth(list(config.callers)), activity.add))
@@ -287,11 +319,17 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
                                            ChannelLookup(twitch.helix, channel_info), widget_fallback,
                                            EmoteLookup(), LatestFollowers(twitch.helix, channel_info),
                                            SubscriberCount(twitch.helix, channel_info)))
-    shell.page("Live", "/", LivePage(actions, ui_registry, activity,
-                                     DeckStore(args.config.parent / "live_deck.json", flows.all), flows).build)
-    shell.page("Flows", "/flows", FlowsPage(flows, actions, activity).build)
+    deck_images = DeckImages(args.config.parent / "deck_images")
+    deck_images.folder.mkdir(parents=True, exist_ok=True)
+    app.add_static_files(DECK_IMAGES_URL, deck_images.folder)
+    shell.page("Live", "/", LivePage(actions, activity, DeckStore(args.config.parent / "live_deck.json", flows.all),
+                                     flows, deck_images).build)
+    flows_page = FlowsPage(flows, actions, activity)
+    shell.page("Flows", "/flows", flows_page.build)
+    shell.sub_items["/flows"] = flows_page.side_items
+    shell.side_tools["/flows"] = flows_page.side_tool
     shell.page("Edit flow", "/flows/edit", FlowEditorPage(flows, actions, runner, variables,
-                                                            BoxValueFiles(args.config.parent / "box_values"),
+                                                            BoxValueFiles(boxes),
                                                             {"twitch.redeem": twitch.reward_choices,
                                                              "custom": custom_trigger_names},
                                                             box_filters, switched_off, last_events,
@@ -321,14 +359,16 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
     shell.sub_items["/connections"] = lambda: [("Toolbox", "/connections?show=toolbox", "lan")] + [
         (c.title, f"/connections?show={c.id}", c.icon) for c in connections_page.shown()]
     shell.page("Connections", "/connections", connections_page.build)
-    shell.page("Plugins", "/plugins", PluginsPage(
-        lambda: (loader.loaded, loader.failed, loader.disabled, loader.manifests), ui_registry,
-        plugin_switches).build)
+    plugins_page = PluginsPage(lambda: (loader.loaded, loader.failed, loader.disabled, loader.manifests),
+                               ui_registry, plugin_switches)
+    shell.page("Plugins", "/plugins", plugins_page.build)
+    shell.sub_items["/plugins"] = plugins_page.side_items
     restart = ToolboxRestart(app.shutdown, available=args.child)
     settings_page = SettingsPage(args.config, ui_registry, access, devices, port,
                                 restart, BoxFilterPanel(box_filters, actions),
                                 TestViewPanel(test_view, lambda: gate.items()),
-                                RoleLoadingPanel(role_loading, role_loader))
+                                RoleLoadingPanel(role_loading, role_loader), EventRecordingPanel(recording),
+                                SecretsLoginPanel(secrets.vault, str(secrets.folder)))
     shell.page("Settings", "/settings", settings_page.build)
     shell.sub_items["/settings"] = settings_page.sections
 

@@ -2,7 +2,7 @@
 
     $env:PYTHONPATH = "src"; .venv\\Scripts\\python.exe -m streamer_toolbox.devtools.package
         build/streamer-toolbox.zip, the archive to send people (see Packager): everything is in it, and
-        Settings → What you see (which starts on "Tested") decides what of it is shown
+        Settings → What you see (which starts on Normal with Works ticked) decides what of it is shown
     ... -m streamer_toolbox.devtools.package tested_only
         the same archive without every box, connection, tool, trigger and page that is not tested
     ... -m streamer_toolbox.devtools.package windows        (or: linux)

@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
 
+from streamer_toolbox.core.actions.numbered_fields import numbered_fields
+
 from streamer_toolbox.core.flows.box_wire import BOX_REF
 from streamer_toolbox.core.flows.flow_input import FlowInput
 from streamer_toolbox.core.flows.flow_node import FlowNode
@@ -8,6 +10,7 @@ from streamer_toolbox.core.flows.flow_wire import FlowWire
 
 OUTPUT_ACTION = "logic.output"  # a Flow output box: what the flow gives back when it's used as a box
 END_ACTION = "logic.end"  # an End box: where the flow's box (in another flow) goes on; a named one is its own output
+END_LINE = "name"  # an End box's lines: name_1, name_2, ... (each with its own run dot)
 END_KEY = "_end"  # in a flow box's result: which End box was reached ("" = none)
 
 
@@ -43,9 +46,10 @@ class Flow:
 
     @property
     def ends(self) -> tuple[str, ...]:
-        """The names of its End boxes (typed names only), in box order: the outputs its box has in other flows.
-        Empty: the box has one output (done), fired at an unnamed End box or when the flow is done."""
-        names = [str(n.params.get("name", "")).strip() for n in self.nodes if n.action == END_ACTION]
+        """The names of its End boxes' lines (typed names only), in box order: the outputs its box has in other
+        flows. Empty: the box has one output (done), fired at an unnamed End line or when the flow is done."""
+        names = [str(n.params.get(line, "")).strip() for n in self.nodes if n.action == END_ACTION
+                 for line in numbered_fields(END_LINE, n.params)]
         return tuple(dict.fromkeys(n for n in names if n and "${" not in n))
 
     @property

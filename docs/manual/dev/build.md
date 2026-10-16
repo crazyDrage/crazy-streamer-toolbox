@@ -15,6 +15,11 @@ two start scripts, the short guide as `README.md`. Nothing has to be installed o
 Only files git tracks go in, and of those only the code, the plugins, the example settings and the listed
 docs. The `config/` folder (settings, logins, flows) can't get in.
 
+`crazy-streamer-toolbox.exe`, the start program to double-click, is compiled from
+`devtools/package/windows_launcher.c` if the PC that builds has MinGW's gcc (GitHub's Windows runner has it;
+on Linux: `x86_64-w64-mingw32-gcc`). Without one the archive has only the `.bat` files, and the build says so.
+The program is not signed.
+
 ### One download per system (the releases)
 
 ```

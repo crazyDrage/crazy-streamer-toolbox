@@ -1,8 +1,12 @@
+from dataclasses import replace
+from urllib.parse import quote
+
 from nicegui import ui
 
 from streamer_toolbox.core.actions.action_description import required_and_optional_params
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
-from streamer_toolbox.core.deck.deck_button import COLORS, DeckButton
+from streamer_toolbox.core.deck.deck_button import COLORS, TEXT_COLOR, DeckButton
+from streamer_toolbox.core.deck.deck_images import KINDS, DeckImages
 from streamer_toolbox.core.flows.flow_library import FlowLibrary
 
 ICONS = ("play_arrow", "stop", "bolt", "star", "favorite", "celebration", "music_note", "volume_up", "videocam",
@@ -14,17 +18,18 @@ DELETE = "delete"  # what open() gives when the button was deleted
 
 class DeckButtonDialog:
     """Edits one Live deck button: what it runs (a flow or another action) with fixed values for its fields,
-    its label, colour, icon and page. open() gives (button, page name), DELETE, or None (cancelled)."""
+    its label, colour, text colour, icon or picture, and page. open() gives (button, page name), DELETE, or
+    None (cancelled)."""
 
     def __init__(self, button: DeckButton | None, page: str, pages: list[str], actions: ActionRegistry,
-                 flows: FlowLibrary) -> None:
-        self._button = DeckButton(button.label, button.action, dict(button.params), button.color, button.icon) \
-            if button else DeckButton("", "")
+                 flows: FlowLibrary, images: DeckImages) -> None:
+        self._button = replace(button, params=dict(button.params)) if button else DeckButton("", "")
         self._new = button is None
         self._page = page
         self._pages = pages
         self._actions = actions
         self._flows = flows
+        self._images = images
 
     async def open(self) -> tuple[DeckButton, str] | str | None:
         button = self._button
@@ -39,7 +44,12 @@ class DeckButtonDialog:
             self._fields()
             ui.label("Colour").classes("text-sm font-semibold")
             self._colors()
-            ui.label("Icon").classes("text-sm font-semibold")
+            ui.color_input("Text colour", value=button.text_color,
+                           on_change=lambda e: setattr(button, "text_color", e.value or TEXT_COLOR)) \
+                .props("dense outlined").classes("w-36")
+            ui.label("Picture").classes("text-sm font-semibold")
+            self._picture()
+            ui.label("Icon (shown when there is no picture)").classes("text-sm font-semibold")
             self._icons()
             if len(self._pages) > 1:
                 ui.select(self._pages, value=self._page, label="Page",
@@ -129,6 +139,43 @@ class DeckButtonDialog:
             self._button.color = color
         if refresh:
             self._colors.refresh()
+
+    @ui.refreshable_method
+    def _picture(self) -> None:
+        """The button's picture: one shown with Remove and the fill switch, or a field to add one."""
+        button = self._button
+        if button.image:
+            with ui.row().classes("items-center gap-3 w-full"):
+                ui.element("div").classes("w-16 h-16 rounded").style(
+                    f"background:{button.color} url('{DeckImages.url(quote(button.image))}') center / "
+                    f"{'cover' if button.fill else 'contain'} no-repeat")
+                with ui.column().classes("gap-1"):
+                    ui.label(button.image).classes("text-xs font-mono break-all")
+                    ui.switch("Fill the button (the edges may be cut)", value=button.fill,
+                              on_change=lambda e: self._set_fill(e.value))
+                ui.space()
+                ui.button("Remove", icon="close", on_click=self._remove_picture).props("flat dense no-caps")
+            return
+
+        async def uploaded(e) -> None:
+            try:
+                self._button.image = self._images.add(e.file.name, await e.file.read())
+            except Exception as error:
+                ui.notify(f"Not added: {error}", type="negative", multi_line=True)
+                return
+            self._picture.refresh()
+
+        ui.upload(on_upload=uploaded, auto_upload=True, max_files=1) \
+            .props(f'accept="{",".join(KINDS)}" flat bordered dense '
+                   'label="Press + to pick a picture, or drop it here"').classes("w-full")
+
+    def _set_fill(self, fill: bool) -> None:
+        self._button.fill = fill
+        self._picture.refresh()
+
+    def _remove_picture(self) -> None:
+        self._button.image = ""  # the file stays in the folder: another button may show it
+        self._picture.refresh()
 
     @ui.refreshable_method
     def _icons(self) -> None:

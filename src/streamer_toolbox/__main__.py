@@ -70,7 +70,9 @@ def _launch(args: argparse.Namespace, config: ToolboxConfig) -> int:
 
 
 def _session_secret(path: Path) -> str:
-    """Signs the cookie that keeps another device signed in; made once, kept in config/ (not in git)."""
+    """Signs the cookie that keeps another device signed in; made once, kept in config/ (not in git).
+    Not in config/secrets/: with a login set those files are encrypted, and the server needs this one to
+    show the login page at all."""
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(secrets.token_urlsafe(32), encoding="utf-8")

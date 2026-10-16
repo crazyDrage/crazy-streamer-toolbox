@@ -29,7 +29,7 @@ class PulsoidConnection(LineConnection):
     toolbox keeps as the heart rate (HeartRate: the `heartrate` event, the Get heart rate box). It only
     listens.
 
-    Its file (config/pulsoid_token.txt, never in toolbox.toml and never shown) holds one of two things:
+    Its file (config/secrets/pulsoid_token.txt, never in toolbox.toml and never shown) holds one of two things:
     - a token of his account that may read the heart rate (`data:heart_rate:read`); Pulsoid's docs don't say
       where a free account makes one by hand, and this way was never run against the real service;
     - or the link of one of his Pulsoid widgets (pulsoid.net/widget/view/...): the toolbox then asks Pulsoid

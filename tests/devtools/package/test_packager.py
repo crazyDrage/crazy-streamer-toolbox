@@ -7,6 +7,8 @@ from pathlib import Path
 from streamer_toolbox.core.testing.release_marker import RELEASE_MARKER, is_release
 from streamer_toolbox.devtools.package.packager import LINUX, WINDOWS, Packager
 from tests.fakes.fake_linux_python import FakeLinuxPython
+from tests.fakes.fake_python_packager import FakePythonPackager
+from tests.fakes.fake_windows_launcher import FakeWindowsLauncher
 from tests.fakes.listed_packager import TRACKED, ListedPackager
 
 
@@ -74,6 +76,19 @@ class TestPackager(unittest.TestCase):
         self.assertIn(b'exec python/bin/python3 -m streamer_toolbox --open window "$@"', script)
         self.assertNotIn(b"venv", script)  # nothing is got or installed at the first start
         self.assertNotIn(b"\r", script)
+
+    def test_the_start_program_is_built_where_a_windows_python_goes_in(self) -> None:
+        with_exe, without = FakeWindowsLauncher(), FakeWindowsLauncher(compiler=False)
+        packager = FakePythonPackager(self.repo, self.out, target=WINDOWS, launcher=with_exe)
+        with zipfile.ZipFile(packager.build()) as packed:
+            self.assertIn("crazy-streamer-toolbox-windows/crazy-streamer-toolbox.exe", packed.namelist())
+            self.assertIn("crazy-streamer-toolbox-windows/Start streamer-toolbox.bat", packed.namelist())
+        packager = FakePythonPackager(self.repo, self.out, target=WINDOWS, launcher=without)
+        with zipfile.ZipFile(packager.build()) as packed:  # no compiler: the .bat files alone
+            self.assertNotIn("crazy-streamer-toolbox-windows/crazy-streamer-toolbox.exe", packed.namelist())
+        linux = FakeWindowsLauncher()
+        ListedPackager(self.repo, self.out, target=LINUX, linux_python=FakeLinuxPython(), launcher=linux).build()
+        self.assertEqual((with_exe.built, without.built, linux.built), (1, 0, 0))
 
     def test_a_shell_script_is_runnable_in_the_archive(self) -> None:
         self.out.mkdir()

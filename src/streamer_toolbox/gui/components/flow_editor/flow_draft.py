@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 
 from streamer_toolbox.core.actions.numbered_fields import count_field, numbered_fields
-from streamer_toolbox.core.flows.box_wire import WIRE_IN, box_source
+from streamer_toolbox.core.flows.box_wire import WIRE_IN, box_ref, box_source
 from streamer_toolbox.core.flows.flow import Flow
 from streamer_toolbox.core.flows.flow_input import FlowInput
 from streamer_toolbox.core.flows.flow_trigger import FlowTrigger
@@ -84,8 +84,9 @@ class FlowDraft:
         return node
 
     def remove_numbered(self, node_id: str, prefix: str, number: int) -> None:
-        """Takes one numbered field out of a box (a Switch's case_2, also its output): the ones after it move up
-        one number, with their wires; the wires from the removed one go. The last one stays."""
+        """Takes one numbered field out of a box (a Switch's case_2, also its output; a Choose value's value_2, also
+        its run dot): the ones after it move up one number, with their wires; the wires from or into the removed
+        one go. The last one stays."""
         node = self.node(node_id)
         names = numbered_fields(prefix, node.params) if node else []
         if len(names) <= 1 or not 1 <= number <= len(names):
@@ -95,9 +96,29 @@ class FlowDraft:
         node.params.update(zip(names, values))
         node.params[count_field(prefix)] = len(values)
         moved = {names[i]: names[i - 1] for i in range(number, len(names))}  # case_3 -> case_2, ...
+        gone = names[number - 1]
         self.wires = [FlowWire(w.source, moved.get(w.port, w.port) if w.source == node_id else w.port, w.target,
-                               w.entry)
-                      for w in self.wires if not (w.source == node_id and w.port == names[number - 1])]
+                               moved.get(w.entry, w.entry) if w.target == node_id else w.entry)
+                      for w in self.wires
+                      if not (w.source == node_id and w.port == gone or w.target == node_id and w.entry == gone)]
+
+    def rename_output(self, node_id: str, old: str, new: str) -> None:
+        """A Value box's line renamed: the fields wired to it follow (${box.n3.old} → ${box.n3.new}). new = "" (the
+        line taken away): those fields wait for a new wire."""
+        for node in self.nodes:
+            for key, value in node.params.items():
+                source = box_source(value)
+                if source and source[0] == node_id and (source[1] == old or source[1].startswith(old + ".")):
+                    node.params[key] = box_ref(node_id, new + source[1][len(old):]) if new else WIRE_IN
+
+    def take_off_run_wires(self, node_id: str) -> None:
+        """A box that only gives values sat in the run chain (a flow from before it was one): the boxes before it
+        now lead to the ones after it, and it keeps only its data wires."""
+        incoming = [w for w in self.wires if w.target == node_id and not w.entry]
+        outgoing = [(w.target, w.entry) for w in self.wires if w.source == node_id]
+        self.wires = [w for w in self.wires if node_id not in (w.source, w.target)]
+        self.wires += [FlowWire(w.source, w.port, t, e) for w in incoming for t, e in outgoing
+                       if FlowWire(w.source, w.port, t, e) not in self.wires]
 
     def remove(self, node_id: str, ports: tuple[str, ...]) -> None:
         """Deletes a box. A box with one output is bridged: what led into it now leads to what came after."""

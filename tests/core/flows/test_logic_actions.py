@@ -23,11 +23,35 @@ class TestLogicActions(unittest.IsolatedAsyncioTestCase):
             await LogicActions(store).set_variable("scene", "desktop")
             self.assertEqual(store.get("scene"), "desktop")
             logic = LogicActions(store)
-            self.assertEqual(await logic.add_to_variable("lizard_timer", 10), 10)
-            self.assertEqual(await logic.add_to_variable("lizard_timer", "-1"), 9)
-            self.assertEqual(await logic.add_to_variable("spin", 0.5), 0.5)
+            self.assertEqual(await logic.math_on_variable("lizard_timer", "+", 10), 10)
+            self.assertEqual(await logic.math_on_variable("lizard_timer", amount="-1"), 9)  # an old Add box
+            self.assertEqual(await logic.math_on_variable("lizard_timer", "*", 2), 18)
+            self.assertEqual(await logic.math_on_variable("lizard_timer", "/", 4), 4.5)
+            self.assertEqual(await logic.math_on_variable("lizard_timer", "-", 0.5), 4)
+            self.assertEqual(await logic.math_on_variable("spin", "+", 0.5), 0.5)
+            self.assertEqual(store.get("lizard_timer"), 4)
             with self.assertRaises(ValueError):
-                await logic.add_to_variable("scene", 1)
+                await logic.math_on_variable("scene", "+", 1)
+            with self.assertRaises(ValueError):
+                await logic.math_on_variable("lizard_timer", "/", 0)
+            self.assertEqual(store.get("lizard_timer"), 4)  # a failed one changes nothing
+
+    async def test_get_variable(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = VariableStore(Path(tmp) / "v.json")
+            store.set("pos", {"x": 0.5, "inner": {"y": 2}})
+            logic = LogicActions(store)
+            self.assertEqual(await logic.get_variable("pos"), {"x": 0.5, "inner": {"y": 2}})
+            self.assertEqual(await logic.get_variable("pos", "x"), 0.5)
+            self.assertEqual(await logic.get_variable("pos", "inner.y"), 2)
+            with self.assertRaises(KeyError):
+                await logic.get_variable("nothing")
+            with self.assertRaises(KeyError):
+                await logic.get_variable("pos", "z")
+
+    async def test_value_gives_its_lines_by_name(self) -> None:
+        self.assertEqual(await LogicActions.value({"power": 10, "model": "Hex"}), {"power": 10, "model": "Hex"})
+        self.assertEqual(await LogicActions.value(value=7), 7)  # a box from before the lines, sent by the API
 
     async def test_set_field(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

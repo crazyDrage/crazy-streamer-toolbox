@@ -6,13 +6,20 @@ from streamer_toolbox.core.testing.test_inventory import OWN_FLOWS
 from streamer_toolbox.core.testing.test_item import BOX, CONNECTION, TOOL, TRIGGER, TestItem
 from streamer_toolbox.core.testing.test_list import CHECKS, FLAGS, TestList
 
-TESTED, EVERYTHING, TESTING = "tested", "everything", "testing"
-MODES = (TESTED, EVERYTHING, TESTING)
+NORMAL, TESTING = "normal", "testing"
+MODES = (NORMAL, TESTING)
+# what the choice held before 2026-10-11: "tested" is NORMAL, "everything" is NORMAL with no check ticked
+OLD_TESTED, OLD_EVERYTHING = "tested", "everything"
 MODE_KEY = "test_view_mode"  # in `choice`: one of MODES
-NEEDED_KEY = "test_view_needed"  # in `choice`: the checks a thing needs to be shown in the mode TESTED
+MAY_NOT_KEY = "test_view_may_not"  # in `choice`: the ticked ones of MAY_NOT
+# what the choice held before 2026-10-12: the checks a thing had to have (NORMAL) or that hid it (TESTING)
+NEEDED_KEY = "test_view_needed"
+# the three ticks, named by what they let in: a thing that misses that check
+MAY_NOT = {"works": "May not work", "understandable": "May not be understandable", "usable": "May not be usable"}
+DISCONNECTED_KEY = "test_view_disconnected"  # in `choice`: True = also what belongs to a connection that is off
 # they take a value and give it (Debug also shows it): they stay in the testing mode, to feed and read the others
 HELPER_BOXES = ("logic.debug", "logic.value")
-WHY = {TESTED: "not tested yet", TESTING: "done already (testing mode)"}
+WHY = {NORMAL: "not tested yet", TESTING: "done already (testing mode)"}
 
 
 class TestView:
@@ -20,11 +27,17 @@ class TestView:
     the Add trigger window, which tools the Tools page, which connections the Connections page. Flows that
     already use a thing keep it and keep running, and a hidden connection stays connected. Pages are never hidden.
 
-    Three modes (Settings → What you see): TESTED shows what has the checks in `needed` (works alone at first:
-    is_tested), EVERYTHING shows all, TESTING shows only what still misses one of the three checks, plus the
-    Debug and the Value box. His own flows as boxes are always shown: they are his, not the toolbox's.
+    Two modes and three ticks (Settings → What you see; his layout of 2026-10-11, the ticks' names of
+    2026-10-12). A tick is named by what it lets in: "May not work" is what misses the Works check, and so on
+    (MAY_NOT). NORMAL shows what is done, and also what a tick lets in: a thing is shown when every check it
+    misses is ticked (no tick: only what has all three; at first what works). TESTING shows only what a tick
+    names: what misses one of the ticked checks (no tick counts as all three), plus the Debug and the Value
+    box. His own flows as boxes are always shown: they are his, not the toolbox's.
 
-    `choice` keeps the mode and the needed checks (the GUI's general storage)."""
+    `disconnected` is a fourth tick of another kind: with it, the boxes and triggers of a connection that is
+    switched off are offered too (without it they are left out, see assemble's switched_off).
+
+    `choice` keeps all of it (the GUI's general storage)."""
 
     __test__ = False  # not a test class, whatever its name says to a test runner
 
@@ -34,35 +47,51 @@ class TestView:
 
     @property
     def mode(self) -> str:
-        mode = self._choice.get(MODE_KEY, TESTED)
-        return mode if mode in MODES else TESTED
+        mode = self._choice.get(MODE_KEY, NORMAL)
+        return mode if mode in MODES else NORMAL
 
     def set_mode(self, mode: str) -> None:
         if mode not in MODES:
             raise ValueError(f"mode must be one of {', '.join(MODES)}, not {mode!r}")
+        self._choice[MAY_NOT_KEY] = list(self.may_not)  # a choice of before is kept under today's names
         self._choice[MODE_KEY] = mode
 
     @property
-    def needed(self) -> tuple[str, ...]:
-        needed = self._choice.get(NEEDED_KEY, ["works"])
-        return tuple(check for check in CHECKS if check in needed)
+    def may_not(self) -> tuple[str, ...]:
+        """The ticked ones: the checks a shown thing may miss (NORMAL), or the ones looked for (TESTING)."""
+        if MAY_NOT_KEY in self._choice:
+            ticked = self._choice[MAY_NOT_KEY]
+        elif self._choice.get(MODE_KEY) == OLD_EVERYTHING:
+            ticked = list(CHECKS)
+        else:  # the old ticks: in NORMAL the checks a thing had to have, in TESTING the ones that hid it
+            needed = self._choice.get(NEEDED_KEY, ["works"])
+            ticked = needed if self.mode == TESTING else [check for check in CHECKS if check not in needed]
+        return tuple(check for check in CHECKS if check in ticked)
 
-    def need(self, check: str, on: bool) -> None:
+    def let_in(self, check: str, on: bool) -> None:
         if check not in CHECKS:
             raise ValueError(f"check must be one of {', '.join(CHECKS)}, not {check!r}")
-        self._choice[NEEDED_KEY] = [c for c in CHECKS if (on if c == check else c in self.needed)]
+        self._choice[MAY_NOT_KEY] = [c for c in CHECKS if (on if c == check else c in self.may_not)]
+        self._choice[MODE_KEY] = self.mode
+
+    @property
+    def disconnected(self) -> bool:
+        """Whether what belongs to a switched-off connection is offered too."""
+        return self._choice.get(DISCONNECTED_KEY) is True
+
+    def set_disconnected(self, on: bool) -> None:
+        self._choice[DISCONNECTED_KEY] = bool(on)
 
     def why(self) -> str:
         """Why something is hidden right now, in a few words; "" when nothing is."""
-        return WHY.get(self.mode, "")
+        return WHY[self.mode] if self.mode == TESTING or len(self.may_not) < len(CHECKS) else ""
 
     def shows(self, checks: Mapping[str, bool]) -> bool:
         """Whether a thing with these three checks ({"works": True, ...}) is shown."""
-        if self.mode == EVERYTHING:
-            return True
+        missing = [check for check in CHECKS if not checks.get(check)]
         if self.mode == TESTING:
-            return not all(checks.get(check) for check in CHECKS)
-        return all(checks.get(check) for check in self.needed)
+            return any(check in (self.may_not or CHECKS) for check in missing)
+        return all(check in self.may_not for check in missing)
 
     def shows_box(self, action: RegisteredAction) -> bool:
         if action.category == OWN_FLOWS or (self.mode == TESTING and action.name in HELPER_BOXES):

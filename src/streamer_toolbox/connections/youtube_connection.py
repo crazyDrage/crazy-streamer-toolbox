@@ -37,7 +37,7 @@ class YouTubeConnection(ConnectionBase):
 
     It needs a Google Cloud project of his own with the "YouTube Data API v3" switched on and an OAuth client
     (its Client ID and Secret go on the tab), like the Twitch app. Login only happens on Connect (a browser tab
-    asks to allow the app); starting the toolbox never opens it. The login is kept in config/youtube_token.json
+    asks to allow the app); starting the toolbox never opens it. The login is kept in config/secrets/youtube_token.json
     (an OAuthToken, as Twitch's is) and renewed by itself. Reading is all it asks for, unless "May
     write in chat" is on: Google's only permission for sending a chat message is one that may manage the whole
     YouTube account, so that is his switch. Off until switched on."""

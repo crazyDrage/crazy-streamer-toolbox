@@ -86,10 +86,10 @@ class ActionPicker:
         for category, category_title, count in self._catalog.categories():
             shown = count if counts is None else counts.get(category_title, 0)
             chosen = counts is None and category == self._category
-            button = ui.button(on_click=lambda c=category: self._choose(c)) \
-                .props(f"no-caps dense {'unelevated color=primary' if chosen else 'flat'}") \
-                .classes("shrink-0 justify-start sm:w-full" + (" opacity-40" if counts is not None and not shown
-                                                               else ""))
+            # the chosen one is marked like the side list's page: a full colour block was read as a title (round 51)
+            button = ui.button(on_click=lambda c=category: self._choose(c)).props("no-caps dense flat") \
+                .classes("shrink-0 justify-start sm:w-full" + (" tb-chosen" if chosen else "")
+                         + (" opacity-40" if counts is not None and not shown else ""))
             with button, ui.row().classes("no-wrap items-center w-full gap-2"):
                 ui.label(category_title).classes("text-left flex-1 whitespace-nowrap")
                 ui.label(str(shown)).classes("text-xs opacity-60")

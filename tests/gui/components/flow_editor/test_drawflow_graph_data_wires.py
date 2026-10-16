@@ -48,14 +48,49 @@ class TestDrawflowGraphDataWires(unittest.TestCase):
         self.assertEqual({n.id: n.params for n in d.nodes}, before)  # n1.model kept its field
         self.assertEqual(d.wires, [FlowWire("start", "out", "n3")])  # data wires aren't run wires
 
+    def test_a_box_is_a_row_per_dot_with_the_names_inside(self) -> None:
+        graph = DrawflowGraph(ports, lambda a: a, lambda node: ["left", "right"] if node.action == "logic.if" else
+                              data_inputs(node), data_outputs,
+                              value_of=lambda node, name: "" if is_wire_in(node.params[name]) else node.params[name],
+                              start_outputs=lambda: [("user", "user"), ("video", "video (input)")])
+        d = draft()
+        d.node("n3").params["left"] = "5 <b>"
+        boxes = graph.build(d)["drawflow"]["Home"]["data"]
+        check = boxes["4"]["html"]
+        self.assertEqual(check.count('class="tb-row'), 3)  # the title's row, then left / else and right
+        self.assertIn('<span class="tb-out tb-port-then" title="then">then</span></div>', check)  # in the title's row
+        self.assertIn('left<span class="tb-value"> = 5 &lt;b&gt;</span></span>'
+                      '<span class="tb-out tb-port-else" title="else">else</span>', check)
+        self.assertIn('<span class="tb-in " title="right">right</span></div>', check)  # wired: no value
+        split = boxes["3"]["html"]
+        self.assertEqual(split.count('class="tb-row'), 3)  # title, data | x, y
+        self.assertIn('title="y · number">y · number</span>', split)
+        start = boxes["1"]["html"]
+        self.assertIn('<div class="tb-row tb-apart"><span class="tb-in " title=""></span>'
+                      '<span class="tb-out tb-flow-input" title="video (input)">', start)
+
     def test_rewire_and_unwire_in_the_browser(self) -> None:
         d = draft()
         data = self.graph.build(d)
         nodes = data["drawflow"]["Home"]["data"]
         nodes["4"]["inputs"]["input_2"]["connections"] = [{"node": "3", "input": "output_2"}]  # left ← x
-        nodes["4"]["inputs"]["input_3"]["connections"] = []  # right unwired
+        nodes["4"]["inputs"]["input_3"]["connections"] = []  # right unwired: the field is free again
         self.graph.read(data, d)
-        self.assertEqual((d.node("n3").params["left"], d.node("n3").params["right"]), ("${box.n2.x}", "${box}"))
+        self.assertEqual((d.node("n3").params["left"], d.node("n3").params["right"]), ("${box.n2.x}", ""))
+
+    def test_a_wire_drawn_onto_a_field_that_had_a_value_takes_its_place(self) -> None:
+        graph = DrawflowGraph(ports, lambda a: a, lambda node: ["left", "right"] if node.action == "logic.if" else
+                              data_inputs(node), data_outputs)
+        d = draft()
+        d.node("n3").params.update(left="5", right="")
+        data = graph.build(d)
+        check = data["drawflow"]["Home"]["data"]["4"]
+        self.assertEqual(check["data"].get("wired", {}), {})
+        graph.read(data, d)  # nothing drawn, nothing changed: the value stays
+        self.assertEqual(d.node("n3").params["left"], "5")
+        check["inputs"]["input_2"]["connections"] = [{"node": "3", "input": "output_3"}]  # left ← y
+        graph.read(data, d)
+        self.assertEqual((d.node("n3").params["left"], d.node("n3").params["right"]), ("${box.n2.y}", ""))
 
     def test_a_field_switched_to_a_value_after_drawing_is_left_alone(self) -> None:
         d = draft()

@@ -23,7 +23,7 @@ class FlowListView:
 
     @ui.refreshable_method
     def build(self) -> None:
-        outline = FlowOutline(self._draft.to_flow(), self._editor.dots.ports)
+        outline = FlowOutline(self._draft.to_flow(), self._editor.dots.ports, self._editor.dots.lines)
         entries = outline.build()
         with ui.row().classes("items-center gap-2"):
             ui.icon("play_circle").classes("text-2xl text-positive")
@@ -131,7 +131,10 @@ class FlowListView:
     async def _add(self, source: str, port: str) -> None:
         action = await self._editor.picker().pick()
         if action:
-            node = self._draft.add_after(source, port, action, self._editor.dots.ports(action)[0])
+            node = self._draft.new_node(action)  # a box that only gives values gets no run wire
+            if not self._editor.dots.data_only(node):
+                self._draft.nodes.remove(node)
+                node = self._draft.add_after(source, port, action, self._editor.dots.ports(action)[0])
             self._editor.prepare(node)
             self._open = node.id
             self.build.refresh()
@@ -139,7 +142,10 @@ class FlowListView:
     async def _add_beside(self, node_id: str) -> None:
         action = await self._editor.picker().pick("Add a box that runs at the same time")
         if action:
-            node = self._draft.add_beside(node_id, action)
+            node = self._draft.new_node(action)  # a box that only gives values gets no run wire
+            if not self._editor.dots.data_only(node):
+                self._draft.nodes.remove(node)
+                node = self._draft.add_beside(node_id, action)
             self._editor.prepare(node)
             self._open = node.id
             self.build.refresh()

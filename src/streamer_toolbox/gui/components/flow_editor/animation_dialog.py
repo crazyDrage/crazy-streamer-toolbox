@@ -10,7 +10,7 @@ from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.files.box_value_files import BoxValueFiles
 from streamer_toolbox.gui.components.flow_editor.animation_map import AnimationMap
 
-KIND = "vts_animation"  # its folder in config/box_values
+KIND = "vts/animation"  # its folder in config/boxes
 FIELDS = (("x", "x", 0.01), ("y", "y", 0.01), ("rotation", "turn °", 1.0), ("size", "size", 1.0))
 NUMBER = "dense outlined hide-bottom-space"
 

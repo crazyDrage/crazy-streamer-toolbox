@@ -40,16 +40,16 @@ class AnimationMap:
         line = list(points)
         if start:
             x, y = at(start.x, start.y)
-            parts.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="8" fill="none" stroke="#6d5dfc" '
+            parts.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="8" fill="none" stroke="#3fbfae" '
                          f'stroke-width="2"><title>start</title></circle>')
             line.insert(0, (x, y))
         if len(line) > 1:
             path = " ".join(f"{x:.1f},{y:.1f}" for x, y in line)
-            parts.append(f'<polyline points="{path}" fill="none" stroke="#6d5dfc" stroke-width="2" '
+            parts.append(f'<polyline points="{path}" fill="none" stroke="#3fbfae" stroke-width="2" '
                          f'stroke-linejoin="round" opacity="0.7"/>')
         for number, ((x, y), spot) in enumerate(zip(points, spots), 1):
             radius = 6 + (max(-100.0, min(100.0, spot.size)) + 100) / 200 * 6
-            parts.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{radius:.1f}" fill="#6d5dfc"/>'
+            parts.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{radius:.1f}" fill="#3fbfae"/>'
                          f'<text x="{x:.1f}" y="{y + 3.5:.1f}" text-anchor="middle" font-size="10" '
                          f'font-weight="700" fill="#fff">{number}</text>')
         parts.append("</svg>")

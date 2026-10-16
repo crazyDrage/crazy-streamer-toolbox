@@ -7,19 +7,20 @@ from streamer_toolbox.core.variables.variable_store import NAME_CHARS
 
 class BoxValueFiles:
     """Values a box keeps itself (a model animation, ...) saved as files to use again in other boxes:
-    <folder>/<kind>/<name>.json, one folder per kind ("vts_animation")."""
+    <folder>/<program>/<box>/<name>.json; the kind names program and box ("vts/animation"). His sorting of the
+    settings folder (round 43): boxes → program → box → that box's files."""
 
     def __init__(self, folder: Path) -> None:
         self._folder = folder
 
     def names(self, kind: str) -> list[str]:
-        folder = self._folder / _checked(kind)
+        folder = self._kind(kind)
         return sorted((p.stem for p in folder.glob("*.json")), key=str.casefold) if folder.is_dir() else []
 
     def load(self, kind: str, name: str) -> Any:
         path = self._path(kind, name)
         if not path.is_file():
-            raise KeyError(f"there's no saved {kind.replace('_', ' ')} {name!r}")
+            raise KeyError(f"there's no saved {kind.rsplit('/', 1)[-1].replace('_', ' ')} {name!r}")
         return json.loads(path.read_text(encoding="utf-8"))
 
     def save(self, kind: str, name: str, value: Any) -> Path:
@@ -29,7 +30,10 @@ class BoxValueFiles:
         return path
 
     def _path(self, kind: str, name: str) -> Path:
-        return self._folder / _checked(kind) / f"{_checked(name)}.json"
+        return self._kind(kind) / f"{_checked(name)}.json"
+
+    def _kind(self, kind: str) -> Path:
+        return self._folder.joinpath(*(_checked(part) for part in kind.split("/")))
 
 
 def _checked(name: str) -> str:

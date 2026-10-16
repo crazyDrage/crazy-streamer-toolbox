@@ -34,9 +34,7 @@ class RegisteredAction:
     outputs when it chooses one (an If: ("then", "else"); the handler returns True for the first, False for the
     second); `flow_only` actions only make sense inside a flow and aren't offered on Live, in SAMMI or the API;
     a `join` box runs once all wires into it have arrived (Wait for all); a `live` action reads a value and needs
-    no parameters, so a box field can use it directly as a Live value (${get.vts.get_model}); `data_outputs`
-    names the parameter that lists the box's data outputs by field ({name: kind}, Split data) instead of the one
-    "result" output every box with a result has; `outputs` names the fields its result always has ({name: kind},
+    no parameters, so a box field can use it directly as a Live value (${get.vts.get_model}); `outputs` names the fields its result always has ({name: kind},
     e.g. Video info's width / height / seconds), each an extra data output next to "result"; `port_fields` names
     a field the box can have any number of (Switch: "case" → case_1, case_2, ...), each one also an output, before
     `ports` (see ports_for); `labels` / `hints` give a field a readable name and one line of help in the box form
@@ -58,7 +56,14 @@ class RegisteredAction:
     (chooser, (values, ...))}, see shows): the form only shows what the chosen way uses. `typed` names the fields
     that take any kind of value and keep it (Set variable's value): what is typed into one by hand is read for
     what it holds (0.5 → a number, true → yes, JSON → a list or object; "007" and "+49" stay text, see
-    box_value.understand). A value that comes by wire keeps the kind it has.
+    box_value.understand). A value that comes by wire keeps the kind it has. `value_lines` names the parameter
+    that holds named values typed into the box ({name: value}, the Value box): each line is a data output of its
+    own, and each value is read like a `typed` field. A `data_only` box only gives values: it has no run dots,
+    so no run wire leads into or out of it; it runs whenever a field wired to it needs its value (Value, Get
+    variable; his round 52). `entry_fields` names a field the box can have any number of (End: "name" → name_1,
+    name_2, ...), each with a run dot of its own on the left: a run wire into one starts the box, and only that
+    field is read, handed to the handler under the plain name (name=...). The box's normal run dot isn't drawn; a
+    wire into it counts as the first one (Choose value, End; his round 53).
 
     `is_tested`, `is_understandable` and `is_usable` are his three checks of the box (works, understandable,
     usable). No box sets them itself: they are read from the test record at start (TestGate), and TestView
@@ -76,7 +81,6 @@ class RegisteredAction:
     flow_only: bool = False
     join: bool = False
     live: bool = False
-    data_outputs: str = ""
     outputs: dict[str, str] = field(default_factory=dict)
     port_fields: str = ""
     labels: dict[str, str] = field(default_factory=dict)
@@ -91,6 +95,9 @@ class RegisteredAction:
     lights: dict[str, LightProvider] = field(default_factory=dict)
     shown: dict[str, tuple[str, tuple[str, ...]]] = field(default_factory=dict)
     typed: tuple[str, ...] = ()
+    value_lines: str = ""
+    data_only: bool = False
+    entry_fields: str = ""
     is_tested: bool = False
     is_understandable: bool = False
     is_usable: bool = False
@@ -100,6 +107,10 @@ class RegisteredAction:
         if not self.port_fields:
             return self.ports
         return (*numbered_fields(self.port_fields, params), *self.ports)
+
+    def entry_lines(self, params: Mapping[str, Any]) -> list[str]:
+        """The run dots of a box with entry_fields, one per numbered field (name_1, name_2, ...); else none."""
+        return numbered_fields(self.entry_fields, params) if self.entry_fields else []
 
     def shows(self, name: str, params: Mapping[str, Any]) -> bool:
         """False for a field that `shown` hides with the box's values as they are. A chooser that is empty counts

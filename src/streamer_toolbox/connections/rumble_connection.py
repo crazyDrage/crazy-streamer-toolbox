@@ -25,7 +25,7 @@ class RumbleConnection(ConnectionBase):
     toolbox's `tip` event (Tip trigger, Tip alert, widgets). Read only: Rumble's API has nothing to send with.
 
     The API is one address that holds the account's key. It is his account's, so it's kept in its own file next
-    to the settings (config/rumble_address.txt), never in toolbox.toml and never shown. Off until switched on."""
+    to the settings (config/secrets/rumble_address.txt), never in toolbox.toml and never shown. Off until switched on."""
 
     id = "rumble"
     title = "Rumble"

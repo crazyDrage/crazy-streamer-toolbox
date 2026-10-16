@@ -61,7 +61,7 @@ KINDS = ("number", "text", "yes/no", "list", "object", "any")
 
 
 def kind_of(value: Any) -> str:
-    """What a value is, the way Split data shows it: a number, text, yes/no, list or object. A value keeps the
+    """What a value is, the way a box's dot shows it: a number, text, yes/no, list or object. A value keeps the
     kind it came with: text that looks like a number ("3", an id) is text. Only what is typed by hand is read
     for what it holds (understand; RegisteredAction.typed)."""
     if isinstance(value, bool):

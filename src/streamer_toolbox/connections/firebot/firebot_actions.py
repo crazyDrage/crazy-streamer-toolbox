@@ -24,7 +24,8 @@ class FirebotActions:
                            "user": "Optional: the viewer the effects are run for",
                            "wait": "Yes: the box waits until Firebot ran all effects"})
         actions.add("firebot.get_variable", self.get_variable, "The value of a Firebot custom variable",
-                    "Get Firebot variable", group="Variables", outputs={"value": "text"})
+                    "Get Firebot variable", group="Variables", outputs={"value": "text"},
+                    hints={"name": "A variable Firebot doesn't have gives an empty value"})
         actions.add("firebot.set_variable", self.set_variable, "Sets a Firebot custom variable",
                     "Set Firebot variable", group="Variables",
                     hints={"seconds": "Optional: Firebot forgets it after this long (0 = never)"})
@@ -48,8 +49,10 @@ class FirebotActions:
         await self._send("POST", f"effects/preset/{quote(preset_id)}" + ("" if wait else "/run"), json=body)
 
     async def get_variable(self, name: str) -> dict[str, Any]:
+        # Firebot answers with the value itself (text, a number, an object, ...), and with nothing at all
+        # for a variable it doesn't have (seen on the real program, 2026-10-11)
         answer = await self._send("GET", f"custom-variables/{quote(_named(name))}")
-        return {"value": answer.get("data", "") if isinstance(answer, dict) else answer}
+        return {"value": "" if answer is None else answer}
 
     async def set_variable(self, name: str, value: Any = "", seconds: float = 0) -> None:
         await self._send("POST", f"custom-variables/{quote(_named(name))}",

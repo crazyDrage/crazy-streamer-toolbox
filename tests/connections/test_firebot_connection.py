@@ -35,7 +35,11 @@ class TestFirebotConnection(unittest.IsolatedAsyncioTestCase):
             old, self.counter = self.counter, body["value"] if body["override"] else self.counter + body["value"]
             return httpx.Response(200, json={"oldValue": old, "newValue": self.counter})
         if path == "custom-variables/mood" and request.method == "GET":
-            return httpx.Response(200, json={"name": "mood", "data": "sleepy", "ttl": 0})
+            return httpx.Response(200, json="sleepy")  # the value itself, as the real program answers
+        if path == "custom-variables/spot" and request.method == "GET":
+            return httpx.Response(200, json={"data": 5, "x": 1})
+        if path == "custom-variables/missing" and request.method == "GET":
+            return httpx.Response(200)  # nothing at all
         if path == "custom-variables/mood":
             return httpx.Response(200, json={"status": "success"})
         return httpx.Response(404, json={"status": "error", "message": "Not found"})
@@ -70,8 +74,10 @@ class TestFirebotConnection(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await actions.run("firebot.set_counter", counter="Deaths", value="2", add=True),
                          {"value": 12})
         self.assertEqual(await actions.run("firebot.set_counter", counter="Deaths", value=0), {"value": 0})
+        self.assertEqual(await actions.run("firebot.get_variable", name="spot"), {"value": {"data": 5, "x": 1}})
+        self.assertEqual(await actions.run("firebot.get_variable", name="missing"), {"value": ""})
         with self.assertRaisesRegex(RuntimeError, "Firebot: Not found"):
-            await actions.run("firebot.get_variable", name="missing")
+            await actions.run("firebot.set_variable", name="nowhere")
 
     async def test_off_or_not_running_is_said_plainly_and_it_comes_back(self) -> None:
         _, off = self._connection(enabled=False)

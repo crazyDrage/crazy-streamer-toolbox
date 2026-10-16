@@ -2,6 +2,7 @@
 what a flow's Start box gives). Keep EVENT_FIELDS (core/events/event_fields.py) in step with to_event()."""
 from typing import Any
 
+from streamer_toolbox.core.events.chat_command import chat_command
 from streamer_toolbox.core.events.event_fields import CHAT_ROLES as ROLES
 
 REDEMPTION = "channel.channel_points_custom_reward_redemption.add"
@@ -9,6 +10,12 @@ CHAT_MESSAGE = "channel.chat.message"
 CHAT_DELETED = "channel.chat.message_delete"  # a moderator removed one message
 CHAT_USER_CLEARED = "channel.chat.clear_user_messages"  # a ban or timeout: all of one chatter's messages go
 CHAT_CLEARED = "channel.chat.clear"  # the whole chat was cleared
+BITS_USED = "channel.bits.use"  # a cheer, a Power-up or a combo; only the Power-ups become an event here
+SUSPICIOUS_MESSAGE = "channel.suspicious_user.message"  # someone Twitch or a mod flagged wrote in chat
+# why Twitch flags a chatter, the heaviest first: `reason` is the first of these that the message names
+SUSPICIOUS_REASONS = ("ban_evader", "banned_in_shared_channel", "manually_added")
+_SUSPICIOUS_STATUS = {"active_monitoring": "monitored", "restricted": "restricted"}
+POWER_UPS = ("message_effect", "celebration", "gigantify_an_emote")
 _BADGE_ROLES = {"broadcaster": "broadcaster", "moderator": "mod", "lead_moderator": "mod", "vip": "vip",
                 "subscriber": "sub", "founder": "sub"}
 
@@ -24,7 +31,8 @@ def subscriptions(user_id: str) -> list[tuple[str, str, dict[str, str]]]:
             ("channel.subscribe", "1", me), ("channel.subscription.gift", "1", me),
             ("channel.subscription.message", "1", me), ("channel.cheer", "1", me),
             ("channel.raid", "1", {"to_broadcaster_user_id": user_id}),
-            ("stream.online", "1", me), ("stream.offline", "1", me), ("channel.ad_break.begin", "1", me)]
+            ("stream.online", "1", me), ("stream.offline", "1", me), ("channel.ad_break.begin", "1", me),
+            (BITS_USED, "1", me), (SUSPICIOUS_MESSAGE, "1", {**me, "moderator_user_id": user_id})]
 
 
 def to_event(kind: str, e: dict[str, Any]) -> tuple[str, dict[str, Any]] | None:
@@ -43,9 +51,9 @@ def to_event(kind: str, e: dict[str, Any]) -> tuple[str, dict[str, Any]] | None:
             return None                                         # chat", the other channel's messages don't count
         written = (e.get("message") or {}).get("text", "")
         text = written.strip()
-        command, _, args = text.partition(" ")
+        command, args = chat_command(text)
         return "twitch.chat", {
-            "message": text, "command": command.casefold() if command.startswith("!") else "", "args": args.strip(),
+            "message": text, "command": command, "args": args,
             "user": e.get("chatter_user_name", ""), "user_login": e.get("chatter_user_login", ""),
             "message_id": e.get("message_id", ""), "role": role(e.get("badges") or []),
             "user_id": e.get("chatter_user_id", ""), "color": e.get("color", ""),
@@ -85,6 +93,21 @@ def to_event(kind: str, e: dict[str, Any]) -> tuple[str, dict[str, Any]] | None:
         return "twitch.offline", {}
     if kind == "channel.ad_break.begin":
         return "twitch.ad_break", {"seconds": e.get("duration_seconds", 0), "automatic": bool(e.get("is_automatic"))}
+    if kind == BITS_USED:
+        if e.get("type") != "power_up":  # a cheer comes as channel.cheer too: Cheer (bits) has it
+            return None
+        power = e.get("power_up") or {}
+        return "twitch.power_up", {**user, "bits": e.get("bits", 0), "kind": power.get("type") or "",
+                                   "message": (e.get("message") or {}).get("text") or "",
+                                   "emote": (power.get("emote") or {}).get("name") or ""}
+    if kind == SUSPICIOUS_MESSAGE:
+        reasons = [str(reason) for reason in e.get("types") or []]
+        message = e.get("message") or {}
+        return "twitch.suspicious_user", {
+            **user, "message": message.get("text") or "", "message_id": message.get("message_id") or "",
+            "reason": next((reason for reason in SUSPICIOUS_REASONS if reason in reasons), "".join(reasons[:1])),
+            "reasons": reasons, "ban_evader": e.get("ban_evasion_evaluation") or "unknown",
+            "status": _SUSPICIOUS_STATUS.get(e.get("low_trust_status") or "", "none")}
     return None
 
 

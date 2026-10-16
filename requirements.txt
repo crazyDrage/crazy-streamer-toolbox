@@ -2,6 +2,7 @@ simpleobsws==1.4.3     # obs-websocket v5 client (asyncio); installed 2026-09-27
 nicegui==3.17.1       # GUI + HTTP API (brings fastapi, uvicorn, httpx); branch hex/gui-nicegui, 2026-09-28
 tomlkit==0.15.1      # writes config/toolbox.toml keeping comments (OBS form); 2026-09-28
 miniaudio==1.71       # plays sound files (ogg/mp3/wav/flac) for the sound.play box; 2026-09-28 night
+cryptography==50.0.2  # the optional login: encrypts the files in config/secrets/; 2026-10-11, his go
 pynput==1.8.2         # keyboard triggers (system-wide key listener, no admin); 2026-09-30, his ATTENTION answer
 # Twitch: no library, own small client on httpx + websockets (twitchAPI was broken last time, his note)
 # dev only, not needed to run the toolbox (so not installed from here): py-spy==0.4.2, to see what a running

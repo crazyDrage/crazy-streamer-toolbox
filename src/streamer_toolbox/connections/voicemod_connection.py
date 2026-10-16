@@ -27,7 +27,7 @@ class VoicemodConnection(LineConnection):
     VoicemodActions.
 
     Voicemod wants an API key from every program (asked for on control-api.voicemod.net, sent by mail); it is
-    kept in its own file (config/voicemod_key.txt), never in toolbox.toml and never shown. Built from
+    kept in its own file (config/secrets/voicemod_key.txt), never in toolbox.toml and never shown. Built from
     Voicemod's docs, never run against the real program. NOT CONFIRMED: under which name an answer carries
     its request's id (`id` and `actionID` are both taken), where an answer holds its content
     (`actionObject`, else `payload`), and the list's name in the sounds' answer (`listOfMemes`). Switching

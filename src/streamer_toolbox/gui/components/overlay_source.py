@@ -1,6 +1,7 @@
 from nicegui import ui
 
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
+from streamer_toolbox.gui.components.keep_typed import keep_typed
 
 
 class OverlaySource:
@@ -41,8 +42,8 @@ class OverlaySource:
             ui.label("Add it to OBS").classes("text-lg font-semibold")
             ui.label(f"Makes the Browser source '{name}' in a scene, as big as your canvas.") \
                 .classes("text-sm opacity-80")
-            scene = ui.select(await self.scenes(), label="Scene", new_value_mode="add-unique") \
-                .props("outlined dense options-dense").classes("w-full")
+            scene = keep_typed(ui.select(await self.scenes(), label="Scene", new_value_mode="add-unique")
+                               .props("outlined dense options-dense").classes("w-full"))
             with ui.row().classes("w-full justify-end"):
                 ui.button("Cancel", on_click=lambda: dialog.submit(None)).props("flat no-caps")
                 ui.button("Add", on_click=lambda: dialog.submit(scene.value)).props("unelevated no-caps")

@@ -3,7 +3,7 @@ from pathlib import Path
 
 class SecretFile:
     """A token, key or password a connection needs, kept in its own file next to the settings
-    (config/<id>_token.txt): its first line, nothing else. Never in toolbox.toml, never shown. He types it
+    (config/secrets/<id>_token.txt): its first line, nothing else. Never in toolbox.toml, never shown. He types it
     into the field on the connection's tab (SecretInput), which writes it here: he never opens the file
     (his rule, 2026-10-10: every token has an input field, no files to edit)."""
 

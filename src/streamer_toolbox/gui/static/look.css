@@ -1,0 +1,82 @@
+/* The look of every page: "Console" (he picked it on 2026-10-12): dense and flat, thin lines instead of
+   shadows, small upper-case titles, values in a fixed-width face. Colours are tokens, dark and light. */
+@font-face { font-family: "IBM Plex Sans"; font-weight: 400; font-display: swap;
+  src: url("/static/fonts/ibm-plex-sans-400.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Sans"; font-weight: 600; font-display: swap;
+  src: url("/static/fonts/ibm-plex-sans-600.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-weight: 400; font-display: swap;
+  src: url("/static/fonts/ibm-plex-mono-400.woff2") format("woff2"); }
+
+body {
+  --tb-bg: #f3f5f6; --tb-fg: #1c242b; --tb-soft: #5d6b77; --tb-line: #d0d7dd; --tb-panel: #ffffff;
+  --tb-side: #e9edef; --tb-on: #d5ece8; --tb-on-fg: #0f6b60; --tb-box: #ffffff; --tb-box-line: #b6c0c8;
+  --tb-bar: #11151a; --tb-bar-fg: #dfe5ea; --tb-bar-soft: #8493a0; --tb-bar-on: #20303a; --tb-bar-on-fg: #6fd6c8;
+  --tb-good: #1f8f4e; --tb-bad: #c0392b; --tb-wire: #b86a00;
+  --tb-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif; font-size: 13px;
+  background: var(--tb-bg); color: var(--tb-fg);
+}
+body.body--light { --q-primary: #17877a !important; }
+body.body--dark {
+  --tb-bg: #171b21; --tb-fg: #dfe5ea; --tb-soft: #8493a0; --tb-line: #2a323b; --tb-panel: #1b2027;
+  --tb-side: #13171c; --tb-on: #20303a; --tb-on-fg: #6fd6c8; --tb-box: #1e242c; --tb-box-line: #3a4550;
+  --tb-good: #58c26a; --tb-bad: #e2685f; --tb-wire: #e0a244;
+  background: var(--tb-bg); color: var(--tb-fg);
+}
+
+/* the frame: header (the app name's line, then the main tabs), the side list */
+.tb-chosen { background: var(--tb-on) !important; color: var(--tb-on-fg) !important;
+  box-shadow: inset 2px 0 0 #3fbfae; }
+.tb-sticky { position: sticky; top: var(--tb-head, 0px); z-index: 5; background: var(--tb-bg); }
+.q-header { background: var(--tb-bar) !important; color: var(--tb-bar-fg); border-bottom: 1px solid #2a323b; }
+.tb-name-line { min-height: 30px; }
+.tb-name { font-size: 12px; letter-spacing: 0.08em; color: var(--tb-bar-soft); white-space: nowrap; }
+.tb-top .q-btn { border-radius: 0; border-bottom: 2px solid transparent; color: var(--tb-bar-soft) !important;
+  min-height: 34px; }
+.tb-top .q-btn.tb-here { color: var(--tb-bar-on-fg) !important; border-bottom-color: #3fbfae;
+  background: var(--tb-bar-on); }
+.tb-top-phone .q-btn { font-size: 10px; min-height: 40px; }
+.tb-top-phone .q-btn .q-icon { font-size: 18px; }
+.tb-nav .tb-hidden, .tb-top .tb-hidden { opacity: 0.45; }
+.q-drawer { background: var(--tb-side) !important; }
+.q-drawer--bordered { border-color: var(--tb-line) !important; }
+.tb-nav .q-item { border-radius: 3px; margin: 1px 6px; min-height: 32px; padding: 4px 10px; color: var(--tb-soft); }
+.tb-nav .q-item.text-primary { background: var(--tb-on) !important; color: var(--tb-on-fg) !important;
+  font-weight: 600; }
+.tb-nav .q-item.tb-sub { margin-left: 28px; min-height: 28px; font-size: 12px; }
+
+/* parts of a page: flat, one thin line around, small upper-case titles */
+.q-card { box-shadow: none !important; border: 1px solid var(--tb-line); border-radius: 3px;
+  background: var(--tb-panel); }
+.q-card .text-lg.font-semibold, .q-card .text-xl.font-semibold {
+  font-size: 11px; line-height: 1.6; letter-spacing: 0.1em; text-transform: uppercase; color: var(--tb-on-fg); }
+.text-2xl.font-semibold { font-size: 18px; line-height: 1.4; }
+.q-separator { background: var(--tb-line) !important; }
+.q-menu, .q-dialog .q-card { border: 1px solid var(--tb-line); }
+
+/* buttons and fields: square corners, no upper case */
+.q-btn { text-transform: none; font-weight: 600; }
+.q-btn--rectangle, .q-btn-group, .q-field--outlined .q-field__control, .q-chip, .q-badge { border-radius: 3px; }
+.q-btn--rectangle:not(.q-btn--dense) { min-height: 30px; padding: 2px 12px; }
+.q-btn--unelevated, .q-btn--standard { box-shadow: none !important; }
+.q-btn--standard::before { box-shadow: none; }
+.body--dark .q-btn.bg-primary, .body--dark .q-badge.bg-primary, .body--dark .q-chip.bg-primary { color: #06201c !important; }
+.q-field--outlined .q-field__control::before { border-color: var(--tb-line); }
+.q-field__label, .q-item__label--caption { color: var(--tb-soft); }
+
+/* values, names of fields, code */
+code, pre, .font-mono, .tb-value { font-family: var(--tb-mono); }
+
+/* the toolbox's own right click menu (context_menu.js), on every page */
+.tb-menu {
+  position: fixed; z-index: 9000; min-width: 190px; padding: 4px 0; background: var(--tb-panel);
+  border: 1px solid var(--tb-line); box-shadow: 0 4px 14px rgba(0, 0, 0, .35); font-size: 13px;
+}
+.tb-menu-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px 14px; border: 0; background: none;
+  color: var(--tb-fg); font: inherit; text-align: left; cursor: pointer;
+}
+.tb-menu-item:hover { background: var(--tb-on); }
+.tb-menu-item .q-icon { font-size: 18px; opacity: .75; }
+.tb-menu-danger { color: var(--tb-bad); }
+.tb-menu-line { height: 1px; margin: 4px 0; background: var(--tb-line); }

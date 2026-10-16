@@ -25,7 +25,7 @@ class HypeRateConnection(LineConnection):
     (HeartRate: the `heartrate` event, the Get heart rate box). It only listens.
 
     HypeRate gives a websocket key on request (their API page); it is kept in its own file
-    (config/hyperate_key.txt), never in toolbox.toml and never shown. Built from their docs, never run
+    (config/secrets/hyperate_key.txt), never in toolbox.toml and never shown. Built from their docs, never run
     against the real service. Off until switched on."""
 
     id = "hyperate"
