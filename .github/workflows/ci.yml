@@ -66,7 +66,8 @@ jobs:
       - name: The Windows download has its start program
         if: matrix.target == 'windows'
         shell: bash
-        run: unzip -l build/${{ matrix.file }} | grep -q "crazy-streamer-toolbox-windows/crazy-streamer-toolbox.exe"
+        # no grep -q: it would stop reading at the match and unzip dies of SIGPIPE (exit 141 under pipefail)
+        run: unzip -l build/${{ matrix.file }} | grep "crazy-streamer-toolbox-windows/crazy-streamer-toolbox.exe"
       - uses: actions/upload-artifact@v4
         with:
           name: crazy-streamer-toolbox-${{ matrix.target }}
