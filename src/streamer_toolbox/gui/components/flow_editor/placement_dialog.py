@@ -5,6 +5,7 @@ from nicegui import ui
 
 from streamer_toolbox.connections.obs.obs_placement import ObsPlacement
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
+from streamer_toolbox.gui.components.keep_typed import keep_typed
 
 
 class PlacementDialog:
@@ -30,6 +31,7 @@ class PlacementDialog:
             scene = ui.select([self._scene] if self._scene else [], value=self._scene or None, label="Scene",
                               new_value_mode="add-unique", on_change=lambda e: self._set_scene(e.value or "")) \
                 .props("outlined dense options-dense").classes("w-full")
+            keep_typed(scene)
             self._steps()
         self._dialog.open()
         ui.timer(0.1, lambda: self._load_scenes(scene), once=True)

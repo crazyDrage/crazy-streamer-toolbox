@@ -159,6 +159,22 @@ class TestFlowRunner(unittest.IsolatedAsyncioTestCase):
         await self.runner.run(Flow("f", "F", nodes, chain(nodes[2], nodes[3])))
         self.assertEqual(self.calls, [{"model": "CrazyDrage Human", "n": 5}, {"again": "CrazyDrage Human"}])
 
+    async def test_each_line_of_a_value_box_is_wired_by_its_name_and_read_for_what_it_holds(self) -> None:
+        self.variables.set("who", "Kit")
+        nodes = (FlowNode("v", "logic.value", {"values": {"power": "10", "zip": "007", "hi": "hi ${var.who}"}}),
+                 FlowNode("r", "a.record", {"p": "${box.v.power}", "z": "${box.v.zip}", "h": "${box.v.hi}"}))
+        await self.runner.run(Flow("f", "F", nodes, chain(nodes[1])))
+        self.assertEqual(self.calls, [{"p": 10, "z": "007", "h": "hi Kit"}])
+
+    async def test_get_variable_reads_the_variable_each_time_a_box_needs_it(self) -> None:
+        self.variables.set("count", 1)
+        nodes = (FlowNode("g", "var.get", {"name": "count"}),
+                 FlowNode("r1", "a.record", {"n": "${box.g}"}),
+                 FlowNode("m", "var.add", {"name": "count", "op": "*", "amount": "5"}),
+                 FlowNode("r2", "a.record", {"n": "${box.g}"}))
+        await self.runner.run(Flow("f", "F", nodes, chain(*nodes[1:])))
+        self.assertEqual(self.calls, [{"n": 1}, {"n": 5}])
+
     async def test_an_end_box_lets_the_flow_box_go_on_while_the_flow_runs_on(self) -> None:
         inner = Flow("inner", "Inner", (FlowNode("e", "logic.end"), FlowNode("late", "a.slow", {"label": "after end"})),
                      (FlowWire("start", "out", "e"), FlowWire("e", "done", "late")))
@@ -171,7 +187,7 @@ class TestFlowRunner(unittest.IsolatedAsyncioTestCase):
 
     async def test_named_end_boxes_are_the_flow_boxes_outputs(self) -> None:
         nodes = (FlowNode("ask", "logic.if", {"left": "${input.n}", "op": ">", "right": "5"}),
-                 FlowNode("big", "logic.end", {"name": "big"}), FlowNode("small", "logic.end", {"name": "small"}))
+                 FlowNode("big", "logic.end", {"name_1": "big"}), FlowNode("small", "logic.end", {"name_1": "small"}))
         inner = Flow("size", "Size", nodes, (FlowWire("start", "out", "ask"), FlowWire("ask", "then", "big"),
                                               FlowWire("ask", "else", "small")), inputs=(FlowInput("n", "1"),))
         self.assertEqual(inner.ends, ("big", "small"))
@@ -197,6 +213,14 @@ class TestFlowRunner(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(error)
         self.assertEqual(self.calls, [{"who": "TestViewer", "start": "Lizard"}])
         self.assertEqual(self.runner.last_result("f", "start"), (True, {"user": "TestViewer", "reward": "Lizard"}))
+
+    async def test_a_test_run_from_a_box_runs_it_and_what_comes_after(self) -> None:
+        nodes = (FlowNode("n1", "a.record", {"n": 1}), FlowNode("n2", "a.record", {"n": 2}),
+                 FlowNode("n3", "a.record", {"n": 3}))
+        results, error = await self.runner.test_run(Flow("f", "F", nodes, chain(*nodes)), start_at="n2")
+        self.assertIsNone(error)
+        self.assertEqual(self.calls, [{"n": 2}, {"n": 3}])
+        self.assertEqual([r["box"] for r in results], ["n2", "n3"])
 
     async def test_live_values_are_read_when_the_box_runs(self) -> None:
         models = iter(["Dragon", "Human"])

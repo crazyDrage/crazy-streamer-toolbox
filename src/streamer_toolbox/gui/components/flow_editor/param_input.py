@@ -13,6 +13,7 @@ from streamer_toolbox.core.flows.box_wire import WIRE_IN, box_source, is_wire_in
 from streamer_toolbox.core.variables.variable_store import VariableStore
 from streamer_toolbox.gui.components.file_dialog import FileDialog
 from streamer_toolbox.gui.components.flow_editor.many_picker import Light, ManyPicker
+from streamer_toolbox.gui.components.keep_typed import keep_typed
 
 VAR = re.compile(r"\$\{var\.(\w+)((?:\.\w+)*)\}")
 INPUT = re.compile(r"\$\{input\.(\w+)\}")
@@ -27,7 +28,8 @@ class ParamInput:
     """One parameter of a box, as one block: its name and where the value comes from on one line, the field below,
     one small hint line under it. The value is typed (or picked from the service's list), a variable (optionally one
     field of it, e.g. x of a position), a Live value (read from a service when the box runs, e.g. the loaded VTS
-    model), one of the flow's inputs or a wire from another box (the box gets a dot for it on its left). Stored as
+    model), one of the flow's inputs or a wire from another box (onto the field's dot on the box's left). While a
+    wire is on it, the block shows only the wire and a button to take it away. Stored as
     the value or as ${var.name.field} / ${get.action.field} / ${input.name} / ${box.n3.field} (${box} = not wired
     yet), so the flow file stays readable. on_change(value, rebuild) says when the box's dots change."""
 
@@ -64,10 +66,15 @@ class ParamInput:
         with ui.column().classes("w-full gap-1"):
             with ui.row().classes("items-center no-wrap w-full gap-2"):
                 ui.label(self._label).classes("text-sm font-semibold flex-1 min-w-0")
-                sources = SOURCES if self._live or self._source == "get" else \
-                    {k: v for k, v in SOURCES.items() if k != "get"}
-                ui.select(sources, value=self._source, on_change=lambda e: self._switch(e.value)) \
-                    .props("dense options-dense borderless").classes("w-32 shrink-0 text-xs")
+                if box_source(self._value):  # wired: its other settings come back when the wire is gone
+                    ui.button("Remove wire", icon="link_off", on_click=lambda: self._switch("value")) \
+                        .props("flat dense no-caps size=sm") \
+                        .tooltip("Takes the wire away: then the field can be typed or picked again")
+                else:
+                    sources = SOURCES if self._live or self._source == "get" else \
+                        {k: v for k, v in SOURCES.items() if k != "get"}
+                    ui.select(sources, value=self._source, on_change=lambda e: self._switch(e.value)) \
+                        .props("dense options-dense borderless").classes("w-32 shrink-0 text-xs")
             if self._hint:
                 ui.label(self._hint).classes("text-xs opacity-70 -mt-1")
             self._body()
@@ -95,8 +102,8 @@ class ParamInput:
         names = sorted(set(self._variables.names()) | ({name} if name else set()), key=str.casefold)
         current = self._variables.get(name) if name else None
         with ui.row().classes("no-wrap gap-2 w-full"):
-            pick = ui.select(names, value=name, label="variable", new_value_mode="add-unique") \
-                .props(FIELD).classes("flex-1 min-w-0")
+            pick = keep_typed(ui.select(names, value=name, label="variable", new_value_mode="add-unique")
+                              .props(FIELD).classes("flex-1 min-w-0"))
             part = _field_picker(current, field)
 
         def changed() -> None:
@@ -116,7 +123,7 @@ class ParamInput:
     def _wire(self) -> None:
         wired = self._value if box_source(self._value) else None
         choices = dict(self._wire_sources) | ({wired: wired} if wired and wired not in self._wire_sources else {})
-        ui.select(choices, value=wired, label="from box", clearable=True,
+        ui.select(choices, value=wired, label="from box",
                   on_change=lambda e: self._set(e.value or WIRE_IN, rebuild=True)).props(FIELD).classes("w-full")
         if wired and self._warning:
             ui.label(f"⚠ {self._warning}: it may fail when the box runs").classes("text-xs text-warning")
@@ -183,6 +190,7 @@ class ParamInput:
         with ui.row().classes("no-wrap gap-2 w-full") as row:
             select = ui.select(current, value=str(value) if current else None, label=default or "pick or type",
                                new_value_mode="add-unique", on_change=changed).props(FIELD).classes("flex-1 min-w-0")
+            keep_typed(select)
             self._file_button(lambda path: (select.set_options(_sorted(select.options, [path])),
                                             select.set_value(path)))
             self._color_button(lambda color: (select.set_options(_sorted(select.options, [color])),
@@ -311,8 +319,8 @@ def _field_picker(value: Any, field: str) -> ui.select | None:
     if not isinstance(value, dict) and not field:
         return None
     fields = sorted((set(value) if isinstance(value, dict) else set()) | ({field} if field else set()))
-    return ui.select(fields, value=field or None, label="field", clearable=True, new_value_mode="add-unique") \
-        .props(FIELD).classes("w-28 shrink-0")
+    return keep_typed(ui.select(fields, value=field or None, label="field", clearable=True,
+                                new_value_mode="add-unique").props(FIELD).classes("w-28 shrink-0"))
 
 
 def _hint(text: str) -> ui.label:

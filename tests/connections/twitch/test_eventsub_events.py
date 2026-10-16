@@ -6,7 +6,8 @@ from streamer_toolbox.connections.twitch.eventsub_events import role, subscripti
 class TestEventSubEvents(unittest.TestCase):
     def test_every_subscription_has_a_mapping(self) -> None:
         for kind, _, _ in subscriptions("42"):
-            self.assertIsNotNone(to_event(kind, {"broadcaster_user_id": "42", "reward": {}, "message": {}}), kind)
+            self.assertIsNotNone(to_event(kind, {"broadcaster_user_id": "42", "reward": {}, "message": {},
+                                                "type": "power_up"}), kind)
 
     def test_chat_role_and_shared_chat(self) -> None:
         mod = to_event("channel.chat.message", {"message": {"text": "hi"}, "badges": [
@@ -65,6 +66,42 @@ class TestEventSubEvents(unittest.TestCase):
                                                     "message": "Cheer100 hi"})[1]["bits"], 100)
         self.assertEqual(to_event("channel.ad_break.begin", {"duration_seconds": 90, "is_automatic": True}),
                          ("twitch.ad_break", {"seconds": 90, "automatic": True}))
+
+    def test_a_power_up_is_its_own_event_and_a_cheer_is_left_to_the_cheer_event(self) -> None:
+        used = {"user_id": "7", "user_login": "ann", "user_name": "Ann", "bits": 30, "type": "power_up",
+                "power_up": {"type": "gigantify_an_emote", "emote": {"id": "e1", "name": "annHype"},
+                             "message_effect_id": None},
+                "message": {"text": "annHype", "fragments": []}}
+        self.assertEqual(to_event("channel.bits.use", used),
+                         ("twitch.power_up", {"user": "Ann", "user_login": "ann", "user_id": "7", "bits": 30,
+                                              "kind": "gigantify_an_emote", "message": "annHype",
+                                              "emote": "annHype"}))
+        celebration = to_event("channel.bits.use", {**used, "power_up": {"type": "celebration", "emote": None},
+                                                    "message": None})[1]
+        self.assertEqual(("celebration", "", ""), (celebration["kind"], celebration["message"], celebration["emote"]))
+        self.assertIsNone(to_event("channel.bits.use", {**used, "type": "cheer", "power_up": None}))
+
+    def test_a_suspicious_chatters_message_tells_why_and_how_sure(self) -> None:
+        flagged = {"user_id": "9", "user_login": "bob", "user_name": "Bob", "low_trust_status": "active_monitoring",
+                   "shared_ban_channel_ids": None, "types": ["manually_added", "ban_evader"],
+                   "ban_evasion_evaluation": "likely",
+                   "message": {"message_id": "m1", "text": "hi again", "fragments": []}}
+        self.assertEqual(to_event("channel.suspicious_user.message", flagged),
+                         ("twitch.suspicious_user", {"user": "Bob", "user_login": "bob", "user_id": "9",
+                                                     "message": "hi again", "message_id": "m1",
+                                                     "reason": "ban_evader",
+                                                     "reasons": ["manually_added", "ban_evader"],
+                                                     "ban_evader": "likely", "status": "monitored"}))
+        bare = to_event("channel.suspicious_user.message", {"user_id": "9", "types": None,
+                                                            "low_trust_status": "none"})[1]
+        self.assertEqual(("", [], "unknown", "none"),
+                         (bare["reason"], bare["reasons"], bare["ban_evader"], bare["status"]))
+
+    def test_both_are_subscribed_the_second_as_a_moderator(self) -> None:
+        wanted = {kind: condition for kind, _, condition in subscriptions("42")}
+        self.assertEqual({"broadcaster_user_id": "42"}, wanted["channel.bits.use"])
+        self.assertEqual({"broadcaster_user_id": "42", "moderator_user_id": "42"},
+                         wanted["channel.suspicious_user.message"])
 
 
 if __name__ == "__main__":

@@ -29,7 +29,7 @@ class LumiaConnection(LineConnection):
     `lumia.event` (trigger "Lumia event", by type: chat, command, alert, ...) over its websocket.
 
     The token is from Lumia's settings and lets a program steer it: kept in its own file
-    (config/lumia_token.txt), never in toolbox.toml and never shown. Lumia wants it in the address, so no
+    (config/secrets/lumia_token.txt), never in toolbox.toml and never shown. Lumia wants it in the address, so no
     address is ever put into an error text. Built from Lumia's docs. Tried on the real program
     (2026-10-10, no lamp linked): it connects, the pickers fill, Lumia takes an alert, a colour and a studio
     animation, and refuses a command that is switched off there in its own words. No event was seen coming in.

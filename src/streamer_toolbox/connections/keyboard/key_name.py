@@ -31,7 +31,22 @@ class KeyName:
     @classmethod
     def of(cls, key: Any, held: set[str]) -> str:
         """The full name with the modifiers held down, in a fixed order: "ctrl+alt+shift+win+<key>"."""
-        return "+".join([m for m in ORDER if m in held] + [cls.base(key)])
+        return cls.join(held, cls.base(key))
+
+    @staticmethod
+    def join(held: list[str] | set[str], base: str) -> str:
+        """"ctrl+shift+k" from the modifiers and the key, the modifiers in the fixed order."""
+        return "+".join([m for m in ORDER if m in held] + [base])
+
+    @staticmethod
+    def parts(name: str) -> tuple[list[str], str]:
+        """The other way round: "ctrl+shift+k" → (["ctrl", "shift"], "k"); the key "+" itself stays whole."""
+        text = name.strip().lower()
+        held = []
+        while "+" in text[:-1] and text.split("+", 1)[0] in ORDER:
+            modifier, text = text.split("+", 1)
+            held.append(modifier)
+        return [m for m in ORDER if m in held], text
 
     @staticmethod
     def is_text(name: str) -> bool:

@@ -15,6 +15,8 @@ class TestVariableRenamer(unittest.TestCase):
             FlowNode("n5", "var.set", {"name": "pos", "value": 1}),
             FlowNode("n6", "logic.for_each", {"items": "${var.list}", "item": "pos"}),
             FlowNode("n7", "a.say", {"text": "pos stays text"}),
+            FlowNode("n8", "logic.value", {"values": {"where": "${var.pos.x}"}}),
+            FlowNode("n9", "var.get", {"name": "pos"}),
         ))
         renamed = VariableRenamer("pos", "dragon_spot").flow(flow)
         params = {n.id: n.params for n in renamed.nodes}
@@ -23,6 +25,8 @@ class TestVariableRenamer(unittest.TestCase):
         self.assertEqual(params["n3"]["text"], "at ${var.dragon_spot.x} and ${var.dragon_spot.y}")
         self.assertEqual(renamed.node("n4").save_as, "dragon_spot")
         self.assertEqual((params["n5"]["name"], params["n6"]["item"]), ("dragon_spot", "dragon_spot"))
+        self.assertEqual((params["n8"], params["n9"]), ({"values": {"where": "${var.dragon_spot.x}"}},
+                                                        {"name": "dragon_spot"}))
         self.assertEqual(params["n7"]["text"], "pos stays text")
 
     def test_a_flow_without_it_is_left_alone(self) -> None:

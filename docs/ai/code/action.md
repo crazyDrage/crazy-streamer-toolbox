@@ -42,7 +42,7 @@ class ThingActions:
 | `ports=("then", "else")` | several run outputs; the handler returns the port's name (or True / False) |
 | `live=True` | a reading action without parameters that fields can use as a Live value |
 | `flow_only=True` | only inside flows: not on Live, not in the SAMMI deck, **not over the API** |
-| `capture`, `fills`, `live_hints`, `editors`, `entries`, `port_fields`, `data_outputs` | see "Actions and the flow editor" in `docs/ARCHITECTURE.md` |
+| `capture`, `fills`, `live_hints`, `editors`, `entries`, `port_fields`, `value_lines` | see "Actions and the flow editor" in `docs/ARCHITECTURE.md` |
 | `typed=("value",)` | fields that take any kind of value and keep it: what is typed by hand is read once (0.5 → number, true → yes, JSON → list / object; "007", "+49" stay text); a wired value keeps its kind |
 
 ## Boxes written as JSON

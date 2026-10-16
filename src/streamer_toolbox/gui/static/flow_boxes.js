@@ -46,6 +46,7 @@ window.tbFlowInit = function (elementId, data, shortWires) {
   editor.on("nodeMoved", () => tbFlowStubs(el, editor));
   tbFlowDragOutside();
   tbFlowWireClicks(el, editor);
+  tbFlowRightClick(el, editor);
   canvas.addEventListener("keydown", (e) => {  // copy / paste / duplicate a box (Python does the work)
     const key = e.key.toLowerCase();
     if ((e.ctrlKey || e.metaKey) && ["c", "v", "d"].includes(key)) {
@@ -93,7 +94,7 @@ function tbFlowIsData(editor, nodeId, output) {
 }
 
 // Colours each output dot and each wire by its port (then / else, yes / no, each, ...): the CSS has tb-port-<name>.
-// Data dots and wires get tb-data; dots get their name as a label (data-label) where a box has more than one.
+// Data dots and wires get tb-data. A dot's name is in its row inside the box (Python writes the rows).
 function tbFlowPaint(el, editor) {
   const nodes = editor.drawflow.drawflow.Home.data;
   const number = (cls) => Number(cls.split("_")[1]);
@@ -103,30 +104,26 @@ function tbFlowPaint(el, editor) {
   };
   el.querySelectorAll(".drawflow-node").forEach((node) => {
     const data = (nodes[node.id.replace("node-", "")] || {}).data || {};
-    const ports = data.ports || [], labelsOut = data.labels_out || [], dataIn = data.data_in || [];
+    const ports = data.ports || [], dataIn = data.data_in || [];
     const entries = data.entries || [];
     node.querySelectorAll(".output").forEach((dot) => {
       const index = number([...dot.classList].find((c) => c.startsWith("output_"))) - 1;
       if (index < ports.length) {
         dot.classList.add("tb-port-" + ports[index]);
-        if (ports.length > 1) dot.dataset.label = (data.port_labels || [])[index] || ports[index];
       } else {
         dot.classList.add("tb-data");
-        dot.classList.toggle("tb-data-first", index === ports.length);
-        dot.dataset.label = labelsOut[index - ports.length] || "";
       }
     });
     node.querySelectorAll(".input").forEach((dot) => {
       let index = number([...dot.classList].find((c) => c.startsWith("input_"))) - 2;
-      if (index < entries.length) {  // run dots: "start" and the entries ("stop") when it has some
-        if (entries.length) dot.dataset.label = index < 0 ? "start" : entries[index];
-        dot.classList.toggle("tb-entry", index >= 0);
+      if (index < entries.length) {  // run dots: the box's own and the entries ("stop") when it has some
+        // a line's own run dot (Choose value, End) is a plain run dot, not a "stop"
+        dot.classList.toggle("tb-entry", index >= 0 && !(data.lines_in || []).includes(entries[index]));
         return;
       }
       index -= entries.length;
       dot.classList.add("tb-data");
       dot.classList.toggle("tb-by-name", dataIn[index] === "*");
-      dot.dataset.label = dataIn[index] === "*" ? "by name" : (dataIn[index] || "").replace(/_/g, " ");
     });
   });
   el.querySelectorAll(".connection").forEach((wire) => {
@@ -237,6 +234,50 @@ function tbFlowWireButtonHide(el) {
   el.querySelectorAll(".tb-wire-delete").forEach((button) => button.remove());
 }
 
+// The right click menu on the canvas (his "go" of 2026-10-14), instead of the browser's and Drawflow's own
+// (Drawflow puts a × on a right-clicked box or wire). A box, a wire or the empty canvas each get their own.
+// Python does the work for boxes: "tb_flow_menu" {do, node} or {do, x, y} (a spot on the canvas).
+function tbFlowRightClick(el, editor) {
+  el.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    e.stopPropagation();  // capture: Drawflow's own handler on the canvas never sees it
+    const node = e.target.closest(".drawflow-node");
+    const ask = (what) => () => emitEvent("tb_flow_menu", what);
+    if (node) {
+      const id = Number(node.id.replace("node-", ""));
+      if (editor.drawflow.drawflow.Home.data[id].name === "start") {
+        tbMenu(e.clientX, e.clientY,
+          [{ label: "Test run…", icon: "play_circle", run: ask({ do: "test", node: id }) }]);
+        return;
+      }
+      tbMenu(e.clientX, e.clientY, [
+        { label: "Change", icon: "edit", run: ask({ do: "change", node: id }) },
+        { label: "Copy", icon: "content_copy", run: ask({ do: "copy", node: id }) },
+        { label: "Duplicate", icon: "library_add", run: ask({ do: "duplicate", node: id }) },
+        { label: "Test run from here", icon: "play_arrow", run: ask({ do: "test_from", node: id }) },
+        { label: "Delete", icon: "delete", danger: true, run: ask({ do: "delete", node: id }) },
+      ]);
+      return;
+    }
+    const wire = tbFlowWireAt(el, e.clientX, e.clientY);
+    if (wire) {
+      tbMenu(e.clientX, e.clientY, [{ label: "Remove wire", icon: "link_off", danger: true, run: () => {
+        editor.connection_selected = wire;
+        editor.removeConnection();
+        editor.connection_selected = null;
+      } }]);
+      return;
+    }
+    // where on the canvas (Drawflow's own numbers: the view may be moved and zoomed)
+    const area = editor.precanvas.getBoundingClientRect();
+    const spot = { x: (e.clientX - area.x) / editor.zoom, y: (e.clientY - area.y) / editor.zoom };
+    tbMenu(e.clientX, e.clientY, [
+      { label: "Add box here", icon: "add", run: ask({ do: "add", ...spot }) },
+      { label: "Paste", icon: "content_paste", run: ask({ do: "paste", ...spot }) },
+    ]);
+  }, true);
+}
+
 // Test run: a line under each box that ran (what it gave), red for the one that failed. Gone on the next redraw.
 window.tbFlowMark = function (marks) {
   document.querySelectorAll(".tb-ran").forEach((line) => line.remove());
@@ -259,12 +300,14 @@ window.tbFlowSetShort = function (on) {
   if (el) tbFlowStubs(el, window.tbFlow);
 };
 
-window.tbFlowUpdateNode = function (id, html, css) {
+// wired (optional): the box's fields that have a wire now (field → its ${box...}), see DrawflowGraph.read
+window.tbFlowUpdateNode = function (id, html, css, wired) {
   const node = document.getElementById("node-" + id);
   if (!node) return;
   node.querySelector(".drawflow_content_node").innerHTML = html;
   node.classList.toggle("tb-off", css.includes("tb-off"));
   window.tbFlow.drawflow.drawflow.Home.data[id].html = html;
+  if (wired !== undefined) window.tbFlow.drawflow.drawflow.Home.data[id].data.wired = wired;
 };
 
 // Full screen: the whole page goes full screen and the flow area covers it, so menus and dialogs (which Quasar

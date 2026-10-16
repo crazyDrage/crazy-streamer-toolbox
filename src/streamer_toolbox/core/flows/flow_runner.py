@@ -5,6 +5,7 @@ import re
 from typing import Any
 
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
+from streamer_toolbox.core.actions.numbered_fields import count_field
 from streamer_toolbox.core.data.box_value import understand
 from streamer_toolbox.core.flows.box_signals import BoxSignals
 from streamer_toolbox.core.flows.box_wire import WIRE_IN, field_of
@@ -41,7 +42,10 @@ class FlowRunner:
     the flow: the event's data and the flow's inputs (a field it doesn't have is empty, like ${event.x}).
 
     Entries: a box with extra run dots (a Loop's "stop") runs once at a time per flow; a wire into one of those
-    dots, in any run of the flow, is passed to the running box (BoxSignals) instead of starting anything."""
+    dots, in any run of the flow, is passed to the running box (BoxSignals) instead of starting anything.
+
+    Lines: a box with entry_fields (Choose value, End) has a run dot per numbered field; a wire into one starts the
+    box with only that field read (a wire into its normal run dot counts as the first)."""
 
     def __init__(self, actions: ActionRegistry, variables: VariableStore) -> None:
         self._actions = actions
@@ -63,22 +67,32 @@ class FlowRunner:
             return (await self._run(flow, event, inputs)).results
 
     async def test_run(self, flow: Flow, inputs: dict[str, Any] | None = None,
-                       event: dict[str, Any] | None = None) -> tuple[list[dict[str, Any]], Exception | None]:
+                       event: dict[str, Any] | None = None,
+                       start_at: str | None = None) -> tuple[list[dict[str, Any]], Exception | None]:
         """The editor's Test run: runs it and gives back what every box gave (also the ones run for a data wire)
-        and the first failure, instead of raising. event: what a trigger would give (Start box values)."""
+        and the first failure, instead of raising. event: what a trigger would give (Start box values).
+        start_at: a box id: "Test run from here", that box and what is wired after it run; a value from a box
+        before it is what that box gave last time (like Test box)."""
         try:
-            return (await self._run(flow, event, inputs)).results, None
+            return (await self._run(flow, event, inputs, start_at=start_at)).results, None
         except FlowStepError as e:
             return e.results, e
         except Exception as e:  # not a box failing: still show it instead of losing it
             return [], e
 
     async def _run(self, flow: Flow, event: dict[str, Any] | None, inputs: dict[str, Any] | None,
-                   ended: asyncio.Future | None = None) -> FlowRun:
+                   ended: asyncio.Future | None = None, start_at: str | None = None) -> FlowRun:
         defaults = {i.name: i.default for i in flow.inputs if i.default is not None}
-        run = FlowRun(flow, event or {}, {**defaults, **(inputs or {})}, ended=ended)
-        self._last[(flow.name, START)] = {**run.event, **run.inputs}  # lets Split find the fields of a trigger
-        await self._follow(run, START, "out")
+        run = FlowRun(flow, event or {}, {**defaults, **(inputs or {})}, test=start_at is not None, ended=ended)
+        if start_at is None:
+            self._last[(flow.name, START)] = {**run.event, **run.inputs}  # lets Split find the fields of a trigger
+            await self._follow(run, START, "out")
+        else:
+            node = flow.node(start_at)
+            if node is None:
+                raise KeyError(f"box {start_at} isn't in the flow anymore")
+            run.arrivals[node.id] = len(flow.wires)  # a "Wait for all" started here doesn't wait for the others
+            await self._node(run, node)
         if run.error is not None:
             if isinstance(run.error, FlowStepError):
                 run.error.results = run.results  # what ran before (and beside) the failure, for Test run
@@ -151,12 +165,20 @@ class FlowRunner:
                           group="Run a flow", outputs={name: "" for name in flow.outputs}, ports=ends)
 
     async def _follow(self, run: FlowRun, source: str, port: str) -> None:
-        targets = [run.flow.node(t) for t in run.flow.targets(source, port)]
+        starts = [(run.flow.node(t), "") for t in run.flow.targets(source, port)]
         for target, entry in run.flow.entries(source, port):
-            self._signal(run, target, entry)
-        await asyncio.gather(*(self._node(run, node) for node in targets if node is not None))
+            node = run.flow.node(target)
+            if node is not None and entry in self._lines(node):
+                starts.append((node, entry))
+            else:
+                self._signal(run, target, entry)
+        await asyncio.gather(*(self._node(run, node, line) for node, line in starts if node is not None))
 
-    async def _node(self, run: FlowRun, node: FlowNode) -> None:
+    def _lines(self, node: FlowNode) -> list[str]:
+        """The run dots of a box with lines (Choose value's value_1, value_2, ...); [] for others."""
+        return self._actions.get(node.action).entry_lines(node.params) if node.action in self._actions else []
+
+    async def _node(self, run: FlowRun, node: FlowNode, line: str = "") -> None:
         run.count += 1
         if run.count > MAX_RUNS:
             run.fail(FlowStepError(run.flow.name, node.id, node.action,
@@ -181,15 +203,15 @@ class FlowRunner:
             self._running[key] = signals = BoxSignals()
             signals.use()
             try:
-                await self._run_box(run, node, ports)
+                await self._run_box(run, node, ports, line)
             finally:
                 self._running.pop(key, None)
             return
-        await self._run_box(run, node, ports)
+        await self._run_box(run, node, ports, line)
 
-    async def _run_box(self, run: FlowRun, node: FlowNode, ports: tuple[str, ...]) -> None:
+    async def _run_box(self, run: FlowRun, node: FlowNode, ports: tuple[str, ...], line: str = "") -> None:
         try:
-            result = await self._call(run, node)
+            result = await self._call(run, node, line)
         except Exception as e:
             run.fail(FlowStepError(run.flow.name, node.id, node.action, e))
             return
@@ -232,20 +254,42 @@ class FlowRunner:
         run.results.append({"box": node_id, "action": node.action if node else "",
                             "result": f"{entry}: passed on" if signals else f"{entry}: it wasn't running"})
 
-    async def _call(self, run: FlowRun, node: FlowNode) -> Any:
+    async def _call(self, run: FlowRun, node: FlowNode, line: str = "") -> Any:
+        """line: the run dot a box with lines was started at; only that field is read (else the first)."""
         pulled: dict[str, Any] = {}  # boxes this box's data wires ran, so two fields from one box run it once
         params = {}
-        typed = self._actions.get(node.action).typed if node.action in self._actions else ()
+        action = self._actions.get(node.action) if node.action in self._actions else None
+        typed, lines = (action.typed, action.value_lines) if action else ((), "")
+        entry_lines = self._lines(node)
+        if entry_lines:  # only the line that ran it, under the plain name; the others may not have run at all
+            arrived = node.params.get(line if line in entry_lines else entry_lines[0], "")
+            if arrived == WIRE_IN:
+                raise ValueError(f"{line or entry_lines[0]}: no wire leads into it yet (or choose Value for it)")
+            fill = self._typed if action.entry_fields in typed else self._fill
+            params[action.entry_fields] = await fill(arrived, run, pulled)
+        skip = {*entry_lines, count_field(action.entry_fields)} if entry_lines else set()
         for key, value in node.params.items():
+            if key in skip:
+                continue
             if value == WIRE_IN:
                 raise ValueError(f"{key}: no wire leads into it yet (or choose Value for it)")
-            params[key] = await self._fill(value, run, pulled)
-            if key in typed and isinstance(value, str) and not PLACEHOLDER.search(value):
-                params[key] = understand(value)  # typed by hand: 0.5 is a number; a wire keeps its kind
+            if key == lines and isinstance(value, dict):  # a Value box's lines: each one like a typed field
+                params[key] = {name: await self._typed(line, run, pulled) for name, line in value.items()}
+            elif key in typed:
+                params[key] = await self._typed(value, run, pulled)
+            else:
+                params[key] = await self._fill(value, run, pulled)
         result = await self._actions.run(node.action, **params)
         if node.save_as and not inspect.isasyncgen(result):
             self._variables.set(node.save_as, result)
         return result
+
+    async def _typed(self, value: Any, run: FlowRun, pulled: dict[str, Any]) -> Any:
+        """A field that takes any kind: typed by hand it is read for what it holds (0.5 is a number); a wire or a
+        ${...} in it keeps the kind it brings."""
+        if isinstance(value, str) and not PLACEHOLDER.search(value):
+            return understand(value)
+        return await self._fill(value, run, pulled)
 
     async def _fill(self, value: Any, run: FlowRun, pulled: dict[str, Any]) -> Any:
         if not isinstance(value, str):
@@ -282,7 +326,8 @@ class FlowRunner:
         node = run.flow.node(node_id)
         if node is None:
             raise KeyError(f"box {node_id} isn't in the flow anymore")
-        if any(w.target == node_id and not w.entry for w in run.flow.wires):  # it runs in the flow: what it gave
+        starts = ["", *self._lines(node)]  # the run dots that start it
+        if any(w.target == node_id and w.entry in starts for w in run.flow.wires):  # it runs in the flow: what it gave
             if node_id in run.values:
                 return run.values[node_id]
             known, last = self.last_result(run.flow.name, node_id)

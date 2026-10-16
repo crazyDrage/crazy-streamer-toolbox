@@ -43,8 +43,9 @@ core/                    shared building blocks, no service-specific code
                          devtools/tested, not at start, and ticked in its test window, not in the toolbox.
                          TestGate also writes the three checks onto every box (RegisteredAction.is_tested /
                          is_understandable / is_usable). TestView: what he sees by them (Settings → What you
-                         see, gui/components/test_view_panel): mode "tested" (the checks he picks; works alone
-                         at first), "everything" or "testing" (only what misses a check, plus the Debug box (core/flows/debug_actions: takes a value,
+                         see, gui/components/test_view_panel): modes normal and testing, and a tick per
+                         check a thing may miss (MAY_NOT: "May not work", ...): normal shows what misses only
+                         ticked checks, testing only what misses a ticked one, plus the Debug box (core/flows/debug_actions: takes a value,
                          shows it in the Live page's Recent list, gives it on) and the Value box);
                          the Add box window, the Add trigger window, the Tools page and the Connections page
                          (overview and menu; a hidden connection stays connected, pages are never hidden) ask it. His own flows
@@ -94,15 +95,18 @@ core/                    shared building blocks, no service-specific code
   files/                 FileActions (file.write_text / read_text, flow only); FileBrowser (a folder's sub
                          folders and files by ending → FolderListing, where the file window opens, places to jump
                          to), file_types (VIDEO / AUDIO / IMAGE / MEDIA_TYPES, ANY_FILE, FOLDER)
-  security/              RemoteAccess (who may open the pages: this PC always, other devices with the [access]
+  security/              SecretVault (the optional login, Settings → Login: encrypts the files in
+                         config/secrets/, scrypt + Fernet; SecretPath reads and writes through it;
+                         SecretsLockMiddleware + UnlockPage hold everything back until the password;
+                         StartOnce starts connections, timers and loads once it is open);
+                         RemoteAccess (who may open the pages: this PC always, other devices with the [access]
                          password when [api] host = 0.0.0.0), PasswordHash (salted PBKDF2), LoginThrottle, SignedInDevices
                          (signed-in browsers by session cookie id, config/signed_in_devices.json)
   popups/                PopupActions: popup.message (Show message) and popup.ask (Ask yes/no; ports yes / no /
                          no_answer) on every open toolbox screen, through MessageService and ConfirmService
   data/                  ListActions (list.add / remove / contains / size / get / random), JsonActions (json.read /
-                         write), SplitActions (data.split = Split data: one output per field, as its kind),
-                         box_value helpers (to_list, to_bool, same = If-style equality, kind_of / understand /
-                         to_kind for Split's number / text / yes/no / list / object); ObjectActions (object.get /
+                         write), box_value helpers (to_list, to_bool, same = If-style equality, kind_of /
+                         understand / to_kind: number / text / yes/no / list / object); ObjectActions (object.get /
                          has / keys / values / set / remove / build: on wired objects, changing gives a new one),
                          TextActions (text.split / join / replace / length / case / trim)
   system/                ProgramActions (system.run = Run program: output / exit code / timeout, flow only),
@@ -134,7 +138,7 @@ core/                    shared building blocks, no service-specific code
   points/                the toolbox's own currency: PointStore (config/points/points.json, per viewer and
                          platform), PointRules ([points] in toolbox.toml), PointEarner (EventBus → chatters
                          paid every few minutes, bonuses, the points chat command), PointActions (boxes)
-  variables/             VariableStore: the variables, one JSON file (config/variables.json)
+  variables/             VariableStore: the variables, one JSON file each (config/variables/<name>.json)
   connections/left_out   LEFT_OUT: the connections this copy leaves out (empty in the project; a build
                          adds the untested ones at start, see core/testing), and
                          which events go with a connection (hides triggers of off / left-out ones)
@@ -229,7 +233,7 @@ gui/
                          Add it to OBS, a preview frame, tabs: Alerts, Widgets), Tools, Connections, Plugins,
                          Settings,
                          Login (other devices only)
-  components/            reusable pieces: AppShell (menu/layout; `sub_items` = a fold-out list under a menu
+  components/            reusable pieces: AppShell (the frame: main tabs in the header, the side list holds the open area's `sub_items`; before 2026-10-12 a fold-out list under a menu
                          area: the row opens the area's main view, its arrow folds the list; Connections,
                          Overlay, Tools, Settings: main view = cards, `?show=<part>` = that part alone), ConnectionPanel (one connection's settings),
                          FileDialog (the file window of a box's file field), BoxFilterPanel (Settings → Box
@@ -237,7 +241,7 @@ gui/
     flow_editor/         FlowEditor and what it uses: drafts (mutable copies), NodeEditor (one box's form), BoxDots (what a box takes and gives: fields, data
                          dots, kinds, the wires a field may take, its summary; no drawing),
                          ParamInput (value / variable / Live value / flow input / wire from a box),
-                         SplitFieldsInput (Split data's outputs + Find fields), ActionPicker (Add menu with search),
+                         ValueLinesInput (a Value box's lines), ActionPicker (Add menu with search),
                          FlowListView (SAMMI-like list), FlowBoxView + DrawflowGraph (boxes and wires),
                          AnimationInput / AnimationDialog / AnimationMap (a box's own model animation)
     twitch_tool/         TwitchTool (Tools page, first tab; sub tabs, one class each): RedeemsTab (every reward,
@@ -284,8 +288,8 @@ one class per file. Fakes are in `tests/fakes/`, builders in
 `FakeConnectableObsClient`; nothing talks to the real programs.
 
 User files live in `config/` (gitignored except `toolbox.example.toml`): `toolbox.toml` (settings, one
-`[table]` per connection, `[sound] folder`), `vts_token.txt`, `twitch_token.json`, `vts_positions.toml`,
-`variables.json`, `flows/`, `flow_templates/`.
+`[table]` per connection, `[sound] folder`), `vts_token.txt`, `twitch_token.json`, `boxes/vts/position/positions.toml`,
+`variables/`, `flows/`, `flow_templates/`.
 
 ## Starting and restarting (2026-10-01)
 - `python -m streamer_toolbox` (also start.bat / start-browser.bat) is the **launcher** (ToolboxLauncher): it runs
@@ -411,7 +415,7 @@ Reward on / off keep the id too (older flows' names still work).
   keeps itself (any JSON-like object, stored in the flow file's params), edited in its own window instead of a
   ParamInput. EDITORS (value_editors.py) maps the kind to its field class (AnimationInput: map + one line + Edit opens
   AnimationDialog); the class's `text(value)` is the box line. The window can Save to file / Load from file:
-  BoxValueFiles, `config/box_values/<kind>/<name>.json` (a copy, not a link). New kinds: an input class with
+  BoxValueFiles, `config/boxes/<program>/<box>/<name>.json` (a copy, not a link). New kinds: an input class with
   build() + text(), one entry in EDITORS. The class also gets the box's params (PlacementInput: its scene).
 - `obs_placement` (round 23): PlacementInput + PlacementDialog. The window runs obs.put_place_marker (a
   see-through colour source in the scene, at the place the box has), he drags / sizes it in OBS, Use this place
@@ -439,10 +443,17 @@ Reward on / off keep the id too (older flows' names still work).
 - End box (logic.end, 2026-10-02): FlowRunner.register runs a flow used as a box in its own task and goes on
   when an End box is reached (FlowRun.ended) or the flow is done; the rest runs on (a failure there is logged).
   Named End boxes (Flow.ends) are the box's ports; its result then carries `_end` (END_KEY) = the one reached.
+  Since 2026-10-16 an End box has lines (name_1, name_2, ...; an old `name` becomes name_1 when read,
+  core/flows/old_end_boxes.py), each with its own run dot: see `entry_fields`.
+- `entry_fields = "value"` (Choose value, End: "name"): numbered fields like port_fields, but each is a run dot on
+  the box's left (an entry). A run wire into one starts the box with only that field read, handed to the
+  handler under the plain name; the others aren't read (they may come from a side that didn't run). The normal
+  run dot isn't drawn (tb-lines-in); a wire saved into it counts as line 1. FlowOutline follows these wires too.
 - `live=True`: a reading action without parameters (loaded model, current scene); a box field can use it as a
   **Live value**, `${get.vts.get_model}` or `${get.vts.get_model_position.x}`, run when the box runs.
-- `data_outputs="fields"`: the box's data outputs are the fields listed in that parameter (`{name: kind}`, Split
-  data) instead of the one "result" output.
+- `value_lines="values"`: the parameter holds named values typed into the box (`{name: value}`, the Value box);
+  each line is a data output of its own, read like a `typed` field. (Split data, with `data_outputs`, is gone
+  since 2026-10-16: FlowStore wires an old Split box's fields from what it took apart, old_split_boxes.)
 - Every box can `save_as` its result in a variable; parameters can be `${var.name.field}`, `${input.x}`,
   `${event.x}`, `${box.n3.field}` (a value that is only a placeholder keeps its type, e.g. a position object).
 
@@ -451,7 +462,7 @@ box with two wires in runs twice (Wait for all joins them). A failing box stops 
 the first failure. Connection tabs only hold connection settings.
 
 Data wires (orange, round 11): a field whose source is "Wire from a box" is `${box}` until wired, then
-`${box.n3}` (n3's result) or `${box.n3.x}` (one field; a Split box has one output dot per field). In the box
+`${box.n3}` (n3's result) or `${box.n3.x}` (one field; a Value box has one output dot per line). In the box
 view it's a square dot on the left of the box; results are square dots on the right, after the run dots
 (Drawflow: `input_1` = run in, `input_2..` = wired fields; outputs = ports, then data outputs; the dot names are
 kept in each Drawflow node's `data` so reading back survives form edits). When the field is read: if n3 has run
@@ -463,9 +474,8 @@ info, Get model position, Set source size). Since round 12 they are **not** dots
 "result" dot); fields still pick `${box.n3.width}` from their list, and it's drawn from the result dot. Every
 box with fields has a **"by name"** dot first on the left (data_in `*`, BY_NAME): a result dropped there isn't
 kept as a wire; flow_boxes.js sends tb_flow_by_name and WireMatcher.by_name sets each field named like one of
-the result's keys (known: declared outputs / Split fields / Start fields; else a sample) to `${box.n3.<key>}`,
-leaving fields that have a value or another wire. A Split box wired to a result with known keys takes them as
-its fields at once (BoxDots.fields_from_wire); Find fields still reads a sample otherwise. A **Flow output** box (`logic.output`, name + value) makes a
+the result's keys (known: declared outputs / Value lines / Start fields; else a sample) to `${box.n3.<key>}`,
+leaving fields that have a value or another wire. A **Flow output** box (`logic.output`, name + value) makes a
 flow used as a box give back {name: value} with a dot per output (Flow.outputs). Kinds: KindCheck (core/data)
 gives a field's kind from its parameter type and warns when a wire brings the wrong one (text → number).
 Flow.data_loop(): saving refuses orange wires that go round. Editor extras: **Wire by name** (WireMatcher +

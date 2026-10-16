@@ -19,7 +19,7 @@ SHORTEST_PAUSE = 0.05  # between Loop rounds: a round of quick boxes can't take 
 
 class LogicActions:
     """The boxes that aren't a service: If (then / else), Repeat, For each, Loop (start / stop), Wait,
-    Random number, Calculate, Set / Add to variable, Set field."""
+    Random number, Calculate, Value, Choose value, End, Set / Get variable, Math on variable, Set field."""
 
     def __init__(self, variables: VariableStore) -> None:
         self._variables = variables
@@ -74,8 +74,8 @@ class LogicActions:
         actions.add("logic.random", self.random_number, "A whole random number from lowest to highest (both "
                     "included), e.g. 1 to 100 for a d100. Save it in a variable", "Random number", group="Random",
                     flow_only=True, labels={"lowest": "From", "highest": "To"})
-        actions.add("logic.math", self.calculate, "a + - * / b, e.g. the model's x minus 0.2 to move it left. "
-                    "Wire a number into a (or b), and this box's result into the next box",
+        actions.add("logic.math", self.calculate, "a + - * / b (plus, minus, times, divided by), e.g. the model's "
+                    "x minus 0.2 to move it left. Wire a number into a (or b), and this box's result into the next box",
                     "Calculate", group="Math", options={"op": math_operators}, flow_only=True,
                     labels={"a": "First number", "op": "Sign", "b": "Second number"})
         actions.add("logic.round", self.round_number, "Rounds a number to that many decimals (0 = a whole "
@@ -89,23 +89,35 @@ class LogicActions:
                     "+ Add case for as many as you need", "Switch", group="If", ports=("else",), port_fields=CASE,
                     flow_only=True, hints={"value": "What to look at, e.g. what the viewer typed",
                                            CASE: "Several words with a comma, e.g. ra, right_arm"})
-        actions.add("logic.value", self.value, "A value you type once (e.g. your model's name) and wire into as "
-                    "many boxes as you like: change it here, every box gets it. Numbers, true/false and JSON stay "
-                    "what they are", "Value", group="Flow", flow_only=True,
-                    hints={"value": "Wire its orange result dot into the fields that need it; it needs no run wire"},
-                    typed=("value",))
+        actions.add("logic.value", self.value, "Values you type once (e.g. your model's name, a power of 10) and "
+                    "wire into as many boxes as you like: every line is an orange dot of its own. Change it here, "
+                    "every box gets it. Numbers, true/false and JSON stay what they are", "Value", group="Flow",
+                    flow_only=True, value_lines="values", typed=("value",), data_only=True,
+                    hints={"values": "Wire a line's orange dot into the fields that need it; it has no run wire"})
+        actions.add("logic.choose", self.choose, "Gives the value of the line its run wire came in at, then goes "
+                    "on: each line has a run dot and a value of its own, e.g. an If's then into line 1, its else into "
+                    "line 2, and the next box gets the value of the side that ran. + Add value for more lines",
+                    "Choose value", group="If", flow_only=True, entry_fields="value", typed=("value",),
+                    hints={"value": "The value this line gives; its run dot is the one on its left"})
         actions.add("logic.end", self.end, "The end of this flow when another flow uses it as a box: there that "
-                    "box goes on as soon as an End box is reached. Give End boxes names (found, not found, ...) and "
-                    "the box gets one output per name", "End", group="Flow", flow_only=True,
+                    "box goes on as soon as an End box is reached. Give the End lines names (found, not found, ...) "
+                    "and the box gets one output per name; each line has its own run dot, + Add name for more",
+                    "End", group="Flow", flow_only=True, entry_fields="name",
                     hints={"name": "Empty = the box's one output. A name = its own output on the box"})
         actions.add("logic.output", self.output, "What this flow gives back when another flow uses it as a box: "
                     "each Flow output box becomes an orange dot on that box, named like this box",
                     "Flow output", group="Flow", flow_only=True, typed=("value",))
         actions.add("var.set", self.set_variable, "Stores a value in a variable (kept in a file)", "Set variable",
                     group="Variables", options={"name": names}, typed=("value",))
-        actions.add("var.add", self.add_to_variable, "Adds to a number variable (a minus number takes away); "
-                    "a variable that doesn't exist yet starts at 0", "Add to variable", group="Variables",
-                    options={"name": names})
+        actions.add("var.add", self.math_on_variable, "Works a number variable out with + - * / and keeps the "
+                    "result in it, e.g. count + 1 or score * 2; gives the new value. A variable that doesn't exist "
+                    "yet starts at 0", "Math on variable", group="Variables",
+                    options={"name": names, "op": math_operators}, labels={"op": "Sign", "amount": "Number"})
+        actions.add("var.get", self.get_variable, "Gives a variable's value as it is right now: wire its orange "
+                    "dot into other boxes' fields. It needs no run wire, it reads the variable each time a box "
+                    "needs it", "Get variable", group="Variables", options={"name": names}, data_only=True,
+                    hints={"field": "Optional: one field of an object variable, e.g. x of a position (a.b for "
+                                    "a field inside a field)"})
         actions.add("var.set_field", self.set_field, "Sets one field of an object variable (a.b for a field "
                     "inside a field); a variable that doesn't exist yet starts as an empty object", "Set field",
                     group="Variables", options={"name": names}, typed=("value",))
@@ -156,8 +168,16 @@ class LogicActions:
         return str(name).strip()
 
     @staticmethod
-    async def value(value: Any = "") -> Any:
-        return value  # typed by hand it arrives read already (typed); a wire keeps its kind
+    async def choose(value: Any = "") -> Any:
+        """The value of the line it was started at (the runner hands only that one over)."""
+        return value
+
+    @staticmethod
+    async def value(values: dict[str, Any] | None = None, **old: Any) -> Any:
+        """Its lines, by name (typed by hand they arrive read already, see FlowRunner). `old` is the one value of a
+        box from before the lines, {"value": ...}: a flow file turns it into a line when it is read
+        (old_value_boxes), but an API call may still send it."""
+        return dict(values) if values else old.get("value", "")
 
     async def for_each(self, items: Any, item: str = "item") -> AsyncIterator[str]:
         """Checks the list first (a bad list fails the box), then hands the runner one round at a time."""
@@ -237,14 +257,16 @@ class LogicActions:
         self._variables.set(name, value)
         return value
 
-    async def add_to_variable(self, name: str, amount: float = 1) -> float:
+    async def math_on_variable(self, name: str, op: str = "+", amount: float = 1) -> float:
         current = _number(self._variables.get(name, 0))
         if current is None:
             raise ValueError(f"variable {name} is not a number ({self._variables.get(name)!r})")
-        total = current + float(amount)
-        total = int(total) if total == int(total) else total
+        total = await self.calculate(current, op, amount)
         self._variables.set(name, total)
         return total
+
+    async def get_variable(self, name: str, field: str = "") -> Any:
+        return self._variables.lookup(f"{name}.{field}" if field else name)
 
     async def set_field(self, name: str, field: str, value: Any = "") -> dict[str, Any]:
         whole = understand(self._variables.get(name, {}))  # also an object typed into Set variable as JSON text

@@ -39,7 +39,7 @@ enabled = false
 client_id = ""                          # dev.twitch.tv/console → your app
 client_secret = ""
 redirect_url = "http://localhost:17563"   # must be one of the app's OAuth Redirect URLs
-# The login itself (Connect → allow in the browser) is kept in config/twitch_token.json.
+# The login itself (Connect → allow in the browser) is kept in config/secrets/twitch_token.json.
 
 [mixitup]
 enabled = false

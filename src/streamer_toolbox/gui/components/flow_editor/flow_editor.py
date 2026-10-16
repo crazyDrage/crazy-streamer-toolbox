@@ -17,6 +17,7 @@ from streamer_toolbox.core.events.event_fields import EVENT_FIELDS
 from streamer_toolbox.core.flows.chat_match import MODES, mode_of, to_match
 from streamer_toolbox.core.flows.number_match import COMPARE, compare_of, to_compare
 from streamer_toolbox.core.flows.role_match import ROLE_KEYS, roles_match, roles_of
+from streamer_toolbox.gui.components.keep_typed import keep_typed
 from streamer_toolbox.gui.components.role_picker import RolePicker
 from streamer_toolbox.core.flows.flow_gate import WHEN_BUSY
 from streamer_toolbox.core.flows.flow_trigger import FlowTrigger
@@ -27,6 +28,7 @@ from streamer_toolbox.gui.components.folder_field import FolderField
 from streamer_toolbox.gui.components.flow_editor.flow_box_view import FlowBoxView
 from streamer_toolbox.gui.components.flow_editor.flow_draft import FlowDraft
 from streamer_toolbox.gui.components.flow_editor.flow_list_view import FlowListView
+from streamer_toolbox.gui.components.flow_editor.key_dialog import KeyDialog
 from streamer_toolbox.gui.components.flow_editor.node_editor import NodeEditor
 from streamer_toolbox.gui.components.flow_editor.start_examples import StartExamples
 from streamer_toolbox.gui.components.flow_editor.trigger_kinds import (NUMBER_TRIGGERS, TRIGGER_CHOICES, TRIGGER_INFO,
@@ -34,6 +36,7 @@ from streamer_toolbox.gui.components.flow_editor.trigger_kinds import (NUMBER_TR
 from streamer_toolbox.gui.components.flow_editor.trigger_picker import TriggerPicker
 
 VIEWS = {"list": "List", "boxes": "Boxes"}
+KEY = "key.pressed"  # its key is picked in a window (KeyDialog)
 
 
 class FlowEditor:
@@ -56,8 +59,12 @@ class FlowEditor:
         self._runner = runner
         self._nodes = NodeEditor(actions, runner, variables, box_files, draft, self._changed, box_filters,
                                  switched_off, test_view)
+        # a box that only gives values has no run wire, also in a flow saved before it was one (shoutout_clip)
+        for node in draft.nodes:
+            if self._nodes.dots.data_only(node):
+                draft.take_off_run_wires(node.id)
         self._list = FlowListView(draft, self._nodes)
-        self._boxes = FlowBoxView(draft, self._nodes, self._test_run)
+        self._boxes = FlowBoxView(draft, self._nodes, self._test_run, self._test_from)
 
     def build(self) -> None:
         FlowBoxView.add_head()
@@ -204,6 +211,8 @@ class FlowEditor:
                             self._chat_match(index, trigger.match)
                         elif trigger.kind in NUMBER_TRIGGERS:
                             self._number_match(index, key, str(trigger.match.get(key, "*")))
+                        elif trigger.kind == KEY:
+                            self._key_match(index, str(trigger.match.get(key, "")))
                         elif not key:  # nothing to pick on it (Stream offline)
                             ui.label("Starts every time; it has nothing to filter by.").classes("text-xs opacity-60")
                         else:
@@ -240,6 +249,7 @@ class FlowEditor:
         current = [value] if value else []
         pick = ui.select(current, value=value or None, label=key, new_value_mode="add-unique",
                          on_change=changed).props("dense").classes("flex-1 min-w-[10rem]")
+        keep_typed(pick)
 
         async def load() -> None:
             try:
@@ -288,6 +298,20 @@ class FlowEditor:
         amount.set_visibility(bool(how))
         ui.label("Starts at every change that fits; give the flow a cooldown if that is too often.") \
             .classes("text-xs opacity-60 self-center")
+
+    def _key_match(self, index: int, value: str) -> None:
+        """A Key trigger: the key's name, typed or picked in a window (KeyDialog)."""
+        field = ui.input(label="key", value=value,
+                         on_change=lambda e: self._set_trigger(index, match={"key": (e.value or "").strip().lower()})) \
+            .props("dense").classes("flex-1 min-w-[10rem]")
+
+        async def choose() -> None:
+            picked = await KeyDialog(field.value or "").pick()
+            if picked:
+                field.set_value(picked)
+
+        ui.button("Choose key", icon="keyboard", on_click=choose).props("no-caps outline dense") \
+            .tooltip("Tick Ctrl / Alt / Shift and pick the key from a list, or press it")
 
     def _who(self, index: int) -> dict[str, str]:
         """The trigger's role filter as it is saved (kept when its other field changes)."""
@@ -362,7 +386,21 @@ class FlowEditor:
             return
         inputs = {name: _typed(value) for name, value in values.items() if value not in (None, "")}
         event = {name: _typed(value) for name, value in event.items()}
-        results, error = await self._runner.test_run(self._draft.to_flow(), inputs, event)
+        self._show_test(*await self._runner.test_run(self._draft.to_flow(), inputs, event))
+
+    async def _test_from(self, node_id: str) -> None:
+        """Test run from one box on (the canvas's right click menu): it and what is wired after it run for real;
+        the flow's inputs are their defaults, Start gives what it gave last time."""
+        await self._boxes.sync()
+        problem = self._problem()
+        if problem:
+            ui.notify(problem, type="warning")
+            return
+        known, last = self._runner.last_result(self._draft.name, START) if self._draft.name else (False, None)
+        event = last if known and isinstance(last, dict) else {}
+        self._show_test(*await self._runner.test_run(self._draft.to_flow(), None, event, start_at=node_id))
+
+    def _show_test(self, results: list[dict], error: Exception | None) -> None:
         failed = getattr(error, "node_id", None)
         if self._view == "boxes":
             self._boxes.show_run(results, failed, str(getattr(error, "cause", error or "")))

@@ -71,9 +71,8 @@ class TestFlowStore(unittest.TestCase):
         self.assertFalse(chat.matches("twitch.chat", {"message": "!qa"}))
         self.assertTrue(FlowTrigger("twitch.chat", {"message": "*"}).matches("twitch.chat", {"message": "hi"}))
 
-    def test_data_wires_and_split_fields_survive_a_save(self) -> None:
-        flow = Flow("f", "F", (FlowNode("n1", "data.split", {"data": "${box.n2}",
-                                                             "fields": {"x": "number", "model": "text"}}),
+    def test_data_wires_and_value_lines_survive_a_save(self) -> None:
+        flow = Flow("f", "F", (FlowNode("n1", "logic.value", {"values": {"x": 0.5, "model": "${box.n2}"}}),
                                FlowNode("n2", "logic.if", {"left": "${box}", "right": "${box.n1.x}"})))
         with tempfile.TemporaryDirectory() as tmp:
             store = FlowStore(Path(tmp))

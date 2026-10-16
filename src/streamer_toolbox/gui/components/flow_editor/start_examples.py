@@ -10,7 +10,8 @@ EXAMPLES: dict[str, Any] = {
     "args": "", "role": "viewer", "platform": "twitch", "tier": "1000", "months": 3, "amount": 5, "bits": 100,
     "viewers": 10, "seconds": 60, "anonymous": False, "gift": False, "automatic": False, "source": "test",
     "reward_id": "", "redemption_id": "test", "message_id": "test", "model": "", "key": "f23", "followed_at": "2026-01-01T12:00:00Z",
-    "title": "My stream", "category": "Just Chatting", "bpm": 80,
+    "title": "My stream", "category": "Just Chatting", "bpm": 80, "kind": "celebration", "emote": "",
+    "reason": "ban_evader", "reasons": ["ban_evader"], "ban_evader": "likely",
 }
 
 

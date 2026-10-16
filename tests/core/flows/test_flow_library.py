@@ -105,5 +105,46 @@ class TestFlowLibrary(unittest.IsolatedAsyncioTestCase):
         self.library.rename_folder("Lizard stuff", "")
         self.assertEqual(self.library.folders(), [])
 
+    async def test_a_folder_goes_out_and_comes_in_as_one_file(self) -> None:
+        self.library.save(Flow("add", "Add", (FlowNode("n1", "a.record", {"n": 1}),),
+                               (FlowWire("start", "out", "n1"),), folder="lizard"))
+        self.library.save(Flow("plus_one", "Plus one", (FlowNode("n1", "flow.add"),), (FlowWire("start", "out", "n1"),),
+                               (FlowTrigger("timer", {"every": 5}),), folder="lizard"))
+        self.library.save(Flow("other", "Other"))
+        text = self.library.folder_pack("lizard").to_text()
+
+        copies = self.library.import_file(text, "lizard.flows.toml")  # both labels are taken here
+        self.assertEqual([(f.name, f.label, f.folder, f.triggers) for f in copies],
+                         [("add_imported", "Add (imported)", "lizard", ()),
+                          ("plus_one_imported", "Plus one (imported)", "lizard", ())])
+        self.assertEqual(copies[1].nodes[0].action, "flow.add_imported")  # its box runs the copy, not the old one
+        await self.actions.run("flow.plus_one_imported")
+        self.assertEqual(self.calls, [{"n": 1}])
+
+        for flow in self.library.all():
+            self.library.delete(flow.name)
+        fresh = self.library.import_file(text, "lizard.flows.toml")  # an empty toolbox: as they were
+        self.assertEqual([(f.name, f.label, len(f.triggers)) for f in fresh],
+                         [("add", "Add", 0), ("plus_one", "Plus one", 1)])
+
+    def test_import_file_takes_one_flow_too_and_says_what_is_wrong(self) -> None:
+        self.library.save(Flow("tick", "Tick", (FlowNode("n1", "a.record"),), (FlowWire("start", "out", "n1"),)))
+        self.assertEqual([f.label for f in self.library.import_file(self.library.export_text("tick"), "tick.toml")],
+                         ["Tick (imported)"])
+        for bad in ("toolbox_flows = 1", "toolbox_flows = 2\n[[flows]]\nname = 'a'", "not toml ["):
+            with self.assertRaises(ValueError):
+                self.library.import_file(bad, "x.toml")
+
+    def test_a_folder_file_brings_the_flows_its_boxes_use(self) -> None:
+        wires = (FlowWire("start", "out", "n1"),)
+        self.library.save(Flow("deep", "Deep"))
+        self.library.save(Flow("helper", "Helper", (FlowNode("n1", "flow.deep"),), wires, folder="tools"))
+        self.library.save(Flow("plus", "Plus", (FlowNode("n1", "flow.helper"), FlowNode("n2", "flow.gone")), wires,
+                               folder="lizard"))
+        pack = self.library.folder_pack("lizard")
+        self.assertEqual([f.name for f in pack.flows], ["plus", "helper", "deep"])
+        self.assertEqual(pack.needs(), ["gone"])  # deleted here: nothing to bring
+
+
 if __name__ == "__main__":
     unittest.main()

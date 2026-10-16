@@ -25,7 +25,7 @@ class TiltifyConnection(ConnectionBase):
     so tip alerts, tip totals and top tippers stay untouched. Read only.
 
     Tiltify wants an application of the streamer's own (their developer page): its Client ID is typed on the
-    tab, its secret is kept in its own file (config/tiltify_secret.txt), never in toolbox.toml and never
+    tab, its secret is kept in its own file (config/secrets/tiltify_secret.txt), never in toolbox.toml and never
     shown. Built from Tiltify's API reference, never run against the real service. NOT CONFIRMED: that every
     answer wraps its content in `data`, and that the login wants `scope=public`. Off until switched on."""
 

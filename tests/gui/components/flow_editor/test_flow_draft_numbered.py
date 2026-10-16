@@ -33,3 +33,20 @@ class TestFlowDraftNumbered(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_wires_follow_a_renamed_value_line_and_wait_when_it_is_taken_away(self) -> None:
+        draft = FlowDraft("f", "F", nodes=[
+            NodeDraft("v", "logic.value", {"values": {"power": 10, "model": "Hex"}}),
+            NodeDraft("a", "a.say", {"p": "${box.v.power}", "q": "${box.v.power.@count}", "m": "${box.v.model}",
+                                     "other": "${box.v2.power}"})])
+        draft.rename_output("v", "power", "strength")
+        self.assertEqual(draft.node("a").params, {"p": "${box.v.strength}", "q": "${box.v.strength.@count}",
+                                                  "m": "${box.v.model}", "other": "${box.v2.power}"})
+        draft.rename_output("v", "model", "")
+        self.assertEqual(draft.node("a").params["m"], "${box}")
+
+    def test_a_box_that_only_gives_values_is_taken_out_of_the_run_chain(self) -> None:
+        draft = FlowDraft("f", "F", nodes=[NodeDraft("g", "var.get"), NodeDraft("a", "a.x"), NodeDraft("b", "a.y")],
+                          wires=[FlowWire("start", "out", "g"), FlowWire("g", "done", "a"), FlowWire("g", "done", "b")])
+        draft.take_off_run_wires("g")
+        self.assertEqual(draft.wires, [FlowWire("start", "out", "a"), FlowWire("start", "out", "b")])

@@ -4,6 +4,8 @@ milestone, gifted memberships. Field names from developers.google.com/youtube/v3
 YouTube has no event for a new subscriber (its free "follow")."""
 from typing import Any
 
+from streamer_toolbox.core.events.chat_command import chat_command
+
 CHAT = "youtube.chat"
 SUPERCHAT = "youtube.superchat"
 SUPERSTICKER = "youtube.supersticker"
@@ -27,9 +29,9 @@ def youtube_events(message: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
     here = {"platform": PLATFORM}
     if kind == "textMessageEvent":
         text = str(_details(snippet, "textMessageDetails").get("messageText") or snippet.get("displayMessage") or "")
-        command, _, args = text.partition(" ")
+        command, args = chat_command(text)
         return [(CHAT, {"user": user, "message": text,
-                        "command": command.casefold() if command.startswith("!") else "", "args": args.strip(),
+                        "command": command, "args": args,
                         "role": _role(author), "user_id": str(author.get("channelId") or ""),
                         "message_id": str(message.get("id") or ""), **here})]
     if kind in ("superChatEvent", "superStickerEvent"):

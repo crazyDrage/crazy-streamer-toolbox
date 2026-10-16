@@ -22,21 +22,25 @@ from streamer_toolbox.connections.vtube_studio.vts_item_actions import CLICKED, 
 from streamer_toolbox.connections.vtube_studio.vts_look_actions import VtsLookActions
 from streamer_toolbox.connections.vtube_studio.vts_position import VtsPosition
 from streamer_toolbox.connections.vtube_studio.vts_position_store import VtsPositionStore
+from streamer_toolbox.connections.vtube_studio.vts_tracking_settle import SETTLE_SECONDS, VtsTrackingSettle
 
 PLUGIN = {"pluginName": "streamer-toolbox", "pluginDeveloper": "crazyDrage"}
 USER_DENIED = 50
+TRACKING = "vts.tracking"
 MODEL_LOADED = "vts.model_loaded"  # event: {model} when VTube Studio finished loading a model
 # VTS event → (toolbox event, its data from VTS's data); MODEL_LOADED is handled on its own (only when loaded)
 EVENTS = {
-    "TrackingStatusChangedEvent": ("vts.tracking", lambda d: {
+    "TrackingStatusChangedEvent": (TRACKING, lambda d: {
         "face": bool(d.get("faceFound")), "left_hand": bool(d.get("leftHandFound")),
         "right_hand": bool(d.get("rightHandFound"))}),
     "BackgroundChangedEvent": ("vts.background", lambda d: {"background": d.get("backgroundName", "")}),
     "HotkeyTriggeredEvent": ("vts.hotkey", lambda d: {
         "hotkey": d.get("hotkeyName", ""), "hotkey_id": d.get("hotkeyID", ""), "action": d.get("hotkeyAction", ""),
-        "by_toolbox": bool(d.get("hotkeyTriggeredByAPI")), "model": d.get("modelName", "")}),
+        "by_plugin": bool(d.get("hotkeyTriggeredByAPI")), "model": d.get("modelName", "")}),
+    # VTS sends only these three; data = all of it, as it came
     "ModelConfigChangedEvent": ("vts.model_config", lambda d: {
-        "model": d.get("modelName", ""), "hotkeys_changed": bool(d.get("hotkeyConfigChanged"))}),
+        "model": d.get("modelName", ""), "model_id": d.get("modelID", ""),
+        "hotkeys_changed": bool(d.get("hotkeyConfigChanged")), "data": dict(d)}),
     "ModelMovedEvent": ("vts.model_moved", lambda d: {
         "model": d.get("modelName", ""),
         **VtsPosition.from_api(d.get("modelPosition") or {"positionX": 0, "positionY": 0, "rotation": 0,
@@ -60,13 +64,15 @@ class VtsConnection(ConnectionBase, ModelMover):
 
     def __init__(self, settings: dict[str, Any], token_path: Path, positions: VtsPositionStore,
                  client_factory: Callable[[str], Any] = VtsClient, token_timeout: float = 120,
-                 events: EventBus | None = None) -> None:
+                 events: EventBus | None = None, tracking_seconds: float = SETTLE_SECONDS) -> None:
         super().__init__({"url": "ws://127.0.0.1:8001"}, settings)
         self._token_path = token_path
         self._positions = positions
         self._client_factory = client_factory
         self._token_timeout = token_timeout
         self._events = events
+        # a missed camera picture is no "tracking lost": only what stays a second goes out
+        self._tracking = VtsTrackingSettle(lambda state: events.publish(TRACKING, state), tracking_seconds)
         self._client: Any = None
         self._items = VtsItemActions(self._request)
         self._animation: tuple[asyncio.Task, VtsAnimationPlayer] | None = None  # the one playing (one at a time)
@@ -314,7 +320,10 @@ class VtsConnection(ConnectionBase, ModelMover):
             self._events.publish(MODEL_LOADED, {"model": data.get("modelName", ""), "model_id": data.get("modelID")})
         elif kind in EVENTS:
             name, fields = EVENTS[kind]
-            self._events.publish(name, fields(data))
+            if name == TRACKING:
+                self._tracking.offer(fields(data))
+            else:
+                self._events.publish(name, fields(data))
 
     async def _request(self, message_type: str, data: dict[str, Any] | None = None) -> dict[str, Any]:
         if not self._settings["enabled"]:
@@ -362,6 +371,7 @@ class VtsConnection(ConnectionBase, ModelMover):
         ))
 
     async def _close(self) -> None:
+        self._tracking.stop()
         if self._client is not None:
             await self._client.close()
         self._client = None

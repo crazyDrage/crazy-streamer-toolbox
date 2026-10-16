@@ -1,4 +1,5 @@
 """The triggers a flow can start on. A plugin adds its own to these tables (PluginContext.add_trigger)."""
+from streamer_toolbox.connections.twitch.eventsub_events import POWER_UPS, SUSPICIOUS_REASONS
 from streamer_toolbox.core.actions.registered_action import OptionsProvider
 from streamer_toolbox.core.connections.left_out import gone, left_out
 from streamer_toolbox.core.testing.test_item import TRIGGER
@@ -50,6 +51,8 @@ TRIGGER_KINDS = {"custom": ("bolt", "Custom trigger", "trigger", ""),
                  # no field: Twitch says nothing about a stream that ended (its "type" was always empty)
                  "twitch.offline": ("sensors_off", "Stream offline", "", ""),
                  "twitch.ad_break": ("timer", "Ad break", "seconds", "*"),
+                 "twitch.power_up": ("auto_awesome", "Power-up used", "kind", "*"),
+                 "twitch.suspicious_user": ("gpp_maybe", "Suspicious user wrote", "reason", "*"),
                  "timer": ("timer", "Timer (seconds)", "every", "10"),
                  "vts.model_loaded": ("face", "Model loaded", "model", "*"),
                  "vts.tracking": ("visibility", "Tracking found / lost", "face", "*"),
@@ -93,6 +96,11 @@ TRIGGER_INFO: dict[str, str] = {
     "twitch.online": "Your Twitch stream went live; with its title and category (the game)",
     "twitch.offline": "Your Twitch stream ended; with its title and category (the game)",
     "twitch.ad_break": "An ad break started; seconds = how long",
+    "twitch.power_up": "A viewer spent bits on a Power-up: a message effect, a celebration or a gigantified "
+                       "emote (kind); with the bits and the emote's name",
+    "twitch.suspicious_user": "A chatter Twitch or a mod flagged as suspicious wrote in chat; reason = why "
+                              "(ban_evader, banned_in_shared_channel, manually_added), ban_evader = how sure "
+                              "Twitch is (possible, likely). Needs a new Connect once",
     "tip": "A tip / donation came in, from any service that tells the toolbox about one",
     "streamelements.activity": "Anything in StreamElements' activity feed, by its type (tip, merch, ...)",
     "streamlabs.activity": "Anything Streamlabs tells, by its type (donation, merch, ...)",
@@ -117,9 +125,11 @@ TRIGGER_INFO: dict[str, str] = {
     "vts.model_loaded": "A model was loaded in VTube Studio",
     "vts.tracking": "The face or a hand was found or lost",
     "vts.background": "VTube Studio shows another background",
-    "vts.hotkey": "A hotkey ran in VTube Studio (by_toolbox: the toolbox pressed it)",
+    "vts.hotkey": "A hotkey ran in VTube Studio. by_plugin: true = a program pressed it (the toolbox, SAMMI, a "
+                  "deck, ...), false = you pressed its key or clicked it in VTube Studio",
     "vts.model_config": "The loaded model's settings changed",
-    "vts.model_moved": "The model was moved, turned or resized",
+    "vts.model_moved": "The model was moved, turned or resized. Comes many times a second while it moves: give "
+                       "the flow a Cooldown (e.g. 0.5 s) to start it less often",
     "veadotube.state": "veadotube mini shows another avatar state",
     "tits.hit": "A thrown item hit the model; with the item, how hard (strength) and from where (x, y, z)",
     "tits.trigger_started": "A T.I.T.S. trigger started",
@@ -139,6 +149,17 @@ NUMBER_TRIGGERS = {"heartrate"}
 # kind → the choices for the field it is matched on (a dropdown; typing still works). The flow editor page
 # brings the ones that ask a service (the Twitch rewards); these are the ones plugins add.
 TRIGGER_CHOICES: dict[str, OptionsProvider] = {}
+
+
+async def _power_ups() -> list[str]:
+    return ["*", *POWER_UPS]
+
+
+async def _suspicious_reasons() -> list[str]:
+    return ["*", *SUSPICIOUS_REASONS]
+
+
+TRIGGER_CHOICES.update({"twitch.power_up": _power_ups, "twitch.suspicious_user": _suspicious_reasons})
 
 
 def offered_triggers(switched_off: SwitchedOff | None,

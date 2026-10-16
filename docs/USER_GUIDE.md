@@ -77,7 +77,7 @@ all** at the bottom of the menu gives every item an eye: click it to hide what y
 
 | Page | What it is for |
 |---|---|
-| **Live** | Your button deck: big buttons that run a flow. The pencil switches to edit mode (buttons, pages, colours). |
+| **Live** | Your button deck: buttons that run a flow, on pages. The pencil switches to edit mode: drag a button to where you want it, drag its corner to change its size, click it to change what it runs, its colour, text colour, icon or picture. Each page has its own number of columns and rows and its own background colour. |
 | **Flows** | What the toolbox does: boxes connected by wires, started by a trigger (a redeem, a follow, a key, a timer, a button). |
 | **Triggers** | Your own named triggers that several flows can listen to. |
 | **Variables** | Values the flows remember (counters, texts, lists). |
@@ -106,7 +106,7 @@ after you pressed Connect (or switched it on) on its tab. From then on it connec
   Connect. While you are live, chat messages, Super Chats, Super Stickers and memberships start flows.
   Writing in chat is off until you set "May write in chat" to yes (Google's permission for it is a big one).
 - **StreamSocket Events** (a Twitch extension where viewers press buttons, for bits or free): put the secret
-  from the extension's configuration page into `config/streamsocket_secret.txt` and switch it on. Each
+  from the extension's configuration page into `config/secrets/streamsocket_secret.txt` and switch it on. Each
   redeemed event starts flows with the trigger "StreamSocket event".
 - **VNyan**, **Warudo** (3D avatar programs): switch the connection on. What happens is built in the
   program itself: a node with a name (VNyan: a "WebSocket" node, with Settings → Misc → WebSockets →
@@ -121,25 +121,25 @@ after you pressed Connect (or switched it on) on its tab. From then on it connec
 - **Streamer.bot**: start its WebSocket server (Servers/Clients → WebSocket Server), then the connection.
   "Run Streamer.bot action" runs an action you made there, picked from a list. Its events start flows
   with the trigger "Streamer.bot event" (by default Kick, Custom and General; the tab says which). If
-  its server asks for a password, put it into `config/streamerbot_password.txt`.
+  its server asks for a password, put it into `config/secrets/streamerbot_password.txt`.
 - **Firebot**: switch the connection on. "Run Firebot effect list" runs a preset effect list you made
   there; its custom variables and counters can be read and set.
-- **Lumia Stream**: put the token from its API settings into `config/lumia_token.txt`. Boxes run its
+- **Lumia Stream**: put the token from its API settings into `config/secrets/lumia_token.txt`. Boxes run its
   commands and alerts and set the lights; the trigger "Lumia event" starts flows.
 - **Voicemod**: ask Voicemod for an API key (the tab has the link) and put it into
-  `config/voicemod_key.txt`. Boxes switch the voice, play a soundboard sound, flip its switches.
-- **Pulsoid**, **HypeRate** (heart rate): put the token / key into `config/pulsoid_token.txt` /
-  `config/hyperate_key.txt` (HypeRate also wants your id on the tab). The trigger "Heart rate changed"
+  `config/secrets/voicemod_key.txt`. Boxes switch the voice, play a soundboard sound, flip its switches.
+- **Pulsoid**, **HypeRate** (heart rate): put the token / key into `config/secrets/pulsoid_token.txt` /
+  `config/secrets/hyperate_key.txt` (HypeRate also wants your id on the tab). The trigger "Heart rate changed"
   starts flows, and "Get heart rate" reads it.
 - **Discord**: make a webhook for a channel (channel settings → Integrations → Webhooks) and put its
-  address into `config/discord_webhook.txt`. "Post to Discord" writes there; names in the text only ping
+  address into `config/secrets/discord_webhook.txt`. "Post to Discord" writes there; names in the text only ping
   when the box says so.
 - **Tiltify** (charity): needs a Tiltify application of your own (the tab has the link): its Client ID on
-  the tab, its secret in `config/tiltify_secret.txt`, plus the user and campaign from the campaign's
+  the tab, its secret in `config/secrets/tiltify_secret.txt`, plus the user and campaign from the campaign's
   address. Each new donation starts flows with the trigger "Tiltify donation". It is not counted as a tip.
 - **Crowd Control**: type your Crowd Control id (it starts with `ccuid-`) on the tab. Each effect a
   viewer asks for in your game starts flows with the trigger "Crowd Control effect".
-- **Rumble**: put your Live Stream API address into `config/rumble_address.txt` (the tab has the link to
+- **Rumble**: put your Live Stream API address into `config/secrets/rumble_address.txt` (the tab has the link to
   Rumble's page). Chat, follows, subs, gifted subs and rants then start flows; Rumble can only be read.
   The toolbox only listens to their events (tips and co.).
 
@@ -180,6 +180,16 @@ Everything you set up is in the `config` folder inside the toolbox's folder: `to
 **Settings → Other devices**: set a password and switch it on, restart, then open the address shown there on
 the other device. Windows asks once whether Python may use the network: choose *Private networks*. It is meant
 for your home network only (the password travels unencrypted).
+
+## Login (a password for the toolbox itself)
+
+**Settings → Login**: off by default. Without a login the toolbox starts by itself and connects to
+everything. With one, your tokens, keys and saved logins (the folder `secrets` in your settings folder,
+nothing else) are encrypted on your PC, and the toolbox asks for the password at every start: until you
+typed it, nothing starts and nothing is connected. Switch it off again in the same place, with the
+password. A forgotten password can't be recovered: delete the folder `secrets`, then type your tokens in
+again and connect Twitch and YouTube again. It is not the password for other devices; that one stays its
+own.
 
 ## For other programs
 

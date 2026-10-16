@@ -11,6 +11,9 @@ from streamer_toolbox.core.flows.flow_input import FlowInput
 from streamer_toolbox.core.flows.flow_node import FlowNode
 from streamer_toolbox.core.flows.flow_trigger import FlowTrigger
 from streamer_toolbox.core.flows.flow_wire import DONE, START, FlowWire
+from streamer_toolbox.core.flows.old_end_boxes import end_lines_from_old_names
+from streamer_toolbox.core.flows.old_split_boxes import split_boxes_away
+from streamer_toolbox.core.flows.old_value_boxes import lines_from_old_values
 
 log = logging.getLogger(__name__)
 NAME = re.compile(r"[a-z0-9_]+")
@@ -20,7 +23,9 @@ class FlowStore:
     """Flows as files: <folder>/<name>.toml, one flow each (label, description, [[inputs]], [[nodes]], [[wires]],
     [[triggers]]). The same class keeps the templates, in their own folder.
 
-    Older files with a [[steps]] list are read as a chain of boxes and written back as nodes and wires.
+    Older files with a [[steps]] list are read as a chain of boxes and written back as nodes and wires; a Value
+    box with one value gets it as its one line (old_value_boxes); a Split data box is wired around and goes
+    (old_split_boxes).
     """
 
     def __init__(self, folder: Path) -> None:
@@ -58,6 +63,7 @@ class FlowStore:
             nodes = tuple(_node(n["id"], n) for n in data.get("nodes", []))
             wires = tuple(FlowWire(w["from"], w.get("port", DONE), w["to"], w.get("entry", ""))
                           for w in data.get("wires", []))
+        nodes, wires = split_boxes_away(end_lines_from_old_names(lines_from_old_values(nodes)), wires)
         triggers = tuple(FlowTrigger(t["kind"], {k: v for k, v in t.items() if k != "kind"})
                          for t in data.get("triggers", []))
         inputs = tuple(FlowInput(i["name"], i.get("default"), i.get("description", ""))

@@ -10,10 +10,10 @@
         on port 8849, opened in the browser (not with --no-open), to tick next to the running toolbox. It only reads and writes
         docs/tested, so it needs no toolbox and stays open while that is restarted.
     ... -m streamer_toolbox.devtools.tested flows <settings folder>
-        a numbered flow for every box (Start + that box) and every trigger (the trigger + a box that does
-        nothing) into <settings folder>/flows, for a toolbox started
+        a numbered flow for every box (Start + that box) into <settings folder>/flows, for a toolbox started
         with --settings <settings folder> (see TestFlows; docs/tested/test-toolbox.bat / .sh does both).
-        What is set in such a flow stays when this runs again. Writes nothing into docs/tested.
+        What is set in such a flow stays when this runs again, a deleted one stays deleted (the list of written
+        ones is <settings folder>/test_flows.json). Writes nothing into docs/tested.
 
 Making the files puts the toolbox together without starting it (nothing connects, no port is opened), with an
 empty config in a throwaway folder: the record is about the project, not about what is switched on in config/.
@@ -39,14 +39,11 @@ def write_files(scratch: Path, arguments: list[str]) -> None:
     if arguments[:1] == ["flows"]:
         from streamer_toolbox.core.flows.flow_store import FlowStore
         from streamer_toolbox.core.testing.test_flows import TestFlows
-        from streamer_toolbox.gui.components.flow_editor.trigger_kinds import TRIGGER_KINDS
 
         folder = Path(arguments[1]).resolve() / "flows"
         gate.tested.take(items)
-        triggers = {kind: (field, value) for kind, (_, _, field, value) in TRIGGER_KINDS.items()}
-        triggers["timer"] = ("every", "3600")  # a new timer is every 10 s: too loud next to the other tests
-        new, there = TestFlows(gate.tested, FlowStore(folder), triggers).write()
-        print(f"{folder}: {new} new test flows, {there} were there already")
+        new, there, deleted = TestFlows(gate.tested, FlowStore(folder), folder.parent / "test_flows.json").write()
+        print(f"{folder}: {new} new test flows, {there} were there already, {deleted} you deleted stay deleted")
         return
     gate.tested.sync(items)
     if arguments[:1] in (["checked"], ["unchecked"]):

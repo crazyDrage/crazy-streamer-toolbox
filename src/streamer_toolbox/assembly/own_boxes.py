@@ -4,7 +4,6 @@ from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.data.json_actions import JsonActions
 from streamer_toolbox.core.data.list_actions import ListActions
 from streamer_toolbox.core.data.object_actions import ObjectActions
-from streamer_toolbox.core.data.split_actions import SplitActions
 from streamer_toolbox.core.data.text_actions import TextActions
 from streamer_toolbox.core.files.file_actions import FileActions
 from streamer_toolbox.core.interfaces.confirm_service import ConfirmService
@@ -22,7 +21,7 @@ from streamer_toolbox.core.web.http_actions import HttpActions
 
 
 class OwnBoxes:
-    """The boxes that belong to no program: text files, lists, JSON, Split data, objects, text, web requests,
+    """The boxes that belong to no program: text files, lists, JSON, objects, text, web requests,
     running a program, per-viewer values, time, popups, video info and sound. (The logic boxes are LogicActions,
     the ones for flows, alerts, widgets, tips and points are added where those are made, in assemble().)"""
 
@@ -38,7 +37,6 @@ class OwnBoxes:
         FileActions().add_to(actions)
         ListActions(self._variables).add_to(actions)
         JsonActions().add_to(actions)
-        SplitActions().add_to(actions)
         ObjectActions().add_to(actions)
         TextActions().add_to(actions)
         HttpActions().add_to(actions)

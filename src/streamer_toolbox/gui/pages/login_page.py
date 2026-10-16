@@ -7,7 +7,8 @@ from streamer_toolbox.core.app_name import APP_NAME
 from streamer_toolbox.core.security.login_throttle import LoginThrottle
 from streamer_toolbox.core.security.remote_access import RemoteAccess
 from streamer_toolbox.core.security.signed_in_devices import SignedInDevices
-from streamer_toolbox.gui.components.app_shell import PRIMARY, THEMES, AppShell
+from streamer_toolbox.gui.components.app_shell import AppShell
+from streamer_toolbox.gui.components.look import Look
 
 
 class LoginPage:
@@ -19,8 +20,7 @@ class LoginPage:
         self._devices = devices
 
     def build(self, request: Request, next: str = "/") -> None:
-        ui.dark_mode(THEMES.get(AppShell.theme()))
-        ui.colors(primary=PRIMARY)
+        Look.apply(AppShell.theme())
         address = request.client.host if request.client else "?"
         browser = request.session.get("id") if "session" in request.scope else None  # signed session cookie
         target = next if next.startswith("/") and not next.startswith("//") else "/"

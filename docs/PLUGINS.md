@@ -72,8 +72,8 @@ class MyThingPlugin(ToolboxPlugin):
 | `publish(event, data)` | says that `<id>.<event>` happened: flows with that trigger start |
 | `on_event(handler)` | hear every event of the toolbox: `async handler(kind, data)` |
 | `add_tool(title, builder, icon, description)` | a tool under **Tools** (a card on its overview, an item in the side menu, its own page); `builder()` draws it with NiceGUI each time it opens |
-| `add_page(title, builder, subpath, icon)` | a page of its own at `/plugins/<id>`, listed in the menu |
-| `add_panel(title, builder, section)` | a card on Live, Connections or Settings |
+| `add_page(title, builder, subpath, icon)` | a page of its own at `/plugins/<id>`, listed in the side list of the Plugins tab |
+| `add_panel(title, builder, section)` | a card: `"connections"` on Connections; `"live"` and `"settings"` under Plugins → your plugin (since 2026-10-14 the Live page holds only the deck) |
 | `add_router(router)` | FastAPI routes under `/api/plugins/<id>` |
 | `run_action(name, **params)` | run any toolbox action: `await ctx.run_action("sammi.trigger_button", button_id="ID24")`, `"obs.switch_scene"`, `"flow.desktop"`, ... |
 | `has_action(name)` | whether an action exists right now (e.g. SAMMI's are there only while its connection is loaded) |

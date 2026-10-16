@@ -7,11 +7,14 @@ from streamer_toolbox.core.flows.outline_entry import OutlineEntry
 
 class FlowOutline:
     """A flow's graph as a list, the way SAMMI shows commands: a chain stays one flat list; boxes that run at
-    the same time and the outputs of an If become indented blocks. ports_of(action, params) gives a box's outputs."""
+    the same time and the outputs of an If become indented blocks. ports_of(action, params) gives a box's outputs,
+    lines_of(action, params) the run dots of a box with lines (Choose value, End): a wire into one runs it too."""
 
-    def __init__(self, flow: Flow, ports_of: Callable[[str, dict], tuple[str, ...]]) -> None:
+    def __init__(self, flow: Flow, ports_of: Callable[[str, dict], tuple[str, ...]],
+                 lines_of: Callable[[str, dict], list[str]] = lambda action, params: []) -> None:
         self._flow = flow
         self._ports_of = ports_of
+        self._lines_of = lines_of
         self._seen: set[str] = set()
 
     def build(self) -> tuple[OutlineEntry, ...]:
@@ -23,7 +26,9 @@ class FlowOutline:
         return [n.id for n in self._flow.nodes if n.id not in self._seen]
 
     def _after(self, source: str, port: str) -> tuple[OutlineEntry, ...]:
-        targets = self._flow.targets(source, port)
+        targets = self._flow.targets(source, port) + [
+            target for target, entry in self._flow.entries(source, port)
+            if (node := self._flow.node(target)) and entry in self._lines_of(node.action, node.params)]
         if len(targets) > 1:
             return (OutlineEntry("parallel", branches=tuple(("", self._from(t)) for t in targets)),)
         return self._from(targets[0]) if targets else ()

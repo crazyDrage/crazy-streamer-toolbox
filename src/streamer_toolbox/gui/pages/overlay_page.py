@@ -2,6 +2,7 @@ from nicegui import ui
 
 from streamer_toolbox.core.alerts.alert_queue import AlertQueue
 from streamer_toolbox.gui.components.alerts_tool.alerts_tool import AlertsTool
+from streamer_toolbox.gui.components.keep_typed import keep_typed
 from streamer_toolbox.gui.components.overlay_source import OverlaySource
 from streamer_toolbox.gui.components.widgets_tool.widgets_tool import WidgetsTool
 
@@ -10,9 +11,9 @@ SOURCE_NAME = "toolbox alerts"  # the Browser source "Add it to OBS" makes
 
 class OverlayPage:
     """Overlay: what the toolbox shows on stream through a Browser source in OBS. /overlays is the main view:
-    a card each for Alerts and Widgets, and the alerts overlay itself (its address, whether OBS is listening,
-    Add it to OBS). /overlays?show=alerts is the alerts with their preview, ?show=widgets the widgets (custom
-    widget code in StreamElements' format, each its own Browser source); the side menu lists both."""
+    a card each for Alerts and Widgets. /overlays?show=alerts is the alerts: the alerts overlay itself (its
+    address, whether OBS is listening, Add it to OBS), their preview and the alerts; ?show=widgets the widgets
+    (custom widget code in StreamElements' format, each its own Browser source); the side menu lists both."""
 
     def __init__(self, alerts: AlertsTool, widgets: WidgetsTool, queue: AlertQueue, source: OverlaySource,
                  port: int) -> None:
@@ -26,6 +27,8 @@ class OverlayPage:
         show = ui.context.client.request.query_params.get("show", "")
         if show == "alerts":
             self._back()
+            with ui.card().classes("w-full max-w-3xl gap-2"):
+                self._overlay()
             with ui.card().classes("w-full max-w-3xl gap-2"):
                 self._preview()
             self._alerts.build()
@@ -42,11 +45,10 @@ class OverlayPage:
     def _overview(self) -> None:
         with ui.element("div").classes("grid gap-3 w-full sm:grid-cols-2 items-stretch"):
             self._tile("campaign", "Alerts", "alerts", "What shows for a follow, sub, resub, gift, cheer, raid "
-                                                       "or tip: text, picture, sound, and a preview to test them")
+                                                       "or tip: text, picture, sound, a preview to test them, "
+                                                       "and their Browser source for OBS")
             self._tile("widgets", "Widgets", "widgets", "Custom widget code in StreamElements' format, each with "
                                                         "its own Browser source")
-        with ui.card().classes("w-full gap-2"):
-            self._overlay()
 
     @staticmethod
     def _tile(icon: str, title: str, show: str, note: str) -> None:
@@ -60,7 +62,8 @@ class OverlayPage:
     def _overlay(self) -> None:
         ui.label("The alerts overlay in OBS").classes("text-lg font-semibold")
         ui.label("One Browser source shows every alert. Add it once to each scene that should have alerts (the "
-                 "same source can go into many scenes). Widgets have their own addresses, on their page.") \
+                 "same source can go into many scenes). Widgets have their own addresses, under Overlay → "
+                 "Widgets.") \
             .classes("text-sm opacity-80")
         with ui.row().classes("items-center gap-2"):
             ui.label(self._address).classes("font-mono text-sm break-all")
@@ -70,8 +73,8 @@ class OverlayPage:
         self._listening()
         ui.timer(3.0, self._listening.refresh)
         with ui.row().classes("items-center no-wrap gap-2 w-full"):
-            scene = ui.select([], label="Scene", new_value_mode="add-unique").props("outlined dense options-dense") \
-                .classes("flex-1 min-w-0")
+            scene = keep_typed(ui.select([], label="Scene", new_value_mode="add-unique")
+                               .props("outlined dense options-dense").classes("flex-1 min-w-0"))
             ui.button("Add it to OBS", icon="add_to_queue",
                       on_click=lambda: self._source.add(scene.value, SOURCE_NAME, self._address)) \
                 .props("no-caps unelevated").tooltip("Makes the Browser source in that scene, as big as your canvas")

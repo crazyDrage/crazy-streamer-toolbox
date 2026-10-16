@@ -1,8 +1,10 @@
 # crazy-streamer-toolbox
 
 > **AI agents should read [llms.txt](llms.txt) instead.**
->
-> This software is made with the help of AI: the code is written with Claude Code.
+
+## This software is made with the help of AI: the code is written with Claude Code.
+
+**This is a WIP project and still needs testing.**
 
 One program for the things a stream needs glued together: buttons that do something in OBS, VTube Studio,
 SAMMI, Mix It Up or on Twitch, flows that run when a viewer follows, subscribes or redeems, and alerts and

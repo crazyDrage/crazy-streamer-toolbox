@@ -51,5 +51,9 @@ live.
 The last event of every kind is kept as a file: `<settings folder>/cache/last_triggers/<event>.json` with
 `trigger`, `at`, `data` (the fields above) and, for Twitch, `raw` (the message as Twitch sent it).
 
+Every event, not only the last: Settings → Event recording (off by default). While it is on, each event
+is one line with the same four fields in `<settings folder>/cache/events/<YYYY-MM-DD>.jsonl`. Timer ticks
+are left out; a day's file is removed after 30 days.
+
 To make the toolbox react to something *you* noticed: `trigger.fire` or `tip.fire`
 (`docs/ai/use/actions.md`).

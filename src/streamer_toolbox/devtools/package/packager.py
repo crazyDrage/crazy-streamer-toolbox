@@ -74,7 +74,7 @@ class Packager:
     the downloaded Python is kept in <build>/cache for the next time.
 
     A build carries everything, with the test record (docs/tested/, see TestList): what of it people see they
-    choose themselves in Settings → What you see, which starts on "Tested" (TestView). tested_only=True builds
+    choose themselves in Settings → What you see, which starts on Normal with Works ticked (TestView). tested_only=True builds
     one that leaves out what is not ticked off there: it gets the marker file that tells the toolbox so.
 
     target = WINDOWS or LINUX builds a download for that system only (the releases, built by GitHub), each

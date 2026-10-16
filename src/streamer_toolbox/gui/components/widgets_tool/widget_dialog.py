@@ -6,6 +6,7 @@ from typing import Any
 
 from nicegui import ui
 
+from streamer_toolbox.core.widgets.element_settings import ElementSettings
 from streamer_toolbox.core.widgets.streamelements_links import without_streamelements_links
 from streamer_toolbox.core.widgets.streamelements_media import StreamElementsMedia
 from streamer_toolbox.core.widgets.widget import Widget, check_name
@@ -28,8 +29,10 @@ CANVAS = (1920, 1080)  # the preview shows the widget as on a canvas of this siz
 class WidgetDialog:
     """One widget's window. A new one: its name and the four parts to paste (HTML, CSS, JS, FIELDS). An existing
     one also has a preview on the left (the real widget page, shrunk from a 1920 × 1080 canvas) with test events
-    below it, and a Settings tab drawn from its FIELDS. Saving code or changing a setting makes every page of
-    the widget load again (OBS too)."""
+    below it, and a Settings tab drawn from its FIELDS; an imported StreamElements Element has no FIELDS, its
+    Settings tab is drawn from its settings file instead (ElementSettings: texts, colours, sizes, volume, how
+    long an alert stays, where a piece sits). Saving code or changing a setting makes every page of the widget
+    load again (OBS too)."""
 
     def __init__(self, store: WidgetStore, hub: WidgetHub, widget: Widget | None,
                  on_saved: Callable[[], None]) -> None:
@@ -110,8 +113,16 @@ class WidgetDialog:
             if widget:
                 with ui.tab_panel(settings).classes("p-0 pt-2 gap-2"):
                     with ui.column().classes("w-full gap-2 max-h-[60vh] overflow-y-auto pr-1"):
-                        WidgetFieldsForm(widget, self._set_values,
-                                         lambda field, value: self._hub.button(widget.name, field, value)).build()
+                        element = ElementSettings.of(widget)
+                        if element is not None:
+                            ui.label("This is an Element from StreamElements. Each piece of it is a section: its "
+                                     "text, colours, size, volume, how long it stays and where it sits "
+                                     "(in pixels on a 1920 × 1080 canvas).").classes("text-sm opacity-80")
+                            WidgetFieldsForm(Widget(widget.name, fields=element.fields()), self._set_element,
+                                             lambda field, value: None).build()
+                        else:
+                            WidgetFieldsForm(widget, self._set_values,
+                                             lambda field, value: self._hub.button(widget.name, field, value)).build()
                 with ui.tab_panel(data).classes("p-0 pt-2 gap-2"):
                     self._data()
                 with ui.tab_panel(safety).classes("p-0 pt-2 gap-2"):
@@ -297,6 +308,19 @@ class WidgetDialog:
         values = {**self._widget.values, **values}
         self._widget = replace(self._widget, values=values)
         self._store.set_values(self._widget.name, values)
+        self._hub.reload(self._widget.name)
+
+    def _set_element(self, values: dict[str, Any]) -> None:
+        """A setting of an Element changed: its settings file is the widget's JS part, which is saved again."""
+        element = ElementSettings.of(self._widget)
+        if element is None:  # the JS part was rewritten by hand in the meantime
+            ui.notify("The JS part is no Element's settings any more: open the window again.", type="warning")
+            return
+        code = element.with_values(values).to_js()
+        self._widget = replace(self._widget, js=code)
+        self._store.save(self._widget)
+        self._code["js"] = code
+        self._editors["js"].set_value(code)
         self._hub.reload(self._widget.name)
 
     def _remove_links(self) -> None:

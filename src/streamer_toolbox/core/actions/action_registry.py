@@ -22,7 +22,7 @@ class ActionRegistry:
     def add(self, name: str, handler: ActionHandler, description: str = "", label: str = "",
             options: dict[str, OptionsProvider] | None = None, capture: str = "", group: str = "",
             ports: tuple[str, ...] = (), flow_only: bool = False, join: bool = False,
-            live: bool = False, data_outputs: str = "", outputs: dict[str, str] | None = None,
+            live: bool = False, outputs: dict[str, str] | None = None,
             port_fields: str = "", labels: dict[str, str] | None = None,
             hints: dict[str, str] | None = None, editors: dict[str, str] | None = None,
             entries: tuple[str, ...] = (), fills: dict[str, FillProvider] | None = None,
@@ -31,21 +31,22 @@ class ActionRegistry:
             many: dict[str, OptionsProvider] | None = None,
             lights: dict[str, LightProvider] | None = None,
             shown: dict[str, tuple[str, tuple[str, ...]]] | None = None,
-            typed: tuple[str, ...] = ()) -> None:
-        """See RegisteredAction for what options, capture, group, ports, flow_only, join, live, data_outputs,
-        outputs, port_fields, labels, hints, editors, entries, fills, live_hints, files, colors, many,
-        lights, shown and typed mean."""
+            typed: tuple[str, ...] = (), value_lines: str = "", data_only: bool = False,
+            entry_fields: str = "") -> None:
+        """See RegisteredAction for what options, capture, group, ports, flow_only, join, live, outputs,
+        port_fields, labels, hints, editors, entries, fills, live_hints, files, colors, many,
+        lights, shown, typed, value_lines, data_only and entry_fields mean."""
         if name in self._actions:
             raise ValueError(f"action {name!r} is already registered")
         self._actions[name] = RegisteredAction(name, handler, description, label, dict(options or {}), capture,
                                                group, tuple(ports), flow_only, join, live,
-                                               data_outputs, dict(outputs or {}), port_fields,
+                                               dict(outputs or {}), port_fields,
                                                dict(labels or {}), dict(hints or {}), dict(editors or {}),
                                                tuple(entries), dict(fills or {}), dict(live_hints or {}),
                                                {k: tuple(v) for k, v in (files or {}).items()},
                                                tuple(colors), dict(many or {}), dict(lights or {}),
                                                {k: (c, tuple(v)) for k, (c, v) in (shown or {}).items()},
-                                               tuple(typed))
+                                               tuple(typed), value_lines, data_only, entry_fields)
 
     def mark(self, name: str, is_tested: bool, is_understandable: bool, is_usable: bool) -> None:
         """Sets his three checks on a box (from the test record); unknown names are ignored."""

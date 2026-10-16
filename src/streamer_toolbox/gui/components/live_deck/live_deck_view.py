@@ -1,4 +1,6 @@
+from copy import deepcopy
 from typing import Any
+from urllib.parse import quote
 
 from nicegui import ui
 
@@ -6,31 +8,34 @@ from streamer_toolbox.core.actions.action_description import required_and_option
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.deck.deck import Deck
 from streamer_toolbox.core.deck.deck_button import DeckButton
-from streamer_toolbox.core.deck.deck_page import DeckPage
+from streamer_toolbox.core.deck.deck_images import DeckImages
+from streamer_toolbox.core.deck.deck_page import MOST, DeckPage
 from streamer_toolbox.core.deck.deck_store import DeckStore
 from streamer_toolbox.core.flows.flow_library import FlowLibrary
 from streamer_toolbox.gui.components.live_deck.deck_button_dialog import DELETE, DeckButtonDialog
 from streamer_toolbox.gui.services.activity_log import ActivityLog
 
-GRID = "grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 gap-3 w-full"
-# a button whose action runs: it stays readable and can be pressed again, with a pulsing outline
-RUNNING_CSS = """<style>
-.tb-running { outline: 3px solid rgba(255, 255, 255, 0.9); outline-offset: -6px; animation: tb-pulse 1.2s infinite; }
-@keyframes tb-pulse { 50% { outline-color: rgba(255, 255, 255, 0.25); } }
-</style>"""
+HEAD = '<link rel="stylesheet" href="/static/live_deck.css"><script src="/static/live_deck.js"></script>'
+MOVED = "tb_deck_spot"  # live_deck.js: a button was dragged to another spot or size
+CELL_AT_LEAST = 64  # px: a cell is never smaller (a phone scrolls the page sideways)
 
 
 class LiveDeckView:
-    """The Live deck in one browser tab: pages as tabs, each a grid of big buttons (colour, icon, label); a press
-    runs the button's action and the button pulses until it's done (a looping flow keeps pulsing). The pencil
-    switches to editing: tap a button to change it, + adds one, the page row adds / renames / moves / deletes
-    pages. Every change is saved at once; other open Live pages pick it up within two seconds."""
+    """The Live deck in one browser tab: pages as tabs, each a grid of cells with the buttons (colour, icon or
+    picture, label, text colour) where he put them, in the size he gave them (his wish of 2026-10-13: "like a
+    sammi view, where I can set the buttons how I want"). A press runs the button's action and the button
+    pulses until it's done (a looping flow keeps pulsing). The pencil switches to editing: drag a button to
+    move it, drag its corner to change its size, click it to change what it is; the row above adds a button,
+    sets the page's columns, rows and background and adds / renames / moves / deletes pages. Every change is
+    saved at once; other open Live pages pick it up within two seconds."""
 
-    def __init__(self, store: DeckStore, actions: ActionRegistry, flows: FlowLibrary, activity: ActivityLog) -> None:
+    def __init__(self, store: DeckStore, actions: ActionRegistry, flows: FlowLibrary, activity: ActivityLog,
+                 images: DeckImages) -> None:
         self._store = store
         self._actions = actions
         self._flows = flows
         self._activity = activity
+        self._images = images
         self._deck: Deck = store.load()
         self._page = self._deck.pages[0].name if self._deck.pages else ""
         self._editing = False
@@ -38,7 +43,8 @@ class LiveDeckView:
         self._running: dict[int, int] = {}  # id() of a button → how many of its presses still run (this tab)
 
     def build(self) -> None:
-        ui.add_head_html(RUNNING_CSS)
+        ui.add_head_html(HEAD)
+        ui.on(MOVED, lambda e: self._placed(e.args))
         self._view()
         ui.timer(2.0, self._check_saved_elsewhere)
 
@@ -67,41 +73,61 @@ class LiveDeckView:
         if page is None:
             ui.label("No pages yet: the pencil, then + Page.").classes("opacity-70")
             return
-        with ui.element("div").classes(GRID):
-            for index, button in enumerate(page.buttons):
-                self._tile(page, index, button)
-            if self._editing:
-                with ui.button(on_click=lambda: self._edit(page, None)) \
-                        .props("outline no-caps").classes("w-full aspect-square rounded-xl"):
-                    with ui.column().classes("items-center gap-1"):
-                        ui.icon("add").classes("text-3xl")
-                        ui.label("Add button").classes("text-sm")
         if not page.buttons and not self._editing:
             ui.label("This page has no buttons yet: the pencil, then Add button.").classes("opacity-70")
+            return
+        # the cells are squares; while editing their lines show. On a narrow screen a cell keeps a size a
+        # thumb can hit and the page is pushed sideways instead
+        with ui.element("div").classes("w-full overflow-x-auto"):
+            with ui.element("div").classes("tb-deck" + (" tb-deck-edit" if self._editing else "")) \
+                    .props(f"data-columns={page.columns} data-rows={page.rows}") \
+                    .style(f"aspect-ratio: {page.columns} / {page.rows}; "
+                           f"min-width: {page.columns * CELL_AT_LEAST}px; "
+                           + (f"background-color: {page.background}; " if page.background else "") +
+                           f"background-size: {100 / page.columns:.4f}% {100 / page.rows:.4f}%"):
+                for index, button in enumerate(page.buttons):
+                    self._tile(page, index, button)
 
     def _tile(self, page: DeckPage, index: int, button: DeckButton) -> None:
         known = button.action in self._actions
-        with ui.column().classes("gap-0 w-full items-center"):
-            running = " tb-running" if id(button) in self._running else ""
-            tile = ui.button(on_click=lambda: self._edit(page, index) if self._editing else self._press(button, tile)) \
-                .props("unelevated no-caps").classes("w-full aspect-square rounded-xl p-1" + running) \
-                .style(f"background:{button.color if known else '#757575'} !important; color:white")
-            with tile:
-                with ui.column().classes("items-center justify-center gap-1 w-full h-full"):
-                    ui.icon(button.icon if known else "link_off").classes("text-4xl")
-                    ui.label(button.label).classes("text-sm font-semibold leading-tight text-center line-clamp-2 "
-                                                   "break-words w-full")
-            if not known:
-                tile.tooltip(f"{button.action} isn't there anymore (renamed or deleted?): edit it")
+        running = " tb-running" if id(button) in self._running else ""
+        tile = ui.element("div").classes("tb-deck-button" + running) \
+            .props(f"data-index={index} data-x={button.x} data-y={button.y} data-w={button.w} data-h={button.h}") \
+            .style(f"left:{button.x / page.columns * 100:.4f}%; top:{button.y / page.rows * 100:.4f}%; "
+                   f"width:{button.w / page.columns * 100:.4f}%; height:{button.h / page.rows * 100:.4f}%")
+        tile.on("click", lambda: self._edit(page, index) if self._editing else self._press(button, tile))
+        face = f"background-color:{button.color if known else '#757575'}; color:{button.text_color}"
+        if button.image and known:
+            face += (f"; background-image:url('{DeckImages.url(quote(button.image))}'); "
+                     f"background-size:{'cover' if button.fill else 'contain'}")
+        with tile:
+            with ui.element("div").classes("tb-deck-face" + (" tb-deck-picture" if button.image else "")) \
+                    .style(face):
+                if not button.image or not known:
+                    ui.icon(button.icon if known else "link_off")
+                ui.label(button.label).classes("tb-deck-label")
             if self._editing:
-                with ui.row().classes("gap-0 no-wrap"):
-                    for icon, by, tip in (("chevron_left", -1, "Move left"), ("chevron_right", 1, "Move right")):
-                        ui.button(icon=icon, on_click=lambda b=by: self._move(page, index, b)) \
-                            .props("flat round dense size=sm").tooltip(tip)
+                ui.element("div").classes("tb-deck-grip")
+                with ui.context_menu():  # his "go" of 2026-10-14
+                    ui.menu_item("Change", on_click=lambda: self._edit(page, index)).props("dense")
+                    ui.menu_item("Copy", on_click=lambda: self._copy(page, index)).props("dense")
+                    ui.menu_item("Delete", on_click=lambda: self._delete(page, index)).props("dense") \
+                        .classes("text-negative")
+        if not known:
+            tile.tooltip(f"{button.action} isn't there anymore (renamed or deleted?): edit it")
+
+    def _placed(self, spot: dict[str, Any]) -> None:
+        """A button was dragged to another spot or size (live_deck.js)."""
+        page = self._deck.page(self._page)
+        if not self._editing or page is None or not 0 <= int(spot["index"]) < len(page.buttons):
+            return
+        page.put(int(spot["index"]), int(spot["x"]), int(spot["y"]), int(spot["w"]), int(spot["h"]))
+        page.buttons.append(page.buttons.pop(int(spot["index"])))  # the last one is drawn on top
+        self._save()
 
     # ---- pressing ----
 
-    async def _press(self, button: DeckButton, tile: ui.button) -> None:
+    async def _press(self, button: DeckButton, tile: ui.element) -> None:
         if button.action not in self._actions:
             ui.notify(f"{button.label}: {button.action} isn't there anymore", type="warning")
             return
@@ -170,7 +196,7 @@ class LiveDeckView:
     async def _edit(self, page: DeckPage, index: int | None) -> None:
         button = page.buttons[index] if index is not None else None
         result = await DeckButtonDialog(button, page.name, [p.name for p in self._deck.pages], self._actions,
-                                        self._flows).open()
+                                        self._flows, self._images).open()
         if result is None:
             return
         if index is not None:
@@ -180,17 +206,59 @@ class LiveDeckView:
             target = self._deck.page(target_name) or page
             if target is page and index is not None:
                 page.buttons.insert(index, edited)
-            else:
+            else:  # new, or moved to another page: the first free spot there
+                edited.x = edited.y = -1
                 target.buttons.append(edited)
+                target.place()
         self._save()
 
-    def _move(self, page: DeckPage, index: int, by: int) -> None:
-        page.move(index, by)
+    def _copy(self, page: DeckPage, index: int) -> None:
+        """A copy of the button on the same page, at the first free spot."""
+        copy = deepcopy(page.buttons[index])
+        copy.x = copy.y = -1
+        page.buttons.append(copy)
+        page.place()
         self._save()
+
+    async def _delete(self, page: DeckPage, index: int) -> None:
+        with ui.dialog() as dialog, ui.card():
+            ui.label(f"Delete the button {page.buttons[index].label}?")
+            with ui.row().classes("w-full justify-end"):
+                ui.button("Cancel", on_click=lambda: dialog.submit(False)).props("flat no-caps")
+                ui.button("Delete", icon="delete", on_click=lambda: dialog.submit(True)) \
+                    .props("unelevated no-caps color=negative")
+        if await dialog:
+            page.buttons.pop(index)
+            self._save()
+
+    def _set_grid(self, page: DeckPage, columns: Any, rows: Any) -> None:
+        if columns and rows and (int(columns), int(rows)) != (page.columns, page.rows):
+            page.set_grid(int(columns), int(rows))
+            self._save()
+
+    def _set_background(self, page: DeckPage, color: str | None) -> None:
+        color = (color or "").strip()
+        if color != page.background and (not color or color.startswith("#")):
+            page.background = color
+            self._save()
 
     def _page_tools(self) -> None:
         page = self._deck.page(self._page)
         with ui.row().classes("gap-1 items-center"):
+            if page:
+                ui.button("Add button", icon="add", on_click=lambda: self._edit(page, None)) \
+                    .props("unelevated dense no-caps").classes("px-2")
+                columns = ui.number("Columns", value=page.columns, min=1, max=MOST, precision=0) \
+                    .props("outlined dense").classes("w-24")
+                rows = ui.number("Rows", value=page.rows, min=1, max=MOST, precision=0) \
+                    .props("outlined dense").classes("w-24")
+                for field in (columns, rows):
+                    field.on("change", lambda: self._set_grid(page, columns.value, rows.value))
+                ui.color_input("Background", value=page.background,
+                               on_change=lambda e: self._set_background(page, e.value)) \
+                    .props("outlined dense clearable debounce=600").classes("w-36") \
+                    .tooltip("Behind the buttons of this page. Empty = the toolbox's own")
+                ui.separator().props("vertical").classes("mx-1")
             ui.button("Page", icon="add", on_click=self._add_page).props("flat dense no-caps")
             if page:
                 ui.button("Rename", icon="edit", on_click=lambda: self._rename_page(page)).props("flat dense no-caps")
@@ -200,7 +268,8 @@ class LiveDeckView:
                     .props("flat round dense").tooltip("Move this page right")
                 ui.button("Delete page", icon="delete", on_click=lambda: self._delete_page(page)) \
                     .props("flat dense no-caps color=negative")
-            ui.label("Tap a button to change it; ‹ › move it").classes("text-xs opacity-60 pl-2")
+            ui.label("Drag a button to move it, its corner to change its size; click it to change it") \
+                .classes("text-xs opacity-60 pl-2")
 
     async def _add_page(self) -> None:
         name = await self._ask_name("New page", self._deck.free_page_name())

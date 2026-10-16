@@ -35,7 +35,7 @@ succeeds.
 - An action of a switched-off connection raises `NotConnectedError` with words the streamer can act on
   ("X is switched off under Connections → X").
 - An action of a connection that is on but failed tries again, so a program started after the toolbox works.
-- Secrets (tokens, keys) go into their own file next to the settings (`config/<id>_token.txt`), never into
+- Secrets (tokens, keys) go into their own file next to the settings (`config/secrets/<id>_token.txt`), never into
   `toolbox.toml`, never into a log or an error text.
 - New permissions on the streamer's account (scopes, write access) are asked at Connect and are the
   streamer's decision; don't make them required for what already works.

@@ -6,4 +6,4 @@
 | Get transition | `obs.get_transition` | - | - | - | - | - |  |
 | Scene sources | `obs.get_scene_sources` | - | - | - | - | - |  |
 | Set transition | `obs.set_transition` | - | - | - | - | - |  |
-| Switch scene | `obs.switch_scene` | - | - | - | - | - |  |
+| Switch scene | `obs.switch_scene` | - | yes | yes | yes | 2026-10-16 |  |

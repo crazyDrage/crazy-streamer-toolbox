@@ -4,8 +4,9 @@ from typing import Any
 
 from streamer_toolbox.core.flows.flow import Flow
 
-# box fields that hold a variable's name itself (not ${var.x}): Set / Add to variable, Set field, For each, lists
-NAME_FIELDS = {("var.set", "name"), ("var.add", "name"), ("var.set_field", "name"), ("logic.for_each", "item"),
+# box fields that hold a variable's name itself (not ${var.x}): Set / Get variable, Math on variable, Set field,
+# For each, lists
+NAME_FIELDS = {("var.set", "name"), ("var.get", "name"), ("var.add", "name"), ("var.set_field", "name"), ("logic.for_each", "item"),
                ("list.add", "name"), ("list.remove", "name")}
 
 
@@ -35,4 +36,6 @@ class VariableRenamer:
             return self._new
         if isinstance(value, str):
             return self._pattern.sub("${var." + self._new, value)
+        if isinstance(value, dict):  # a Value box's lines
+            return {k: self._value(action, "", v) for k, v in value.items()}
         return value

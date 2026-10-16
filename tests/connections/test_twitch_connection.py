@@ -116,7 +116,7 @@ class TestTwitchConnection(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.seen[0][1]["user"], "VexFan")
         types = [s["type"] for s in self.twitch.subscriptions]
         self.assertEqual(types[:2], [REDEMPTION, "channel.chat.message"])
-        self.assertEqual(len(types), 14)  # 14 kinds; a reconnect keeps them (no new ones)
+        self.assertEqual(len(types), 16)  # 16 kinds; a reconnect keeps them (no new ones)
         self.assertEqual(self.twitch.subscriptions[1]["condition"], {"broadcaster_user_id": "42", "user_id": "42"})
 
     async def test_expired_token_is_renewed_and_saved(self) -> None:

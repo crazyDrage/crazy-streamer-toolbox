@@ -22,7 +22,9 @@ EXTRA_SCOPES = ("clips:edit", "moderator:manage:shoutouts", "moderator:manage:an
                 "channel:edit:commercial", "moderator:manage:chat_settings", "moderator:manage:banned_users",
                 "moderator:read:chatters",
                 # Get viewer role (TwitchViewerActions; his wish 2026-10-10): is this user a mod / a VIP of mine
-                "moderation:read", "channel:read:vips")
+                "moderation:read", "channel:read:vips",
+                # the trigger Suspicious user wrote (his go 2026-10-11): Twitch's "ban evader" note on a chatter
+                "moderator:read:suspicious_users")
 
 
 class TwitchAuth:

@@ -35,6 +35,17 @@ class TestAppShellLeftOut(unittest.TestCase):
         self.assertFalse(self.shell.offers("/tools"))  # its own main view is not
         self.assertFalse(self.shell.in_menu("/overlays"))
 
+    def test_a_plugins_page_is_shown_in_the_plugins_area_and_is_no_tab(self) -> None:
+        registry = UiRegistry()
+        shell = AppShell(registry, OpenPages())
+        registry.pages.append(("Hello", "/plugins/hello", "waving_hand"))
+        self.assertEqual(shell.area("/plugins/hello"), "/plugins")
+        self.assertEqual(shell.area("/plugins/hello/more"), "/plugins")
+        self.assertEqual(shell.area("/flows"), "/flows")
+        self.assertEqual(shell.area("/flows/edit"), "/flows")  # an open flow keeps the Flows side list
+        self.assertEqual(shell.area("/"), "/")
+        self.assertEqual(shell._below("/plugins"), [("Hello", "/plugins/hello", "waving_hand")])
+
 
 if __name__ == "__main__":
     unittest.main()

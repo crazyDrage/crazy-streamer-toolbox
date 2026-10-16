@@ -3,7 +3,7 @@ from collections.abc import Awaitable, Callable
 
 from nicegui import app, ui
 
-from streamer_toolbox.core.flows.box_wire import WIRE_IN, box_source, is_wire_in
+from streamer_toolbox.core.flows.box_wire import box_source
 from streamer_toolbox.gui.components.flow_editor.wire_matcher import WireMatcher
 from streamer_toolbox.core.flows.flow_wire import START
 from streamer_toolbox.gui.components.flow_editor.box_clipboard import CLIPBOARD
@@ -25,26 +25,30 @@ HEAD = ('<link rel="stylesheet" href="/static/drawflow/drawflow.min.css">'
 class FlowBoxView:
     """The flow as boxes with wires (Drawflow). Drag from a box's right dot to another box's left dot to wire
     them; several wires from one dot run those boxes at the same time; an If has a "then" and an "else" dot.
-    Orange dots carry data: from a box's result (or a Split box's fields) into a field set to "Wire from a box",
-    or into a box's "by name" dot, which wires each field named like one of the result's keys.
+    Orange dots carry data: from a box's result (or one of its fields, or a Value box's lines) into a field set to
+    "Wire from a box", or into a box's "by name" dot, which wires each field named like one of the result's keys.
     Click a box to edit it in the panel on the left; the Delete key removes the selected box or wire.
 
     The graph lives in the browser while editing; sync() reads it back into the draft (wires, positions,
     deleted boxes). The page calls it before switching views and before saving."""
 
     def __init__(self, draft: FlowDraft, editor: NodeEditor,
-                 test_run: Callable[[], Awaitable[None]] | None = None) -> None:
+                 test_run: Callable[[], Awaitable[None]] | None = None,
+                 test_from: Callable[[str], Awaitable[None]] | None = None) -> None:
         self._draft = draft
         self._editor = editor
         self._graph = DrawflowGraph(editor.dots.ports, editor.dots.title, editor.dots.data_inputs, editor.dots.data_outputs,
-                                    lambda node: editor.dots.summary(node, wired=False), editor.dots.start_outputs,
-                                    editor.dots.entries)
+                                    lambda node: editor.dots.summary(node, wired=False, rows=True),
+                                    editor.dots.start_outputs, editor.dots.entries, editor.dots.field_text,
+                                    editor.dots.field_name, editor.dots.data_only, editor.dots.lines_of)
         self._selected: str | None = None  # node id
         self._numbers: dict[int, str] = {}
         self._listening = False
         self._shown: str | None = None  # the debug marks on the page now
         self._test_run = test_run  # the editor's Test run (the Start box's panel offers it)
+        self._test_from = test_from  # the editor's Test run from one box on (the right click menu)
         self._start_open = False  # the Start box is clicked: its panel shows
+        self._area: ui.element | None = None
 
     @staticmethod
     def add_head() -> None:
@@ -53,7 +57,8 @@ class FlowBoxView:
     def build(self) -> None:
         # the box form is a panel docked on the left, next to the canvas (never over a box); it slides in when a
         # box is clicked and folds to a thin strip with its buttons. Full screen: panel and canvas fill the screen
-        with ui.element("div").props(f"id={AREA_ID}").classes("tb-flow-area relative flex no-wrap w-full"):
+        with ui.element("div").props(f"id={AREA_ID}").classes("tb-flow-area relative flex no-wrap w-full") \
+                as self._area:
             with ui.element("div").props(f"id={PANEL_ID}").classes("tb-flow-panel"):
                 with ui.row().classes("tb-flow-handle items-center no-wrap w-full px-2 py-1 gap-1 bg-primary "
                                       "text-white"):
@@ -61,7 +66,8 @@ class FlowBoxView:
                         .props("flat round dense color=white size=sm").classes("tb-fold-button") \
                         .tooltip("Slide the panel in / out")
                     ui.label("Box").classes("tb-panel-title text-sm font-semibold flex-1")
-                    ui.button(icon="add", on_click=self._add).props("flat round dense color=white size=sm") \
+                    ui.button(icon="add", on_click=lambda: self._add()) \
+                        .props("flat round dense color=white size=sm") \
                         .classes("tb-rail-only").tooltip("Add box")
                     # this runs in the browser: full screen is only allowed straight from a click
                     ui.button(icon="fullscreen").on("click", js_handler=f"() => tbFlowFullscreen('{AREA_ID}')") \
@@ -74,7 +80,8 @@ class FlowBoxView:
         with ui.row().classes("items-start no-wrap w-full gap-3 -mt-3"):
             ui.label("Drag the background to scroll · wire: drag from a right dot to a left dot · several wires "
                      "from one dot = at the same time · orange dots carry a value into a field (Wire from a box) · "
-                     "click a box or wire, then Delete to remove it").classes("text-xs opacity-60 flex-1")
+                     "click a box or wire, then Delete to remove it · right click for a menu") \
+                .classes("text-xs opacity-60 flex-1")
             ui.switch("Debug", value=self._debug(), on_change=lambda e: self._set_debug(e.value)) \
                 .props("dense").classes("text-xs shrink-0") \
                 .tooltip("Each box shows the full value it gave last time (Test run, Test box or a real run, "
@@ -91,6 +98,7 @@ class FlowBoxView:
             ui.on("tb_flow_wired", self._data_wired)
             ui.on("tb_flow_by_name", self._by_name)
             ui.on("tb_flow_key", self._key)
+            ui.on("tb_flow_menu", self._menu)
             self._listening = True
         self._draw()
 
@@ -98,9 +106,10 @@ class FlowBoxView:
     def side_panel(self) -> None:
         node = self._draft.node(self._selected) if self._selected else None
         with ui.row().classes("items-center w-full gap-2"):
-            ui.button("Add box", icon="add", on_click=self._add).props("no-caps unelevated dense")
+            ui.button("Add box", icon="add", on_click=lambda: self._add()).props("no-caps unelevated dense")
             if CLIPBOARD.has_box:
-                ui.button("Paste", icon="content_paste", on_click=self._paste).props("no-caps flat dense") \
+                ui.button("Paste", icon="content_paste", on_click=lambda: self._paste()) \
+                    .props("no-caps flat dense") \
                     .tooltip("Adds the copied box (Ctrl+V on the canvas)")
             ui.space()
             if node is not None:
@@ -123,8 +132,11 @@ class FlowBoxView:
     def changed(self, rebuild: bool = False, edit: Callable[[], None] | None = None) -> None:
         """A box was edited in the side panel: redraw it (or everything, if its outputs may have changed). edit
         runs after the canvas was read back, before the redraw."""
-        if rebuild or edit is not None:  # also without a selected box: a Split box that found its fields by itself
-            ui.timer(0, lambda: self._resync(edit), once=True)
+        if rebuild or edit is not None:  # also without a selected box
+            # in the view's own area: whoever asks may be gone by then (a trigger's row that was drawn again),
+            # and a timer goes with the place it was made in
+            with self._area:
+                ui.timer(0, lambda: self._resync(edit), once=True)
             return
         node = self._draft.node(self._selected) if self._selected else None
         if node is None:
@@ -145,12 +157,14 @@ class FlowBoxView:
         self._draw()
         self.side_panel.refresh()
 
-    async def _add(self) -> None:
+    async def _add(self, spot: tuple[float, float] | None = None) -> None:
         action = await self._editor.picker().pick()
         if not action:
             return
         await self.sync()
         node: NodeDraft = self._draft.new_node(action)
+        if spot is not None:
+            node.box = spot
         self._editor.prepare(node)
         self._selected = node.id
         self._draw()
@@ -171,13 +185,18 @@ class FlowBoxView:
         if node is not None:
             self._show_new(self._draft.add_copy(node, same_flow=True))
 
-    async def _paste(self) -> None:
+    async def _paste(self, spot: tuple[float, float] | None = None) -> None:
         taken = CLIPBOARD.take(self._draft.name)
         if taken is None:
+            if spot is not None:  # asked for in the right click menu: say why nothing came
+                ui.notify("Nothing copied yet: right click a box, then Copy", type="info")
             return
         await self.sync()
         original, same_flow = taken
-        self._show_new(self._draft.add_copy(original, same_flow))
+        copy = self._draft.add_copy(original, same_flow)
+        if spot is not None:
+            copy.box = spot
+        self._show_new(copy)
         if not same_flow and any(box_source(v) for v in original.params.values()):
             ui.notify("Pasted from another flow: its orange wires wait for new ones here", type="info")
 
@@ -212,6 +231,31 @@ class FlowBoxView:
         elif self._selected and e.args in ("c", "d"):
             await (self._copy if e.args == "c" else self._duplicate)(self._selected)
 
+    async def _menu(self, e) -> None:
+        """A choice in the canvas's right click menu (flow_boxes.js): {do, node} for a box, {do, x, y} for a
+        spot on the empty canvas."""
+        args = e.args if isinstance(e.args, dict) else {}
+        what = args.get("do")
+        if what in ("add", "paste"):
+            spot = (float(args.get("x", 0)), float(args.get("y", 0)))
+            await (self._add if what == "add" else self._paste)(spot)
+            return
+        node_id = self._numbers.get(args.get("node"))
+        if node_id == START:
+            if what == "test" and self._test_run:
+                await self._test_run()
+            return
+        if node_id is None or self._draft.node(node_id) is None:
+            return
+        if what == "change":
+            self._selected, self._start_open = node_id, False
+            self.side_panel.refresh()
+            ui.run_javascript(f"tbFlowPanel('{PANEL_ID}', true)")
+        elif what in ("copy", "duplicate", "delete"):
+            await {"copy": self._copy, "duplicate": self._duplicate, "delete": self._delete}[what](node_id)
+        elif what == "test_from" and self._test_from:
+            await self._test_from(node_id)
+
     async def _node_selected(self, e) -> None:
         node_id = self._numbers.get(e.args) if isinstance(e.args, int) else None
         self._selected = node_id if node_id != START else None
@@ -239,20 +283,21 @@ class FlowBoxView:
         await self._resync()
 
     async def _data_wired(self, e) -> None:
-        """A data wire was drawn or taken away: the field now names its box. A Split box that gets its data takes
-        the keys the box before it is known to give (Video info: width, height, ...); if those aren't known and
-        it has no fields yet, it reads the data."""
+        """A data wire was drawn or taken away: the field now names its box."""
         await self.sync()
         node = self._draft.node(self._numbers.get(e.args)) if isinstance(e.args, int) else None
-        action = self._editor.dots.action(node.action) if node else None
-        if action and action.data_outputs and any(is_wire_in(v) and v != WIRE_IN for v in node.params.values()):
-            if self._editor.dots.fields_from_wire(node):
-                await self._resync()
-                return
-            if not node.params.get(action.data_outputs):
-                await self._editor.find_fields(node)  # redraws through changed(rebuild=True) if it found some
+        if node is not None:
+            self._show_wires(node)
         if node is not None and node.id == self._selected:
             self.side_panel.refresh()
+
+    def _show_wires(self, node: NodeDraft) -> None:
+        """A box after a wire came or went on the canvas: its rows (a wired field shows no value), and the
+        canvas is told which of its fields have a wire now, as if it had been drawn like this."""
+        boxes = self._graph.build(self._draft)["drawflow"]["Home"]["data"].values()
+        box = next(b for b in boxes if b["data"]["node"] == node.id)
+        ui.run_javascript(f"tbFlowUpdateNode({self._number_of(node.id)}, {json.dumps(box['html'])}, "
+                          f"{json.dumps(self._graph.css(node))}, {json.dumps(box['data'].get('wired', {}))})")
 
     async def _by_name(self, e) -> None:
         """A result was dropped on a box's "by name" dot: each field named like one of its keys takes that key

@@ -7,9 +7,10 @@ import tomlkit
 
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.flows.flow import Flow
+from streamer_toolbox.core.flows.flow_pack import FlowPack
 from streamer_toolbox.core.flows.flow_runner import FlowRunner
 from streamer_toolbox.core.flows.flow_trigger import FlowTrigger
-from streamer_toolbox.core.flows.flow_store import FlowStore
+from streamer_toolbox.core.flows.flow_store import NAME, FlowStore
 from streamer_toolbox.core.flows.variable_renamer import VariableRenamer
 
 
@@ -115,6 +116,48 @@ class FlowLibrary:
         flow = replace(flow, name=self.free_name(label), label=label)
         self.save(flow)
         return flow
+
+    def folder_pack(self, folder: str) -> FlowPack:
+        """A folder's flows as one file to give away (FlowPack.to_text), A-Z. Flows from elsewhere that they use
+        as boxes come along (after them, with their own folder), or those boxes would be empty for the receiver."""
+        pack = FlowPack(folder, tuple(f for f in self.all() if f.folder == folder))
+        while more := [self._flows[name] for name in pack.needs() if name in self._flows]:
+            pack = FlowPack(folder, pack.flows + tuple(more))
+        return pack
+
+    def import_file(self, text: str, file_name: str = "") -> list[Flow]:
+        """Adds what an exported file holds: one flow, or a folder of flows (import_text's rules for each)."""
+        try:
+            data = tomllib.loads(text)
+        except ValueError as e:
+            raise ValueError(f"{file_name or 'this file'} is not a flow file: {e}") from None
+        if not FlowPack.is_pack(data):
+            return [self.import_text(text, file_name)]
+        try:
+            pack = FlowPack.from_data(data)
+        except (ValueError, KeyError, TypeError) as e:
+            raise ValueError(f"{file_name or 'this file'} is not a file with flows: {e}") from None
+        return self._import_pack(pack)
+
+    def _import_pack(self, pack: FlowPack) -> list[Flow]:
+        """Every flow under its file name (a free one where that is taken), in the pack's folder. A flow whose label is taken comes in as
+        "<label> (imported)" without its triggers; boxes that run a flow of the pack run the imported one."""
+        names: dict[str, str] = {}
+        labels: dict[str, str] = {}
+        for flow in pack.flows:
+            taken = any(f.label.casefold() == flow.label.casefold() for f in self._flows.values())
+            labels[flow.name] = f"{flow.label} (imported)" if taken else flow.label
+            used = set(names.values())
+            keeps = NAME.fullmatch(flow.name) and flow.name not in used and self.free_name(flow.name) == flow.name
+            # its own file name where that is free: buttons, SAMMI and other folders' flows know it by that
+            names[flow.name] = flow.name if keeps else self.free_name(labels[flow.name], used)
+        imported = []
+        for old, flow in zip(names, pack.renamed(names).flows):
+            label = labels[old]
+            flow = replace(flow, label=label, triggers=flow.triggers if label == flow.label else ())
+            self.save(flow)
+            imported.append(flow)
+        return imported
 
     def rename_variable(self, old: str, new: str) -> list[str]:
         """A variable got a new name: every flow and template that uses it is changed and saved. Gives back the
