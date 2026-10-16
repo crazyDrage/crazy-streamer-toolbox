@@ -1,5 +1,5 @@
 import re
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 KINDS = (".png", ".jpg", ".jpeg", ".gif", ".webp")  # pictures a browser shows; no .svg (it can carry a script)
 URL = "/deck-images"  # where the toolbox serves the folder
@@ -15,7 +15,8 @@ class DeckImages:
     def add(self, name: str, content: bytes) -> str:
         """Keeps a picture and gives the name it has in the folder: the same file again keeps its name, another
         file with a taken name gets a number."""
-        path = Path(re.sub(r"[^A-Za-z0-9._-]+", "_", Path(name).name).strip("._") or "picture")
+        # PureWindowsPath: a name from a Windows browser may carry its folder with \ also on Linux
+        path = Path(re.sub(r"[^A-Za-z0-9._-]+", "_", PureWindowsPath(name).name).strip("._") or "picture")
         if path.suffix.lower() not in KINDS:
             raise ValueError(f"A picture has to be one of {', '.join(KINDS)}")
         self.folder.mkdir(parents=True, exist_ok=True)
