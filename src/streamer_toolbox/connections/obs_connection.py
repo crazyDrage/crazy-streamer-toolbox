@@ -4,6 +4,8 @@ from typing import Any, Callable
 import simpleobsws
 from nicegui import ui
 
+from streamer_toolbox.connections.obs.boxes.get_current_scene import GetCurrentScene
+from streamer_toolbox.connections.obs.boxes.switch_scene import SwitchScene
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.config.obs_config import ObsConfig
 from streamer_toolbox.core.connections.connection_base import ConnectionBase
@@ -29,6 +31,7 @@ from streamer_toolbox.connections.obs.obs_requests import ObsRequests
 from streamer_toolbox.core.actions.json_boxes import JsonBoxes
 from streamer_toolbox.core.values.value_kind import ValueKind
 from streamer_toolbox.core.values.value_kinds import ValueKinds
+from streamer_toolbox.connections.obs.obs_read_actions import ObsReadActions
 from streamer_toolbox.connections.obs.obs_scene_actions import ObsSceneActions
 from streamer_toolbox.connections.obs.obs_source_actions import ObsSourceActions
 from streamer_toolbox.connections.obs.obs_status import ObsStatus
@@ -123,26 +126,24 @@ class ObsConnection(ConnectionBase):
         return [scene["sceneName"] for scene in reversed(response.responseData["scenes"])]
 
     def add_actions(self, actions: ActionRegistry) -> None:
-        actions.add("obs.switch_scene", self.switch_scene, "Switches OBS to a scene", "Switch scene",
-                    options={"scene": self.scene_names}, group="Scenes")
-        actions.add("obs.get_current_scene", self.current_scene, "The name of the scene that is live now",
-                    "Get current scene", group="Scenes", live=True)
         add_fit_actions(actions, self._fit_targets, self._probe, SimpleobswsSceneItemEditor(self))
         ObsSourceActions(self.call).add_to(actions)
-        ObsRequestActions(self.call).add_to(actions)
-        ObsInputActions(self.call).add_to(actions)
         requests = ObsRequests(self.call)
-        for boxes in (ObsMediaPlayback(requests), ObsAudioActions(requests), ObsOutputActions(requests),
-                      ObsFilterActions(requests), ObsNewSourceActions(requests), ObsPlacementActions(requests),
-                      ObsSceneActions(requests)):
-            boxes.add_to(actions)
         # the boxes that are only a request with fields: obs/boxes/*.json
         kinds = ValueKinds([
             ValueKind("obs.scene", "OBS scene", extra="options", setting=requests.scene_names),
             ValueKind("obs.source", "OBS source", extra="options", setting=requests.input_names),
             ValueKind("obs.scene_item", "What sits in an OBS scene", extra="options",
                       setting=requests.source_names)])
+        ObsRequestActions(self.call).add_to(actions)
+        ObsInputActions(self.call).add_to(actions)
+        for boxes in (ObsMediaPlayback(requests), ObsAudioActions(requests), ObsOutputActions(requests),
+                      ObsFilterActions(requests), ObsNewSourceActions(requests), ObsPlacementActions(requests),
+                      ObsSceneActions(requests), ObsReadActions(requests)):
+            boxes.add_to(actions)
         JsonBoxes(JSON_BOXES, kinds).add_to(actions, "obs", requests)
+        for box in (SwitchScene(self), GetCurrentScene(self)):
+            actions.add_box(box, "obs")
 
     def add_gui_settings(self) -> None:
         if not self._fit_targets:

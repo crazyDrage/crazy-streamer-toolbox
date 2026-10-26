@@ -38,6 +38,17 @@ class TestPluginLoader(unittest.TestCase):
         self.assertEqual(self.contexts[pid].pages, [f"/plugins/{pid}"])
         self.assertEqual(self.contexts[pid].resources, self.root / pid / "resources")
 
+    def test_a_folder_with_only_web_boxes_needs_no_code(self) -> None:
+        pid, empty = unique_id(), unique_id()
+        box = '{"boxes": [{"name": "joke", "target": {"url": "https://jokes.test/random"}}]}'
+        write_plugin(self.root, pid, {"boxes/jokes.json": box}, api_version=4)
+        write_plugin(self.root, empty, {"resources/settings.json": "{}"}, api_version=4)
+        loader = self._loader()
+        loader.load_all()
+        self.assertEqual(loader.loaded, [pid])
+        self.assertTrue(self.actions.get(f"{pid}.joke").flow_only)
+        self.assertEqual(loader.failed, {empty: "has no main.py and no boxes/ folder"})
+
     def test_the_class_in_main_is_found_or_named(self) -> None:
         two = WORKING_PLUGIN + "\n\nclass Other(Plugin):\n    pass\n"
         unnamed, named = unique_id(), unique_id()
@@ -68,11 +79,11 @@ class TestPluginLoader(unittest.TestCase):
 
     def test_wrong_api_version_is_not_imported(self) -> None:
         pid = unique_id()
-        write_plugin(self.root, pid, {"main.py": "raise SystemExit('must not be imported')"}, api_version=3)
+        write_plugin(self.root, pid, {"main.py": "raise SystemExit('must not be imported')"}, api_version=5)
         loader = self._loader()
         loader.load_all()
         self.assertEqual(loader.loaded, [])
-        self.assertIn("api_version 3", loader.failed[pid])
+        self.assertIn("api_version 5", loader.failed[pid])
 
     def test_class_must_implement_toolbox_plugin(self) -> None:
         found, named = unique_id(), unique_id()

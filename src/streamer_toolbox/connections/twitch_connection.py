@@ -9,6 +9,13 @@ from typing import Any
 import httpx
 import websockets
 
+from streamer_toolbox.connections.twitch.boxes.create_reward import CreateReward
+from streamer_toolbox.connections.twitch.boxes.finish_refund_redeem import FinishRefundRedeem
+from streamer_toolbox.connections.twitch.boxes.get_rewards import GetRewards
+from streamer_toolbox.connections.twitch.boxes.pause_reward import PauseReward
+from streamer_toolbox.connections.twitch.boxes.reward_on_off import RewardOnOff
+from streamer_toolbox.connections.twitch.boxes.send_chat_message import SendChatMessage
+from streamer_toolbox.connections.twitch.boxes.stream_marker import StreamMarker
 from streamer_toolbox.connections.twitch.eventsub_client import EVENTSUB_URL, EventSubClient
 from streamer_toolbox.connections.oauth.oauth_code_listener import OAuthCodeListener
 from streamer_toolbox.connections.twitch.eventsub_events import subscriptions, to_event
@@ -41,7 +48,7 @@ from streamer_toolbox.core.interfaces.reward_manager import RewardManager
 REDEEM = "twitch.redeem"
 CHAT = "twitch.chat"
 log = logging.getLogger(__name__)
-PLATFORM = "twitch"  # every Twitch event says so (custom triggers pass it on to flows)
+PLATFORM = "twitch"  # every Twitch event says so (a flow on the common events tells them apart by it)
 STREAM_EVENTS = ("twitch.online", "twitch.offline")  # these also say the stream's title and category
 
 
@@ -240,25 +247,6 @@ class TwitchConnection(ConnectionBase, RewardManager):
         return found["id"]
 
     def add_actions(self, actions: ActionRegistry) -> None:
-        actions.add("twitch.send_chat", self.send_chat, "Writes in your chat as you", "Send chat message",
-                    group="Chat")
-        actions.add("twitch.create_reward", self.create_reward,
-                    "Makes a new channel point reward (the toolbox may then pause it)", "Create reward",
-                    group="Channel points")
-        actions.add("twitch.set_reward_paused", self.set_reward_paused,
-                    "Pauses or unpauses a reward the toolbox made", "Pause reward", group="Channel points",
-                    options={"reward": self.reward_choices})
-        actions.add("twitch.set_reward_enabled", self.set_reward_enabled, "Switches a reward the toolbox made on or "
-                    "off (off = viewers don't see it, e.g. for a collab)", "Reward on / off", group="Channel points",
-                    options={"reward": self.reward_choices})
-        actions.add("twitch.rewards", self.rewards, "Every channel point reward as a list: title, id, cost, "
-                    "enabled, paused, by_toolbox (only those can be changed or refunded)", "Get rewards",
-                    group="Channel points", live=True)
-        actions.add("twitch.finish_redeem", self.finish_redeem, "Marks a redeem done, or refund = give the points "
-                    "back (e.g. when something failed). Wire reward_id and redemption_id from the Start box. Only for "
-                    "rewards the toolbox made", "Finish / refund redeem", group="Channel points")
-        actions.add("twitch.create_marker", self.create_marker, "Puts a stream marker (only while live), e.g. to "
-                    "find a moment later for a clip", "Stream marker", group="Stream")
         TwitchChannelActions(self._helix, self._need_token).add_to(actions)
         TwitchStreamActions(self._helix, self._need_token).add_to(actions)
         TwitchViewerActions(self._helix, self._need_token).add_to(actions)
@@ -270,6 +258,9 @@ class TwitchConnection(ConnectionBase, RewardManager):
         question = TwitchClipQuestion(self._folder / "cache" / "twitch_clip_question.json" if self._folder else None,
                                       self._transport)
         TwitchClipActions(TwitchClipFiles(self._transport, question=question), downloader).add_to(actions)
+        for box in (SendChatMessage(self), CreateReward(self), PauseReward(self), RewardOnOff(self),
+                    GetRewards(self), FinishRefundRedeem(self), StreamMarker(self)):
+            actions.add_box(box, "twitch")
 
     # ---- internals ----
 

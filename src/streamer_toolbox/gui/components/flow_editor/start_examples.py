@@ -10,15 +10,15 @@ EXAMPLES: dict[str, Any] = {
     "args": "", "role": "viewer", "platform": "twitch", "tier": "1000", "months": 3, "amount": 5, "bits": 100,
     "viewers": 10, "seconds": 60, "anonymous": False, "gift": False, "automatic": False, "source": "test",
     "reward_id": "", "redemption_id": "test", "message_id": "test", "model": "", "key": "f23", "followed_at": "2026-01-01T12:00:00Z",
-    "title": "My stream", "category": "Just Chatting", "bpm": 80, "kind": "celebration", "emote": "",
+    "title": "My stream", "category": "Just Chatting", "bpm": 80, "previous_bpm": 78, "kind": "celebration", "emote": "",
     "reason": "ban_evader", "reasons": ["ban_evader"], "ban_evader": "likely",
 }
 
 
 class StartExamples:
-    """The values a test start gives the Start box: one per field its triggers give (EVENT_FIELDS), taken from
-    the last real start when there was one, else from the trigger itself (its reward, command, custom trigger
-    name, ...), else an example (TestViewer, hello, 100, ...)."""
+    """The values a test start gives a Start box: one per field its triggers give (EVENT_FIELDS), taken from
+    the last real start when there was one, else from the trigger itself (its reward, command,
+    ...), else an example (TestViewer, hello, 100, ...)."""
 
     @staticmethod
     def fields(triggers: list[FlowTrigger]) -> list[str]:

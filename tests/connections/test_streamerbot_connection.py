@@ -105,6 +105,11 @@ class TestStreamerbotConnection(unittest.IsolatedAsyncioTestCase):
                              {"request": "DoAction", "action": {"name": "Hype"},
                               "args": {"user": "ann", "count": 2}})
             self.assertEqual(await actions.run("streamerbot.get_global", variable="deaths"), {"value": 7})
+            await actions.run("streamerbot.code_trigger", trigger=" lights ", args='{"color": "red"}')
+            self.assertEqual({k: server.received[-1][k] for k in ("request", "triggerName", "args")},
+                             {"request": "ExecuteCodeTrigger", "triggerName": "lights", "args": {"color": "red"}})
+            with self.assertRaisesRegex(ValueError, "Which trigger"):
+                await actions.run("streamerbot.code_trigger", trigger=" ")
             await actions.run("streamerbot.send_chat", message="hi", platform="Kick")
             self.assertEqual((server.received[-1]["platform"], server.received[-1]["bot"]), ("kick", True))
             with self.assertRaisesRegex(PermissionError, "tick Authentication and set a password"):

@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
-START = "start"  # the id of every flow's Start box; its one port is "out"
+START = "start"  # the id of every flow's Start box (Manual: button, API, another flow); its one port is "out"
+INPUT = "input"  # the id of every flow's Input box: its inputs as orange dots, no run wire (his round 63)
 DONE = "done"    # the port of a box whose action has no ports of its own
 
 

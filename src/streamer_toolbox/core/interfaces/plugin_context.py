@@ -7,18 +7,88 @@ from fastapi import APIRouter
 
 from streamer_toolbox.core.actions.json_boxes import Send
 from streamer_toolbox.core.actions.registered_action import ActionHandler, OptionsProvider
+from streamer_toolbox.core.connections.secret_file import SecretFile
 from streamer_toolbox.core.events.event_bus import EventHandler
+from streamer_toolbox.core.flows.box_signals import BoxSignals
+from streamer_toolbox.core.flows.retrigger import Retrigger
+from streamer_toolbox.core.interfaces.box import Box
 from streamer_toolbox.core.interfaces.connection import Connection
+from streamer_toolbox.core.interfaces.field_editor import FieldEditor
+from streamer_toolbox.core.interfaces.listener import Listener
+from streamer_toolbox.core.interfaces.page import Page
+from streamer_toolbox.core.interfaces.panel import Panel
+from streamer_toolbox.core.interfaces.tool import Tool
+from streamer_toolbox.core.interfaces.trigger import Trigger
 from streamer_toolbox.core.values.value_kind import ValueKind
 
 
+Addable = Box | Trigger | Connection | Tool | Page | Panel | Listener | APIRouter | type[FieldEditor]
+
+
 class PluginContext(ABC):
-    """The only door a plugin gets into the toolbox, so the internals can change behind it."""
+    """The only door a plugin gets into the toolbox, so the internals can change behind it.
+
+    What a plugin adds goes through add(): one class per kind of thing (core/interfaces: Box, Trigger,
+    Connection, Tool, Page, Panel, Listener, FieldEditor; FastAPI's own APIRouter for routes). The rest of the
+    methods are what a plugin can use (run_action, settings, ask_yes_no, ...). The add_* methods are the
+    older way of api_version 1 to 3 and stay for those plugins."""
 
     @property
     @abstractmethod
     def plugin_id(self) -> str:
         ...
+
+    def add(self, thing: Addable) -> str:
+        """Adds one thing to the toolbox, whatever kind it is. Returns its full name where it has one: a box's
+        "<id>.<name>", a trigger's "<id>.<event>", a field editor's "<id>.<kind>", a page's path; else ""."""
+        if isinstance(thing, Box):
+            if not thing.name:
+                raise ValueError(f"{type(thing).__name__} needs a name")
+            self.add_action(thing.name, thing.run, thing.help, thing.label, **thing.box_options())
+            return f"{self.plugin_id}.{thing.name}"
+        if isinstance(thing, Trigger):
+            if not (thing.event and thing.title):
+                raise ValueError(f"{type(thing).__name__} needs an event and a title")
+            name = self.add_trigger(thing.event, thing.title, thing.fields, thing.icon, thing.pick, thing.example,
+                                    thing.description, thing.choices)
+            thing.added(self.publish)
+            return name
+        if isinstance(thing, Connection):
+            self.add_connection(thing)
+            return thing.id
+        if isinstance(thing, Tool):
+            self.add_tool(thing.title, thing.build, thing.icon, thing.description)
+            return ""
+        if isinstance(thing, Page):
+            return self.add_page(thing.title, thing.build, thing.subpath, thing.icon)
+        if isinstance(thing, Panel):
+            self.add_panel(thing.title, thing.build, thing.section)
+            return ""
+        if isinstance(thing, Listener):
+            self.on_event(thing.heard)
+            return ""
+        if isinstance(thing, APIRouter):
+            self.add_router(thing)
+            return ""
+        if isinstance(thing, type) and issubclass(thing, FieldEditor):
+            if not thing.kind:
+                raise ValueError(f"{thing.__name__} needs a kind")
+            return self.add_field_editor(thing.kind, thing)
+        raise TypeError(f"ctx.add takes a Box, Trigger, Connection, Tool, Page, Panel, Listener, APIRouter or a "
+                        f"FieldEditor class, not {type(thing).__name__}")
+
+    @abstractmethod
+    def secret(self, name: str, label: str, hint: str = "") -> SecretFile:
+        """A key, token or password the plugin needs. The streamer types it into a field on the plugin's card
+        under Plugins (it is never shown again); it is kept in config/secrets/<plugin_id>_<name>.txt, encrypted
+        while a login is set. `.read()` gives it, or raises with words that say where to type it;
+        `.hide(text)` takes it out of a text before it is shown or logged. Asking twice gives the same one."""
+
+    @abstractmethod
+    def add_web_boxes(self, folder: Path) -> None:
+        """The boxes written as web JSON in `folder` (every *.json file: a web address to call, its inputs and
+        outputs; WebBoxes), as "<plugin_id>.<name>". A plugin with only a boxes/ folder and no main.py gets
+        this by itself."""
 
     @abstractmethod
     def add_action(self, name: str, handler: ActionHandler, description: str = "", label: str = "",
@@ -26,9 +96,28 @@ class PluginContext(ABC):
         """Register an action as "<plugin_id>.<name>" (runnable from SAMMI, Kit and the GUI).
 
         label is the button text on the Live page (default: the name, humanised); description shows under it.
-        **box is what a box in the flow editor can have besides its fields, the same keywords as
-        ActionRegistry.add: group, options (pickers), outputs, hints, labels, files, ports, live, flow_only, ...
+        **box is what a box in the flow editor can have besides its fields: every keyword of ActionRegistry.add
+        (group, options, outputs, ports, entries, toggles, port_fields, entry_fields, value_lines, named_lines,
+        data_only, join, ends_flow, gives_back, once_per_flow, retrigger, variable_fields, editors, ...; all of
+        them in docs/ai/code/action.md). The toolbox's own boxes use nothing a plugin can't: a Loop, an End or a
+        Wait can be made the same way (tests/test_plugin_parity.py).
         """
+
+    @abstractmethod
+    def box_signals(self) -> Optional[BoxSignals]:
+        """Inside a box's handler while it runs in a flow: what arrived at its extra run dots (`entries`, e.g.
+        a "stop": has("stop"), await wait_for(seconds, "stop")). None outside a flow (Test box, API)."""
+
+    @abstractmethod
+    def retrigger(self) -> Optional[Retrigger]:
+        """Inside a box's handler with `retrigger`: the run's Retrigger, so a new start of the flow stretches
+        the box's wait (await retrigger.wait(seconds, mode)) instead of running again. None when the flow
+        has no switched-on box asking for it."""
+
+    @abstractmethod
+    def add_field_editor(self, kind: str, editor: type[FieldEditor]) -> str:
+        """A field kind with its own window (a FieldEditor class); returns its full name "<plugin_id>.<kind>",
+        which a box names in editors={field: name}."""
 
     @abstractmethod
     def add_json_boxes(self, folder: Path, send: Send, kinds: Collection[ValueKind] = ()) -> None:

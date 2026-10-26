@@ -12,7 +12,7 @@ MODE_HELP = {
     EVERY: "Like at toolbox start, and again every so many minutes."}
 WITH_ROLE = ("A real role, told with the event: the chat triggers (Twitch, YouTube, Rumble, any platform). "
              "A role from here: Redeem, Follow, Sub, Resub, Gift subs, Cheer, Raid, Chat message deleted, "
-             "StreamSocket event, the YouTube and Rumble ones with a viewer, Custom trigger. "
+             "StreamSocket event, the YouTube and Rumble ones with a viewer. "
              "No role: Tip, StreamElements and Streamlabs activity, Tiltify, Crowd Control, Streamer.bot and Lumia "
              "events, and everything without a viewer (timer, OBS, VTube Studio, keys).")
 

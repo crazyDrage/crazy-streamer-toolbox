@@ -25,3 +25,10 @@
 .tb-deck-dragged { z-index: 2; opacity: 0.85; }
 .tb-deck-grip { position: absolute; right: 3px; bottom: 3px; width: 16px; height: 16px; cursor: nwse-resize;
   border-radius: 3px 0 3px 0; background: linear-gradient(135deg, transparent 50%, rgba(255, 255, 255, 0.85) 50%); }
+
+/* the view menu (round 63): full screen shows only the buttons, with a dim corner button to leave it */
+.tb-deck-exit { display: none !important; }
+html:fullscreen .tb-deck-bar { display: none !important; }
+html:fullscreen .tb-deck-exit { display: inline-flex !important; position: fixed; top: 4px; right: 4px; z-index: 10;
+  opacity: 0.35; }
+html:fullscreen .nicegui-content { padding: 4px; }

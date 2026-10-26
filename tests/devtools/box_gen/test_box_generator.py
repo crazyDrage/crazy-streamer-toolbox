@@ -34,7 +34,8 @@ class TestBoxGenerator(unittest.TestCase):
         written = self.generator.generate(ServiceSpec.from_json(SPEC))
         self.assertTrue(all(written.values()))
         self.assertEqual(sorted(p.name for p in written), [
-            "add_points_answer.py", "demo_api_actions.py", "fake_demo_api_actions_send.py", "get_counter_answer.py",
+            "add_points.py", "add_points_answer.py", "demo_api_actions.py", "demo_api_box.py",
+            "fake_demo_api_actions_send.py", "get_counter.py", "get_counter_answer.py", "list_items.py",
             "test_demo_api_actions.py"])
         for path in written:
             self.assertTrue(all(len(line) <= 120 for line in path.read_text(encoding="utf-8").splitlines()), path)

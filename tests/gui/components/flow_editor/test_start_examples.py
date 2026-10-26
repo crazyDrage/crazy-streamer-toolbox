@@ -6,10 +6,8 @@ from streamer_toolbox.gui.components.flow_editor.start_examples import StartExam
 
 class TestStartExamples(unittest.TestCase):
     def test_trigger_values_then_examples(self) -> None:
-        triggers = [FlowTrigger("custom", {"trigger": "lizard"}),
-                    FlowTrigger("twitch.redeem", {"reward": "Lizard", "reward_id": "r1"})]
+        triggers = [FlowTrigger("twitch.redeem", {"reward": "Lizard", "reward_id": "r1"})]
         values = StartExamples.values(triggers, None)
-        self.assertEqual(values["trigger"], "lizard")
         self.assertEqual((values["reward"], values["reward_id"]), ("Lizard", "r1"))
         self.assertEqual((values["user"], values["input"]), ("TestViewer", "hello"))
         self.assertIn("platform", values)

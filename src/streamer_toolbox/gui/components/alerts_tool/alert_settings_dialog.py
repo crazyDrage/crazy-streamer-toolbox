@@ -6,7 +6,7 @@ from typing import Any
 
 from nicegui import Client, app, context, ui
 
-from streamer_toolbox.core.alerts.alert_actions import PICTURE_TYPES
+from streamer_toolbox.core.alerts.boxes.alert_box import PICTURE_TYPES
 from streamer_toolbox.core.alerts.alert_look import ANIMATIONS_IN, ANIMATIONS_OUT, PLACES, TEXT_PLACES, AlertLook
 from streamer_toolbox.core.alerts.alert_part import ALIGNS, PARTS, AlertPart
 from streamer_toolbox.core.alerts.alert_queue import AlertQueue

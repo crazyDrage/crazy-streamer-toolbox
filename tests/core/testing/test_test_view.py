@@ -42,7 +42,7 @@ class TestTestView(unittest.TestCase):
         for name in ("obs.set_scene", "obs.mute", "obs.record", "logic.value", "logic.debug",
                      "flow.my_flow"):
             self.actions.add(name, noop)
-        TestGate(tested, False).apply(self.actions, [], lambda: ITEMS)
+        TestGate(tested).apply(self.actions, lambda: ITEMS)
         self.choice: dict = {}
         self.view = TestView(tested, self.choice)
 

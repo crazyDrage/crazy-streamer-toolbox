@@ -34,6 +34,15 @@ class TestSoundActions(unittest.IsolatedAsyncioTestCase):
                              [str(Path("alarms/short.ogg")), "bubbles.wav"])
         self.assertEqual(player.played, [(folder / "bubbles.wav", 0.4, False)])
 
+    async def test_stop_all_says_how_many_it_stopped(self) -> None:
+        player = FakeSoundPlayer()
+        actions = ActionRegistry()
+        SoundActions(player, Path(".")).add_to(actions)
+        await player.play(Path("a.wav"))
+        await player.play(Path("b.wav"))
+        self.assertEqual(await actions.run("sound.stop_all"), 2)
+        self.assertEqual(await actions.run("sound.stop_all"), 0)
+
     def test_decode_scales_the_volume(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "tone.wav"

@@ -3,6 +3,16 @@ import logging
 from pathlib import Path
 from typing import Any, Callable
 
+from streamer_toolbox.connections.vtube_studio.boxes.get_loaded_model import GetLoadedModel
+from streamer_toolbox.connections.vtube_studio.boxes.get_model_position import GetModelPosition
+from streamer_toolbox.connections.vtube_studio.boxes.load_model import LoadModel
+from streamer_toolbox.connections.vtube_studio.boxes.move_model_by import MoveModelBy
+from streamer_toolbox.connections.vtube_studio.boxes.move_model_numbers import MoveModelNumbers
+from streamer_toolbox.connections.vtube_studio.boxes.move_model_to_position import MoveModelToPosition
+from streamer_toolbox.connections.vtube_studio.boxes.move_model_to_saved_position import MoveModelToSavedPosition
+from streamer_toolbox.connections.vtube_studio.boxes.play_model_animation import PlayModelAnimation
+from streamer_toolbox.connections.vtube_studio.boxes.save_model_position import SaveModelPosition
+from streamer_toolbox.connections.vtube_studio.boxes.stop_model_animation import StopModelAnimation
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.connections.connection_base import ConnectionBase
 from streamer_toolbox.core.connections.connection_state import ConnectionState
@@ -229,75 +239,14 @@ class VtsConnection(ConnectionBase, ModelMover):
         await self.load_model(model, True, wait)
 
     def add_actions(self, actions: ActionRegistry) -> None:
-        async def move_model_to(position: dict, seconds: float = 1.0, load_model: bool = False) -> None:
-            model = position.get("model") if isinstance(position, dict) else None
-            if to_bool(load_model) and model:
-                await self.ensure_model(model)
-            await self.move(VtsPosition.from_dict(position), seconds)
-
-        async def get_model_position() -> dict[str, Any]:
-            model, position = await self.current_model()
-            return {**position.to_dict(), "model": model}
-
-        async def play_animation(animation: dict, repeat: int = 1, loop_forever: bool = False,
-                                 back_to_start: bool = False, back_seconds: float = 1.0) -> None:
-            await self.play_animation(VtsAnimation.from_dict(animation), int(repeat), to_bool(back_to_start),
-                                      float(back_seconds), to_bool(loop_forever))
-
-        async def stop_animation(back_to_start: bool = False, back_seconds: float = 1.0) -> bool:
-            return await self.stop_animation(to_bool(back_to_start), float(back_seconds))
-
-        async def get_model() -> str:
-            return (await self.current_model())[0]
-
-        actions.add("vts.get_model_position", get_model_position,
-                    "Reads where the model is now and which model it is: {x, y, rotation, size, model}. Save it in "
-                    "a variable to use it later", "Get model position", group="Model position",
-                    live=True, outputs={"x": "number", "y": "number", "rotation": "number", "size": "number",
-                                        "model": "text"})
-        actions.add("vts.move_model_to", move_model_to,
-                    "Moves the model to a position, e.g. a variable made by Get model position. load_model: if the "
-                    "position belongs to another model, load that model first",
-                    "Move model to position", group="Model position",
-                    capture="vts.get_model_position:position")
-        actions.add("vts.move_model", self.move_some, "Moves the model to exact values; the ones left empty stay "
-                    "as they are now (e.g. only x = only sideways)", "Move model (numbers)", group="Model position")
-        actions.add("vts.move_model_by", self.move_by,
-                    "Moves the model from where it is now, e.g. x -0.2 = a bit to the left (the screen is -1 to 1 "
-                    "wide). 0 = keep that one", "Move model by (from where it is)", group="Model position")
-        actions.add("vts.play_animation", play_animation,
-                    "Plays a model animation: the model goes from spot to spot, each step taking its own time. "
-                    "The steps are kept in this box (Edit: record them by moving the model in VTS); the box "
-                    "ends when the animation is done. A new animation stops the one playing",
-                    "Play model animation", group="Model position", editors={"animation": "vts_animation"},
-                    labels={"back_to_start": "Back to the start", "back_seconds": "Seconds to go back"},
-                    hints={"repeat": "Play it this many times in a row",
-                           "loop_forever": "Keeps playing in the background until a Stop model animation box (or "
-                                           "another animation) stops it. The flow goes on at once",
-                           "back_to_start": "At the end, go back to where the model was when it started"})
-        actions.add("vts.stop_animation", stop_animation,
-                    "Stops the model animation that's playing (also one that loops forever). Gives true if one "
-                    "was playing", "Stop model animation", group="Model position",
-                    labels={"back_to_start": "Back to the start", "back_seconds": "Seconds to go back"},
-                    hints={"back_to_start": "Then go back to where the model was when that animation began"})
-        actions.add("vts.move_to_position", self.move_to_position,
-                    "Moves the loaded model to one of its saved positions (old way; variables replace it)",
-                    "Move model to saved position", group="Model position",
-                    options={"position": self.position_names}, capture="vts.save_position")
-        actions.add("vts.save_position", self.save_position,
-                    "Saves where the loaded model is now under a name (old way; variables replace it)",
-                    "Save model position", group="Model position", options={"position": self.position_names})
-        actions.add("vts.get_model", get_model, "The name of the loaded model", "Get loaded model",
-                    group="Model", live=True)
-        actions.add("vts.load_model", self.load_model, "Loads a model by name", "Load model", group="Model",
-                    options={"model": self.model_names},
-                    labels={"wait_until_loaded": "Wait until it's loaded", "seconds": "Give up after (s)"},
-                    hints={"wait_until_loaded": "On: the box ends when VTube Studio shows the new model, so the "
-                                                "next boxes (e.g. move it) work on that one"})
         VtsHotkeyActions(self._request).add_to(actions)
         self._items.add_to(actions)
         VtsExpressionActions(self._request).add_to(actions)
         VtsLookActions(self._request).add_to(actions)
+        for box in (GetModelPosition(self), MoveModelToPosition(self), MoveModelNumbers(self), MoveModelBy(self),
+                    PlayModelAnimation(self), StopModelAnimation(self), MoveModelToSavedPosition(self),
+                    SaveModelPosition(self), GetLoadedModel(self), LoadModel(self)):
+            actions.add_box(box, "vts")
 
     # ---- internals ----
 

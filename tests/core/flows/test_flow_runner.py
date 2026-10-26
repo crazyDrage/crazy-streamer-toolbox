@@ -141,6 +141,29 @@ class TestFlowRunner(unittest.IsolatedAsyncioTestCase):
         late = await self.runner.run(flow, inputs={"do": "stop"})
         self.assertIn({"box": "loop", "action": "logic.loop", "result": "stop: it wasn't running"}, late)
 
+    async def test_the_switch_dot_starts_the_loop_and_stops_it_the_next_time(self) -> None:
+        nodes = (FlowNode("loop", "logic.loop"), FlowNode("round", "a.record", {"round": 1}),
+                 FlowNode("end", "a.record", {"end": 1}), FlowNode("count", "a.record", {"n": "${box.loop.round}"}))
+        flow = Flow("f", "F", nodes, (FlowWire("start", "out", "loop", "switch"), FlowWire("loop", "each", "round"),
+                                      FlowWire("loop", "stopped", "end"), FlowWire("round", "done", "count")))
+        looping = asyncio.create_task(self.runner.run(flow))
+        await asyncio.wait_for(self._calls_reach(6), 1)
+        self.assertEqual(self.calls[:6], [{"round": 1}, {"n": 1}, {"round": 1}, {"n": 2}, {"round": 1}, {"n": 3}])
+        stopped = await self.runner.run(flow)
+        self.assertIn({"box": "loop", "action": "logic.loop", "result": "switch: passed on"}, stopped)
+        await asyncio.wait_for(looping, 1)
+        self.assertEqual(self.calls[-1], {"end": 1})
+        before = len(self.calls)
+        again = asyncio.create_task(self.runner.run(flow))  # and the next one starts it again
+        await asyncio.wait_for(self._calls_reach(before + 1), 1)
+        self.assertEqual(self.calls[before], {"round": 1})
+        await self.runner.run(flow)
+        await asyncio.wait_for(again, 1)
+
+    async def _calls_reach(self, count: int) -> None:
+        while len(self.calls) < count:
+            await asyncio.sleep(0.01)
+
     async def test_loop_with_rounds_ends_by_itself_and_rounds_dont_add_up(self) -> None:
         with mock.patch("streamer_toolbox.core.flows.flow_runner.MAX_RUNS", 6):
             await asyncio.wait_for(self.runner.run(self._loop_flow(rounds=8)), 3)
@@ -185,19 +208,13 @@ class TestFlowRunner(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(0.1)
         self.assertEqual(self.calls, [{"next": 1}, {"slow": "after end"}])  # which still ran
 
-    async def test_named_end_boxes_are_the_flow_boxes_outputs(self) -> None:
-        nodes = (FlowNode("ask", "logic.if", {"left": "${input.n}", "op": ">", "right": "5"}),
-                 FlowNode("big", "logic.end", {"name_1": "big"}), FlowNode("small", "logic.end", {"name_1": "small"}))
-        inner = Flow("size", "Size", nodes, (FlowWire("start", "out", "ask"), FlowWire("ask", "then", "big"),
-                                              FlowWire("ask", "else", "small")), inputs=(FlowInput("n", "1"),))
-        self.assertEqual(inner.ends, ("big", "small"))
+    async def test_the_flow_box_has_one_output_also_with_an_end_box(self) -> None:
+        inner = Flow("size", "Size", (FlowNode("e", "logic.end"),), (FlowWire("start", "out", "e"),))
         self.runner.register(inner)
-        self.assertEqual(self.actions.get("flow.size").ports, ("big", "small"))
-        outer_nodes = (FlowNode("s", "flow.size", {"n": "9"}), FlowNode("b", "a.record", {"was": "big"}),
-                       FlowNode("m", "a.record", {"was": "small"}))
-        wires = (FlowWire("start", "out", "s"), FlowWire("s", "big", "b"), FlowWire("s", "small", "m"))
-        await self.runner.run(Flow("outer", "Outer", outer_nodes, wires))
-        self.assertEqual(self.calls, [{"was": "big"}])
+        self.assertEqual(self.actions.get("flow.size").ports, ())
+        outer_nodes = (FlowNode("s", "flow.size"), FlowNode("b", "a.record", {"was": "after"}))
+        await self.runner.run(Flow("outer", "Outer", outer_nodes, chain(*outer_nodes)))
+        self.assertEqual(self.calls, [{"was": "after"}])
 
     async def test_without_an_end_box_the_flow_box_waits_for_the_whole_flow(self) -> None:
         inner = Flow("inner", "Inner", (FlowNode("s", "a.slow", {"label": "inside"}),), (FlowWire("start", "out", "s"),))
@@ -212,7 +229,7 @@ class TestFlowRunner(unittest.IsolatedAsyncioTestCase):
         results, error = await self.runner.test_run(flow, {}, {"user": "TestViewer", "reward": "Lizard"})
         self.assertIsNone(error)
         self.assertEqual(self.calls, [{"who": "TestViewer", "start": "Lizard"}])
-        self.assertEqual(self.runner.last_result("f", "start"), (True, {"user": "TestViewer", "reward": "Lizard"}))
+        self.assertEqual(self.runner.last_result("f", "start"), (True, {}))  # Manual Start gives nothing
 
     async def test_a_test_run_from_a_box_runs_it_and_what_comes_after(self) -> None:
         nodes = (FlowNode("n1", "a.record", {"n": 1}), FlowNode("n2", "a.record", {"n": 2}),

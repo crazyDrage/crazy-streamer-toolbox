@@ -1,23 +1,20 @@
-from dataclasses import dataclass, field
-
-from streamer_toolbox.core.actions.numbered_fields import numbered_fields
+from dataclasses import dataclass, field, replace
 
 from streamer_toolbox.core.flows.box_wire import BOX_REF
 from streamer_toolbox.core.flows.flow_input import FlowInput
 from streamer_toolbox.core.flows.flow_node import FlowNode
 from streamer_toolbox.core.flows.flow_trigger import FlowTrigger
-from streamer_toolbox.core.flows.flow_wire import FlowWire
+from streamer_toolbox.core.flows.flow_wire import START, FlowWire
 
-OUTPUT_ACTION = "logic.output"  # a Flow output box: what the flow gives back when it's used as a box
-END_ACTION = "logic.end"  # an End box: where the flow's box (in another flow) goes on; a named one is its own output
-END_LINE = "name"  # an End box's lines: name_1, name_2, ... (each with its own run dot)
-END_KEY = "_end"  # in a flow box's result: which End box was reached ("" = none)
+END_ACTION = "logic.end"  # the End box; only old_end_boxes reads it by name (flows from before round 55)
+END_LINE = "name"  # an End box's way out until round 55 (dropped when read, old_end_boxes); no value is called so
 
 
 @dataclass(frozen=True)
 class Flow:
-    """A saved graph of boxes, starting at Start; becomes the action flow.<name> (a button on Live, in SAMMI,
-    over the API)."""
+    """A saved graph of boxes; becomes the action flow.<name> (a button on Live, in SAMMI, over the API). It has
+    a Start box per way it starts (his round 63): Manual (id "start": button, API, another flow) and one per
+    trigger (its id), and an Input box (id "input") whose orange dots are the inputs."""
 
     name: str
     label: str
@@ -33,28 +30,25 @@ class Flow:
     folder: str = ""              # where the Flows page lists it ("" = no folder); the file and action stay put
     enabled: bool = True          # off: it doesn't start at all (button, SAMMI, API, another flow, trigger)
     triggers_enabled: bool = True  # off: its triggers don't start it; its button and the others still do
+    as_box: bool = True           # off: the Add box window doesn't offer it in other flows (his round 56)
+    start_box: tuple[float, float] | None = None  # where the Manual Start box sits in the box view
+    input_box: tuple[float, float] | None = None  # where the Input box sits
+
+    def trigger(self, node_id: str) -> FlowTrigger | None:
+        """The trigger whose Start box has this id."""
+        return next((t for t in self.triggers if t.id and t.id == node_id), None)
+
+    def without_triggers(self) -> "Flow":
+        """A copy without its triggers and their Start boxes' wires (an imported or copied flow)."""
+        return replace(self, triggers=(), wires=tuple(w for w in self.wires if self.trigger(w.source) is None))
+
+    def starts(self) -> list[str]:
+        """The ids of its Start boxes: Manual, then one per trigger."""
+        return [START, *(t.id for t in self.triggers if t.id)]
 
     @property
     def action_name(self) -> str:
         return f"flow.{self.name}"
-
-    @property
-    def outputs(self) -> tuple[str, ...]:
-        """The names of its Flow output boxes (typed names only), in box order."""
-        names = [str(n.params.get("name", "")).strip() for n in self.nodes if n.action == OUTPUT_ACTION]
-        return tuple(dict.fromkeys(n for n in names if n and "${" not in n))
-
-    @property
-    def ends(self) -> tuple[str, ...]:
-        """The names of its End boxes' lines (typed names only), in box order: the outputs its box has in other
-        flows. Empty: the box has one output (done), fired at an unnamed End line or when the flow is done."""
-        names = [str(n.params.get(line, "")).strip() for n in self.nodes if n.action == END_ACTION
-                 for line in numbered_fields(END_LINE, n.params)]
-        return tuple(dict.fromkeys(n for n in names if n and "${" not in n))
-
-    @property
-    def has_end(self) -> bool:
-        return any(n.action == END_ACTION for n in self.nodes)
 
     def data_loop(self) -> list[str]:
         """Boxes whose orange wires go round (a needs b needs a): ["n3", "n5", "n3"], or [] if there is none.
@@ -92,3 +86,4 @@ class Flow:
     def entries(self, source: str, port: str) -> list[tuple[str, str]]:
         """(box, entry) for the wires from the port into a box's extra run dot (a Loop's stop)."""
         return [(w.target, w.entry) for w in self.wires if w.source == source and w.port == port and w.entry]
+

@@ -4,6 +4,12 @@ from streamer_toolbox.core.flows.flow import Flow
 from streamer_toolbox.core.flows.flow_node import FlowNode
 from streamer_toolbox.core.flows.variable_renamer import VariableRenamer
 
+FIELDS = {"var.set": ("name",), "var.get": ("name",), "logic.for_each": ("item",)}  # the boxes' variable_fields
+
+
+def fields(action: str) -> tuple[str, ...]:
+    return FIELDS.get(action, ())
+
 
 class TestVariableRenamer(unittest.TestCase):
     def test_every_place_a_flow_can_use_the_variable(self) -> None:
@@ -18,7 +24,7 @@ class TestVariableRenamer(unittest.TestCase):
             FlowNode("n8", "logic.value", {"values": {"where": "${var.pos.x}"}}),
             FlowNode("n9", "var.get", {"name": "pos"}),
         ))
-        renamed = VariableRenamer("pos", "dragon_spot").flow(flow)
+        renamed = VariableRenamer("pos", "dragon_spot", fields).flow(flow)
         params = {n.id: n.params for n in renamed.nodes}
         self.assertEqual(params["n1"]["position"], "${var.dragon_spot}")
         self.assertEqual(params["n2"], {"left": "${var.dragon_spot.x}", "right": "${var.pos_old}"})
@@ -31,4 +37,4 @@ class TestVariableRenamer(unittest.TestCase):
 
     def test_a_flow_without_it_is_left_alone(self) -> None:
         flow = Flow("f", "F", (FlowNode("n1", "var.set", {"name": "other", "value": "${var.posx}"}),))
-        self.assertIsNone(VariableRenamer("pos", "spot").flow(flow))
+        self.assertIsNone(VariableRenamer("pos", "spot", fields).flow(flow))

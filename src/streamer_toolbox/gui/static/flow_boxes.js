@@ -2,8 +2,8 @@
 // One output may feed several boxes (they run at the same time); a box may have several outputs (If: then/else).
 // Data dots (orange) come after the run dots: node.data.ports = run outputs, data_out / labels_out = data outputs,
 // entries = extra run inputs after input_1 (a Loop's "stop": input_2, ...), data_in = the data inputs after those.
-// A data wire only joins data dots, and a data input takes one wire. data_in "*" is the "by name" dot: a wire dropped there isn't kept; Python wires
-// the box's fields named like the result's keys instead (tb_flow_by_name).
+// A data wire only joins data dots, and a data input takes one wire.
+// node.data.special: the boxes every flow has (Manual "start", a "trigger"'s Start box, "input"); see the menu.
 window.tbFlowInit = function (elementId, data, shortWires) {
   const el = document.getElementById(elementId);
   if (!el) return;
@@ -26,14 +26,9 @@ window.tbFlowInit = function (elementId, data, shortWires) {
     const data = tbFlowIsData(editor, c.output_id, c.output_class);
     if (c.output_id == c.input_id || data !== !tbFlowIsRunIn(editor, c.input_id, c.input_class)) {
       editor.removeSingleConnection(c.output_id, c.input_id, c.output_class, c.input_class);
-    } else if (data && tbFlowDataIn(editor, c.input_id, c.input_class) === "*") {
-      editor.removeSingleConnection(c.output_id, c.input_id, c.output_class, c.input_class);
-      const source = editor.getNodeFromId(c.output_id).data;
-      const field = (source.data_out || [])[Number(c.output_class.split("_")[1]) - 1 - (source.ports || []).length];
-      emitEvent("tb_flow_by_name", { target: Number(c.input_id), source: Number(c.output_id), field: field || "" });
     } else if (data) {  // a field takes one value: the new wire replaces the old one
-      const input = editor.getNodeFromId(c.input_id).inputs[c.input_class];
-      input.connections.filter((old) => old.node != c.output_id || old.input != c.output_class)
+      const target = editor.getNodeFromId(c.input_id);
+      target.inputs[c.input_class].connections.filter((old) => old.node != c.output_id || old.input != c.output_class)
         .forEach((old) => editor.removeSingleConnection(old.node, c.input_id, old.input, c.input_class));
       emitEvent("tb_flow_wired", Number(c.input_id));
     }
@@ -73,11 +68,6 @@ function tbFlowDragOutside() {
   document.addEventListener("mouseup", (e) => { const editor = outside(e); if (editor) editor.dragEnd(e); });
 }
 
-function tbFlowDataIn(editor, nodeId, input) {
-  const node = editor.drawflow.drawflow.Home.data[nodeId];
-  return ((node && node.data.data_in) || [])[Number(input.split("_")[1]) - 2 - tbFlowEntries(node).length];
-}
-
 function tbFlowEntries(node) {
   return (node && node.data.entries) || [];
 }
@@ -104,7 +94,7 @@ function tbFlowPaint(el, editor) {
   };
   el.querySelectorAll(".drawflow-node").forEach((node) => {
     const data = (nodes[node.id.replace("node-", "")] || {}).data || {};
-    const ports = data.ports || [], dataIn = data.data_in || [];
+    const ports = data.ports || [];
     const entries = data.entries || [];
     node.querySelectorAll(".output").forEach((dot) => {
       const index = number([...dot.classList].find((c) => c.startsWith("output_"))) - 1;
@@ -114,17 +104,25 @@ function tbFlowPaint(el, editor) {
         dot.classList.add("tb-data");
       }
     });
+    const order = data.order_in || [];  // a box with lines: each line's run dot above its value (Python's rows match)
     node.querySelectorAll(".input").forEach((dot) => {
-      let index = number([...dot.classList].find((c) => c.startsWith("input_"))) - 2;
+      const input = number([...dot.classList].find((c) => c.startsWith("input_")));
+      dot.style.order = order.length ? String(order.indexOf(input)) : "";
+      let index = input - 2;
       if (index < entries.length) {  // run dots: the box's own and the entries ("stop") when it has some
         // a line's own run dot (Choose value, End) is a plain run dot, not a "stop"
-        dot.classList.toggle("tb-entry", index >= 0 && !(data.lines_in || []).includes(entries[index]));
+        const lines = data.lines_in || [];
+        const entry = index >= 0 && !lines.includes(entries[index]);
+        dot.classList.toggle("tb-entry", entry);
+        if (entry) dot.classList.add("tb-entry-" + entries[index]);  // its own colour: stop red, switch blue
+        // the box's own run dot is "start" (green) when it has extra ones that aren't lines (a Loop)
+        if (index < 0 && entries.some((e) => !lines.includes(e))) dot.classList.add("tb-entry-start");
         return;
       }
       index -= entries.length;
       dot.classList.add("tb-data");
-      dot.classList.toggle("tb-by-name", dataIn[index] === "*");
     });
+    if (order.length) editor.updateConnectionNodes(node.id);  // its wires were drawn to the dots' old places
   });
   el.querySelectorAll(".connection").forEach((wire) => {
     const from = [...wire.classList].find((c) => c.startsWith("node_out_node-"));
@@ -245,9 +243,13 @@ function tbFlowRightClick(el, editor) {
     const ask = (what) => () => emitEvent("tb_flow_menu", what);
     if (node) {
       const id = Number(node.id.replace("node-", ""));
-      if (editor.drawflow.drawflow.Home.data[id].name === "start") {
-        tbMenu(e.clientX, e.clientY,
-          [{ label: "Test run…", icon: "play_circle", run: ask({ do: "test", node: id }) }]);
+      const special = editor.drawflow.drawflow.Home.data[id].data.special;
+      if (special) {  // Manual Start and Input can't be copied or deleted; a trigger's Start box can be deleted
+        const test = { label: "Test run…", icon: "play_circle", run: ask({ do: "test", node: id }) };
+        const change = { label: "Change", icon: "edit", run: ask({ do: "change", node: id }) };
+        const remove = { label: "Delete", icon: "delete", danger: true, run: ask({ do: "delete", node: id }) };
+        tbMenu(e.clientX, e.clientY, special === "input" ? [change] : special === "start" ? [test]
+          : [change, test, remove]);
         return;
       }
       tbMenu(e.clientX, e.clientY, [

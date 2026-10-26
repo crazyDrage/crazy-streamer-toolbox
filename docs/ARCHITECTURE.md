@@ -14,10 +14,13 @@ assembly/                putting the toolbox together, without starting it: tool
                          one place where the pieces are wired: connections, boxes, flows, pages),
                          BuiltInConnections (the list of connections, in the order of their tabs),
                          OwnBoxes (the boxes that belong to no program)
-core/                    shared building blocks, no service-specific code
+core/                    shared building blocks, no service-specific code. Every box is a Box class (core/
+                         interfaces/box.py) in the boxes/ folder next to the group that adds it (core/<area>/
+                         boxes/, connections/<id>/boxes/), one per file; see docs/ai/code/action.md
   interfaces/            every interface: Connection, VideoProbe, LayoutPolicy, SceneItemEditor,
                          ObsConnectionChecker, ConfirmService, MessageService, PageOpener, PluginContext,
-                         ToolboxPlugin, SoundPlayer
+                         ToolboxPlugin, SoundPlayer; and what a plugin adds, one class per kind: Box, Trigger,
+                         Tool, Page, Panel, Listener, FieldEditor
   actions/               ActionRegistry (every runnable action by name), RegisteredAction, action descriptions;
                          JsonBoxes + JsonBox + JsonBoxField (boxes written as JSON: a folder of *.json, each box
                          one request with fields whose kinds are ValueKinds names; first user: connections/obs/
@@ -34,14 +37,11 @@ core/                    shared building blocks, no service-specific code
                          docs/tested/, in git, sorted like the menu: <tab>/page.md, flows/triggers/<program>.md,
                          flows/boxes/<category>/<group>.md, tools/<tool>.md, connections/<id>.md; per row
                          "AI checked" (the day Hex tried it), three checks, the day and a note; tested = all
-                         three), release_marker (only a `package tested_only` build has the file tested_only.txt next
-                         to the code; a plain build carries everything since 10-10), TestGate
-                         (what main asks: in such a build it parks every untested box, leaves untested
-                         connections / triggers out through left_out.leave_out, drops untested tools and gives
-                         AppShell.left_out the untested pages' addresses (not in the menu, a line instead of
-                         the page); in the project folder and in a plain build everything is on). The files are made by
-                         devtools/tested, not at start, and ticked in its test window, not in the toolbox.
-                         TestGate also writes the three checks onto every box (RegisteredAction.is_tested /
+                         three). Every copy (the project folder and every build) has everything since
+                         10-10; the old builds without what is untested (`package tested_only`) went 10-23.
+                         The files are made by devtools/tested, not at start, and ticked in its test window,
+                         not in the toolbox. TestGate tells the record what there is and writes the three
+                         checks onto every box (RegisteredAction.is_tested /
                          is_understandable / is_usable). TestView: what he sees by them (Settings → What you
                          see, gui/components/test_view_panel): modes normal and testing, and a tick per
                          check a thing may miss (MAY_NOT: "May not work", ...): normal shows what misses only
@@ -51,7 +51,7 @@ core/                    shared building blocks, no service-specific code
                          (overview and menu; a hidden connection stays connected, pages are never hidden) ask it. His own flows
                          are always shown; a flow keeps what it already uses.
                          TestFlows: a numbered flow per box (Start + the box) and per trigger into a settings folder's flows,
-                         for the test toolbox (docs/tested/test-toolbox.bat: `devtools.tested flows <folder>`,
+                         for the test toolbox (docs/tested/test-toolbox.bat, also started by test-window.bat: `devtools.tested flows <folder>`,
                          then the toolbox with `--settings <folder> --port 8855`); TestList.numbers gives the
                          numbers, the test window shows the same ones; writing again keeps what a flow holds
   config/                ToolboxConfig + its dataclasses (reads config/toolbox.toml), ConfigTableWriter
@@ -113,7 +113,9 @@ core/                    shared building blocks, no service-specific code
                          TimeActions (time.now = Date and time, time.since); ToolboxLauncher, ToolboxRestart,
                          ParentWatch (see "Starting and restarting")
   web/                   HttpActions: web.request (GET/POST/..., query, JSON body, headers → {status, ok, body},
-                         JSON body already read; httpx transport injectable for tests)
+                         JSON body already read; httpx transport injectable for tests); WebBoxes + WebTarget:
+                         boxes that call a web API written as JSON only (target, input, output; plugins without
+                         code)
   events/                EventBus: events (twitch.redeem, twitch.chat, timer) go to every listener as tasks;
                          EVENT_FIELDS: the data keys each event gives (Start box dots; keep in step with publish());
                          RoleBook: the bus's `fill`: every event that names a viewer gets a `role` (the one of
@@ -123,7 +125,7 @@ core/                    shared building blocks, no service-specific code
                          ChatMemory: the newest chat messages by id, for the box "Get chat message"
   flows/                 Flow = FlowNode boxes + FlowWire wires (+ inputs, triggers; `enabled` / `triggers_enabled`:
                          his two switches, runner and trigger router leave a switched-off one alone); FlowStore (one .toml per flow,
-                         also templates; reads old [[steps]] files as a chain); FlowRunner (runs from Start along
+                         also templates; reads old [[steps]] files as a chain); FlowRunner (runs from a Start box along
                          wires, parallel per output, If picks then/else, Repeat fires a list of ports in turn,
                          fills ${var.x} ${input.x} ${event.x} ${get.action} ${box.n3.x}, save_as); box_wire helpers
                          (${box...} data wires); FlowOutline (graph → SAMMI-like list);
@@ -142,8 +144,10 @@ core/                    shared building blocks, no service-specific code
   connections/left_out   LEFT_OUT: the connections this copy leaves out (empty in the project; a build
                          adds the untested ones at start, see core/testing), and
                          which events go with a connection (hides triggers of off / left-out ones)
-  (plugins)              PluginContext (core/interfaces) is a plugin's only door: actions with everything a
-                         box can have, ONE connection (collected in UiRegistry.connections, joined to the
+  (plugins)              PluginContext (core/interfaces) is a plugin's only door. ctx.add(thing) takes one
+                         class per kind (Box, Trigger, Connection, Tool, Page, Panel, Listener, a FieldEditor
+                         class, an APIRouter) and maps it onto the add_* methods (the older way, api 1 to 3):
+                         boxes with everything a box can have, ONE connection (collected in UiRegistry.connections, joined to the
                          built-in ones in assembly/BuiltInConnections, configured from its [<id>] table), triggers (written
                          into EVENT_FIELDS and TRIGGER_KINDS at load), publish / on_event on the EventBus.
                          the example plugin (plugins/example/, kept apart from this repository) is the
@@ -151,6 +155,8 @@ core/                    shared building blocks, no service-specific code
 connections/             ONLY the connection classes, one per service
   obs_connection.py  sammi_connection.py  mixitup_connection.py  vts_connection.py  twitch_connection.py
   streamelements_connection.py  streamlabs_connection.py  rumble_connection.py  youtube_connection.py
+  fansly_connection.py (a LineConnection on the chat socket of Fansly's website: join the chatroom, "p" every
+  10 s; no login, read only)
   websocket/             SocketMessageSender: open, send one text, close (VNyan, Warudo); RequestSocket (a
                          websocket that stays open and talks JSON: requests matched to their answers by an
                          id, the program's own messages, connects again by itself); LineConnection (the
@@ -189,6 +195,8 @@ connections/             ONLY the connection classes, one per service
   rumble/                RumbleFeed (asks Rumble's Live Stream API every few seconds; the address holds the
                          key), RumbleNews (what is new in an answer → rumble.chat / follow / sub / gift /
                          rant / online / offline; a rant also → tip)
+  fansly/                FanslyNews (a chat socket message → fansly.chat / tip / sub; a tip also → tip; the
+                         event sits as JSON text inside JSON text, each layer read on its own)
   streamelements/        AstroClient (their websocket: subscribe to the activities with the JWT, reconnect),
                          astro_events (an activity → streamelements.activity, a tip also → tip)
   streamlabs/            StreamlabsSocket (their socket: Engine.IO 3 on a plain websocket, pings, reconnect),
@@ -200,7 +208,9 @@ connections/             ONLY the connection classes, one per service
                          protocol/<category>.json: requests by category, data template, field hint). Newer action classes
                          share ObsRequests (request + pickers): ObsMediaPlayback (Play video once: own source,
                          removed after; polls the media state), ObsAudioActions, ObsOutputActions,
-                         ObsFilterActions, ObsNewSourceActions, ObsSceneActions. Play video once also comes
+                         ObsFilterActions, ObsNewSourceActions, ObsSceneActions, ObsReadActions (reading
+                         boxes without fields, each a Live value: scene / source list, studio mode, preview
+                         scene, profile, scene collection). Play video once also comes
                          in parts: obs.new_media_source, obs.place_like, obs.wait_media_end.
                          ObsPlacement (a spot + box in a scene) and ObsPlacementActions (Place source, Get source
                          place, the place marker he drags in OBS)
@@ -268,17 +278,18 @@ gui/
 devtools/tested/         `python -m streamer_toolbox.devtools.tested`: makes docs/tested/ (a row for everything, the
                          README's table; ticks and notes stay). It calls `assemble()` of `assembly/toolbox_assembly` (the toolbox put
                          together, not started) with an empty config in a throwaway folder. `checked <row> ...`
-                         sets "AI checked" to today. `window` (docs/tested/test-window.bat / .sh) is the test window:
+                         sets "AI checked" to today. `window` (docs/tested/test-window.bat / .sh, which start the test toolbox next to it) is the test window:
                          TestWindow, a small NiceGUI page of its own on port 8849 that only reads and writes
                          docs/tested (one file at a time in the menu's order, Back / Next, search, ticks, notes),
                          so it stays open next to the toolbox and through its restarts
 devtools/package/        `python -m streamer_toolbox.devtools.package`: Packager (the archive of the toolbox: what
                          git tracks minus the developers' files, plus start scripts; everything is in it and
-                         Settings → What you see chooses, unless `tested_only`) and DocBuilder (the docs as their own download: the manual, the files for AI)
+                         Settings → What you see chooses) and DocBuilder (the docs as their own download: the manual, the files for AI)
 devtools/box_gen/        class generator for developers: a service spec (JSON with example answers) → answer
                          dataclasses, actions class, fake, test (docs/PLAN_box_maker.md; never overwrites)
-plugins/                 plugin loader, manifest (plugin.json), PluginSettings (the plugin interfaces are in
-                         core/interfaces/). How to write one: docs/PLUGINS.md
+plugins/                 plugin loader, manifest (plugin.json), PluginSettings, WebOnlyPlugin (a folder with
+                         boxes/ and no main.py; the plugin interfaces are in core/interfaces/). How to write
+                         one: docs/PLUGINS.md
 ```
 
 `tests/` mirrors this folder by folder (`tests/core/actions/test_action_registry.py` tests
@@ -335,13 +346,24 @@ from then on it connects at every start until switched off.
 
 ## How a flow gets started (2026-10-01)
 
-Custom triggers (2026-10-02, his round-18 idea: one flow for every platform): core/triggers. A CustomTrigger
-(name, description, sources = FlowTriggers) lives in config/custom_triggers.json (CustomTriggerStore).
-CustomTriggerRouter (EventBus) publishes a `custom` event when an event matches a source: the source event's
-data + trigger, platform, source (its kind); a custom event never fires another one. CustomTriggerActions
-adds `trigger.fire` (SAMMI / Kit / API / a flow box). Flows listen with FlowTrigger("custom", {"trigger": name});
-renaming goes through FlowLibrary.rename_custom_trigger. Every Twitch event carries platform = "twitch".
-GUI: Triggers page (sidebar), Redeems tab → Connect (new flow / existing flow / custom trigger).
+Start boxes (2026-10-26, his round 63: "Triggers is a bad version of Flows"; custom triggers, the Triggers
+page and Fire custom trigger are gone, docs/PLAN_triggers_canvas.md is history). A flow has a Start box per way
+it starts: Manual (id "start": its button, SAMMI, Kit, the API, another flow) and one per trigger
+(FlowTrigger.id t1, t2, ...; FlowTrigger.box its spot), plus the Input box (id "input": the inputs as orange
+dots, no run wire). Flow.start_box / input_box are the spots of the other two. FlowTriggerRouter starts a flow at
+the Start box of its first trigger that fits the event (FlowRunner.run(start=...), FlowRun.start). Data wires:
+${box.t1.user} = what trigger t1's event gave, empty when another Start box started the run (each Start box on
+its own, his answer 2); ${box.input.x} = an input; ${box.start.x} (files from before) = event and inputs
+together. core/flows/start_boxes.py: free_trigger_id, first_wires (a new trigger's Start box gets the Manual
+Start's run wires), with_trigger, new_flow (a new flow: Start → End box, his answer 1). Older files:
+old_start_box.start_boxes_from_triggers gives triggers without an id theirs, with Start's wires, and moves
+${box.start.x} to the Input box (an input) or the first trigger giving x. FlowDraft.from_flow does the same for
+a flow made in code. Editor: DrawflowGraph draws Manual Start, the trigger Start boxes and Input from the draft
+(data.special: start / trigger / input; deleting a trigger's box on the canvas takes the trigger away);
+FlowBoxView's panel for them (FlowEditor._start_form: the trigger's match, the inputs), Add trigger;
+FlowDraft.add_after right after a Start box also takes the Start boxes wired the same way. The list view shows
+a block per Start box (FlowOutline.build(start)). Every Twitch event carries platform = "twitch".
+GUI: Redeems tab → Connect (new flow / add to a flow: with_trigger).
 
 Redeem triggers keep the reward's id (2026-10-02, his ask: SAMMI goes by name and breaks on a rename):
 `reward = "Lizard", reward_id = "…"`. FlowTrigger matches by `reward_id` when it has one (ID_KEYS); a typed
@@ -370,7 +392,11 @@ Reward on / off keep the id too (older flows' names still work).
 
 ## Actions and the flow editor
 
-`actions.add(name, handler, description, label, group=..., options=..., capture=..., ports=..., flow_only=...)`:
+Every own box is a `Box` class (core/interfaces/box.py; one file each in a `boxes/` folder next to its group),
+added with `actions.add_box(box, owner)` as `<owner>.<name>` (owner = `obs`, `logic`, a plugin's id, ...). Its
+class attributes are the RegisteredAction options below, `help` / `label` the texts, `run` the handler. Underneath, that is still
+`actions.add(name, handler, description, label, group=..., options=..., capture=..., ports=..., flow_only=...)`
+(JSON boxes, flows as boxes and plugins of api 1 to 3 use it directly):
 - category = the part before the dot (`obs`, `vts`, `logic`, ...; titles in `CATEGORY_TITLES`), `group` = the sub
   category in the editor's Add menu (Category → Sub category → Action, like SAMMI, with search).
 - `options = {"param": async () -> list[str] | dict[str, str]}`: choices for that parameter (OBS scenes, VTS
@@ -436,19 +462,43 @@ Reward on / off keep the id too (older flows' names still work).
   message (core/flows/box_signals.py; the runner sets BoxSignals.current() right before calling the box, so
   handlers keep plain parameters). On the canvas: input_1, then the entries (red, labelled), then the data dots;
   node.data.entries in flow_boxes.js / DrawflowGraph shifts the data dot numbers.
-- Loop (logic.loop, ports each / stopped): an async generator like For each; between rounds it waits `pause`
-  (at least 0.05 s) or until stop arrives; a stop ends it after the round that's running. Rounds of any
+  `toggles = ("switch",)` (2026-10-18, his round 55): entries that start the box when it isn't running. Decided
+  in FlowRunner._follow (_starts_it) in one go with passing it on, so a Loop about to stop can't be restarted by
+  the same wire; RegisteredAction.starts_at (lines + toggles) is what FlowOutline and _box_result count as
+  starting dots.
+  Drawn (10-19): a box with entries that aren't lines names its own run dot "start" in the title row
+  (_html run_dot); each entry dot and label gets tb-entry-<name> (flow_boxes.js / .css): start green, stop red,
+  switch blue.
+- Loop (logic.loop, ports each / stopped, entries stop / switch): an async generator like For each; between
+  rounds it waits `pause` (at least 0.05 s) or until stop or switch arrives; that ends it after the round that's
+  running. It yields ("each", {"round": n}): a generator may yield (port, value), and the runner remembers the
+  value as the box's result for that round (the orange dot `round`, outputs={"round": "number"}). Rounds of any
   generator don't add up toward MAX_RUNS; a run keeps its latest 1000 results. Test box: the first 20 ports.
+- Colour from numbers (logic.color): red, green, blue 0-255 → hex (#FF8000), kept inside 0-255. His rainbow
+  horns (config/flows/rainbow_horns.toml) are built from plain boxes around it (his rule, 10-19: no box that is
+  the whole solution; a "Colour steps" box was taken out again): variables rainbow_r / _g / _b and
+  rainbow_phase 1-6; per round Get from list (which colour, where to: Value lists) → If below? → Choose value
+  + / - → Math on variable → Clamp → Set variable → Colour from numbers → Tint model, and If arrived → phase + 1
+  → If > 6 → phase 1.
 - `flow_only=True`: not on Live, in the SAMMI deck or GET /actions (If, Wait).
 - End box (logic.end, 2026-10-02): FlowRunner.register runs a flow used as a box in its own task and goes on
-  when an End box is reached (FlowRun.ended) or the flow is done; the rest runs on (a failure there is logged).
-  Named End boxes (Flow.ends) are the box's ports; its result then carries `_end` (END_KEY) = the one reached.
-  Since 2026-10-16 an End box has lines (name_1, name_2, ...; an old `name` becomes name_1 when read,
-  core/flows/old_end_boxes.py), each with its own run dot: see `entry_fields`.
-- `entry_fields = "value"` (Choose value, End: "name"): numbered fields like port_fields, but each is a run dot on
+  when the End box is reached (FlowRun.ended) or the flow is done; the rest runs on (a failure there is logged).
+  Since 2026-10-18 (his rounds 54 and 55) a flow has **one** End box (FlowDraft.refuses: Add box, list view,
+  paste and duplicate say no to a second) with one run dot and **named values** (`named_lines`): its params are
+  the values it gives back (typed or a wire); FlowRunner puts them into FlowRun.outputs when it is reached, so
+  they are dots of the flow's box like Flow output's (Flow.outputs = End values + Flow output names). The flow's
+  box has one output. The names End boxes had (way out `name`; round 53 name_1, name_2, ... with a run dot each)
+  are dropped when read, their wires go into the run dot (old_end_boxes.end_boxes_from_lines); `name` stays
+  refused as a value's name for that reason.
+- `named_lines=True` (End): the params beyond the handler's own are lines he names
+  (RegisteredAction.lines_named); each is a field with a data dot (BoxDots._fields), read like a `typed` field,
+  handed over as **values. NodeEditor._named_lines: name + value per line, rename keeps the order (_rename_key).
+- `entry_fields = "value"` (Choose value): numbered fields like port_fields, but each is a run dot on
   the box's left (an entry). A run wire into one starts the box with only that field read, handed to the
   handler under the plain name; the others aren't read (they may come from a side that didn't run). The normal
   run dot isn't drawn (tb-lines-in); a wire saved into it counts as line 1. FlowOutline follows these wires too.
+  Shown in pairs, each line's run dot above its value (his round 54): DrawflowGraph._order_in gives data.order_in,
+  flow_boxes.js sets the dots' CSS order and redraws their wires; the rows are written in the same order.
 - `live=True`: a reading action without parameters (loaded model, current scene); a box field can use it as a
   **Live value**, `${get.vts.get_model}` or `${get.vts.get_model_position.x}`, run when the box runs.
 - `value_lines="values"`: the parameter holds named values typed into the box (`{name: value}`, the Value box);
@@ -471,18 +521,14 @@ last result); if it has none, n3 runs right then, every time a box needs it, lik
 don't fire). Actions with ports (If, Ask yes/no, For each) and `-> None` actions have no result dot.
 Declared outputs (`outputs={"width": "number", ...}` on actions.add): the keys a result always has (Video
 info, Get model position, Set source size). Since round 12 they are **not** dots of their own (his wish: one
-"result" dot); fields still pick `${box.n3.width}` from their list, and it's drawn from the result dot. Every
-box with fields has a **"by name"** dot first on the left (data_in `*`, BY_NAME): a result dropped there isn't
-kept as a wire; flow_boxes.js sends tb_flow_by_name and WireMatcher.by_name sets each field named like one of
-the result's keys (known: declared outputs / Value lines / Start fields; else a sample) to `${box.n3.<key>}`,
-leaving fields that have a value or another wire. A **Flow output** box (`logic.output`, name + value) makes a
+"result" dot); fields still pick `${box.n3.width}` from their list, and it's drawn from the result dot. (The
+"by name" dot and Wire by name are gone since round 59: every field has its own dot.) A **Flow output** box (`logic.output`, name + value) makes a
 flow used as a box give back {name: value} with a dot per output (Flow.outputs). Kinds: KindCheck (core/data)
 gives a field's kind from its parameter type and warns when a wire brings the wrong one (text → number).
-Flow.data_loop(): saving refuses orange wires that go round. Editor extras: **Wire by name** (WireMatcher +
-WireByNameDialog: same-named outputs → fields), **Test run** (FlowRunner.test_run: results + first failure,
+Flow.data_loop(): saving refuses orange wires that go round. Editor extras: **Test run** (FlowRunner.test_run: results + first failure,
 shown on each box), long orange wires as short tagged ends (flow_boxes.js tbFlowStubs, a view switch).
-The Start box has an orange dot per flow input and per field its triggers give (EVENT_FIELDS): `${box.start.user}`
-= the event's data merged with the flow's inputs; a field that isn't there (a button press, no event) is empty.
+A trigger's Start box has an orange dot per field its event gives (EVENT_FIELDS): `${box.t1.user}`; the Input box
+one per input (`${box.input.seconds}`); a field that isn't there (another Start box started it) is empty.
 
 Triggers (`[[triggers]]` in a flow file): `twitch.redeem` (reward), `twitch.chat` (message, `*` = any text;
 events also carry command and args), `timer` (every = seconds). Timer runs are quiet: a run still going is

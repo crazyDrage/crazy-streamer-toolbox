@@ -6,7 +6,6 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-from streamer_toolbox.core.testing.release_marker import RELEASE_MARKER
 from streamer_toolbox.devtools.package.linux_python import LinuxPython
 from streamer_toolbox.devtools.package.windows_launcher import EXE, WindowsLauncher
 
@@ -74,8 +73,7 @@ class Packager:
     the downloaded Python is kept in <build>/cache for the next time.
 
     A build carries everything, with the test record (docs/tested/, see TestList): what of it people see they
-    choose themselves in Settings → What you see, which starts on Normal with Works ticked (TestView). tested_only=True builds
-    one that leaves out what is not ticked off there: it gets the marker file that tells the toolbox so.
+    choose themselves in Settings → What you see, which starts on Normal with Works ticked (TestView).
 
     target = WINDOWS or LINUX builds a download for that system only (the releases, built by GitHub), each
     with its own Python, so nothing is installed on the other PC: crazy-streamer-toolbox-windows.zip (the .bat
@@ -86,12 +84,11 @@ class Packager:
     With a Windows Python the archive also gets crazy-streamer-toolbox.exe, a start program to double-click
     (WindowsLauncher), if the PC that builds has a compiler for it; without one it has only the .bat files."""
 
-    def __init__(self, repo: Path, build: Path, version: str = "", tested_only: bool = False,
+    def __init__(self, repo: Path, build: Path, version: str = "",
                  target: str = "", linux_python: LinuxPython | None = None,
                  launcher: WindowsLauncher | None = None) -> None:
         self._repo = repo
         self._build = build
-        self._tested_only = tested_only
         self._target = target
         self._version = version or "{}.{}.{}".format(*sys.version_info[:3])
         self._linux_python = linux_python or LinuxPython(build / "cache", ".".join(self._version.split(".")[:2]))
@@ -115,8 +112,7 @@ class Packager:
         self._start_scripts(folder, self._target)
         archive = self._tar(folder, name) if self._target == LINUX else self._zip(folder, name)
         # no arrow in it: not every console can print one
-        print(f"{'only what is tested' if self._tested_only else 'everything in it (Settings, What you see)'}: "
-              f"{copied} toolbox files, Python {python} -> {archive} ({archive.stat().st_size / 1e6:.1f} MB)")
+        print(f"everything in it (Settings, What you see): {copied} toolbox files, Python {python} -> {archive} ({archive.stat().st_size / 1e6:.1f} MB)")
         return archive
 
     def _zip(self, folder: Path, name: str) -> Path:
@@ -199,9 +195,4 @@ class Packager:
         for path, target in wanted.items():
             (folder / target).parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(self._repo / path, folder / target)
-        if self._tested_only:
-            marker = folder / "src" / "streamer_toolbox" / RELEASE_MARKER
-            marker.parent.mkdir(parents=True, exist_ok=True)
-            marker.write_text("This build only offers what was tested. Delete this file to see everything.\n",
-                              encoding="utf-8")
         return len(wanted)

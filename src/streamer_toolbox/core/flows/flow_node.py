@@ -9,7 +9,8 @@ class FlowNode:
     Text in params may use ${var.name} / ${var.name.field} (variables), ${input.name} (the flow's inputs) and
     ${event.key} (what triggered it); a value that is only a placeholder keeps its type (a position stays an
     object). `save_as` stores what the action returns in that variable. A switched-off box is skipped, but the
-    boxes after it still run. `box` is where it sits in the box view (x, y).
+    boxes after it still run. `box` is where it sits in the box view (x, y). `outputs` = data dots of this one box
+    ({key: kind}), from its last result (his round 60: per box, not a new box) or what's wired into it.
     """
 
     id: str
@@ -19,3 +20,4 @@ class FlowNode:
     note: str = ""
     save_as: str = ""
     box: tuple[float, float] | None = None
+    outputs: dict[str, str] = field(default_factory=dict)

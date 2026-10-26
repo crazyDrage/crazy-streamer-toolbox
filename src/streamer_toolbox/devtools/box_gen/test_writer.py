@@ -21,7 +21,7 @@ class TestWriter:
         for box in spec.boxes:
             lines += _constant(f"ANSWER_{box.name.upper()}", box.answer_example)
         lines += ["", "", f"class {test_class}(unittest.IsolatedAsyncioTestCase):",
-                  f'    """Made by box_gen from the spec\'s examples: add real cases here."""', "",
+                  '    """Made by box_gen from the spec\'s examples: add real cases here."""', "",
                   "    def setUp(self) -> None:", f"        self.send = {fake_class}()",
                   "        self.actions = ActionRegistry()",
                   f"        {spec.class_name}(self.send).add_to(self.actions)"]
@@ -40,7 +40,7 @@ class TestWriter:
         run = f'        result = await self.actions.run("{spec.service}.{box.name}"'
         run += "".join(", " + a for a in arguments) + ")"
         if len(run) > 118:
-            run = "\n".join([f"        result = await self.actions.run(", f'            "{spec.service}.{box.name}",',
+            run = "\n".join(["        result = await self.actions.run(", f'            "{spec.service}.{box.name}",',
                              *(f"            {a}," for a in arguments), "        )"])
         call = (box.method, path, sent)
         lines = [f"    async def test_{box.name}(self) -> None:",

@@ -2,7 +2,7 @@ from nicegui import app, ui
 
 from collections.abc import Callable
 
-from streamer_toolbox.core.actions.action_registry import ActionRegistry
+from streamer_toolbox.core.actions.action_registry import PLUGINS, SERVICES, ActionRegistry
 from streamer_toolbox.core.actions.box_filter_store import BoxFilterStore
 from streamer_toolbox.core.actions.registered_action import RegisteredAction
 from streamer_toolbox.core.testing.test_view import TestView
@@ -13,8 +13,9 @@ SwitchedOff = Callable[[], dict[str, str]]  # box category → name, for the con
 
 
 class ActionPicker:
-    """The Add box window: a search on top, the categories on the left (on a phone: a row on top) with how many
-    boxes each has, and on the right the chosen category's boxes by sub group, each with its one line of help.
+    """The Add box window: a search on top, the categories on the left (on a phone: on top) with how many
+    boxes each has, in three groups that open and close like the Flows page's folders (Utils, Services, Plugins;
+    his round 63; which are closed is kept), and on the right the chosen category's boxes by sub group, each with its one line of help.
     Searching lists the matching boxes of every category; Enter takes the first one. Show narrows all of it to
     one filter (the basic ones, and his own from Settings); the one picked stays for the next time. The boxes
     of programs that are switched off under Connections, and of plugins switched off under Plugins, are left
@@ -60,8 +61,8 @@ class ActionPicker:
                         .tooltip("Only the boxes of one filter. Make your own in Settings → Box filters")
                 ui.button(icon="close", on_click=lambda: dialog.submit(None)).props("flat round dense")
             with ui.element("div").classes("flex flex-col sm:flex-row w-full flex-1 min-h-0 gap-3"):
-                with ui.element("div").classes("flex flex-wrap sm:flex-col sm:flex-nowrap gap-1 overflow-auto shrink-0 "
-                                               "sm:w-48 sm:max-h-full pb-1 sm:pb-0 sm:pr-2 sm:border-r "
+                with ui.element("div").classes("flex flex-col flex-nowrap gap-1 overflow-auto shrink-0 max-h-[35vh] "
+                                               "sm:w-52 sm:max-h-full pb-1 sm:pb-0 sm:pr-2 sm:border-r "
                                                "border-gray-500/30"):
                     self._categories()
                 # max-h-full: the list scrolls inside the window (a q-scrollarea stayed short here)
@@ -83,16 +84,21 @@ class ActionPicker:
     def _categories(self) -> None:
         counts = {title: len(items) for title, items in self._catalog.search(self._search)} if self._search \
             else None
-        for category, category_title, count in self._catalog.categories():
-            shown = count if counts is None else counts.get(category_title, 0)
-            chosen = counts is None and category == self._category
-            # the chosen one is marked like the side list's page: a full colour block was read as a title (round 51)
-            button = ui.button(on_click=lambda c=category: self._choose(c)).props("no-caps dense flat") \
-                .classes("shrink-0 justify-start sm:w-full" + (" tb-chosen" if chosen else "")
-                         + (" opacity-40" if counts is not None and not shown else ""))
-            with button, ui.row().classes("no-wrap items-center w-full gap-2"):
-                ui.label(category_title).classes("text-left flex-1 whitespace-nowrap")
-                ui.label(str(shown)).classes("text-xs opacity-60")
+        closed = app.storage.general.get(CLOSED_SECTIONS, [])
+        for section, categories in self._catalog.sections():
+            total = sum(count if counts is None else counts.get(title, 0) for _, title, count in categories)
+            # open while searching, so every hit's category shows; else as he left it
+            with ui.expansion(value=counts is not None or section not in closed,
+                              on_value_change=lambda e, s=section: self._remember(s, e.value)) \
+                    .props("dense switch-toggle-side").classes("w-full shrink-0") as fold:
+                with fold.add_slot("header"), ui.row().classes("items-center no-wrap w-full gap-2"):
+                    ui.icon(SECTION_ICONS.get(section, "build")).classes("text-primary text-xl")
+                    ui.label(section).classes("font-semibold flex-1")
+                    ui.label(str(total)).classes("text-xs opacity-60")
+                for category, category_title, count in categories:
+                    self._category_button(category, category_title,
+                                          count if counts is None else counts.get(category_title, 0),
+                                          counts is None and category == self._category, counts is not None)
         if self._off:
             names = ", ".join(self._off.values())
             with ui.column().classes("gap-0 pt-2 px-1 shrink-0"):
@@ -106,6 +112,21 @@ class ActionPicker:
                          "you see").classes("text-xs opacity-60")
                 ui.button("Hide them" if self._show_unchecked else "Show them anyway",
                           on_click=self._toggle_unchecked).props("flat dense no-caps size=sm").classes("self-start")
+
+    def _category_button(self, category: str, title: str, shown: int, chosen: bool, searching: bool) -> None:
+        # the chosen one is marked like the side list's page: a full colour block was read as a title (round 51)
+        button = ui.button(on_click=lambda: self._choose(category)).props("no-caps dense flat") \
+            .classes("shrink-0 justify-start w-full" + (" tb-chosen" if chosen else "")
+                     + (" opacity-40" if searching and not shown else ""))
+        with button, ui.row().classes("no-wrap items-center w-full gap-2 pl-6"):
+            ui.label(title).classes("text-left flex-1 whitespace-nowrap")
+            ui.label(str(shown)).classes("text-xs opacity-60")
+
+    def _remember(self, section: str, opened: bool) -> None:
+        if self._search:  # a search opens them all; that isn't how he left them
+            return
+        names = [n for n in app.storage.general.get(CLOSED_SECTIONS, []) if n != section]
+        app.storage.general[CLOSED_SECTIONS] = names if opened else names + [section]
 
     @ui.refreshable_method
     def _boxes(self) -> None:
@@ -168,3 +189,5 @@ class ActionPicker:
 
 ALL_BOXES = "All boxes"
 FILTER_KEY = "box_filter"  # app.storage.general: the filter last picked in the Add box window
+CLOSED_SECTIONS = "add_box_closed_sections"  # app.storage.general: the groups he closed in the Add box window
+SECTION_ICONS = {SERVICES: "hub", PLUGINS: "extension"}  # Utils: build

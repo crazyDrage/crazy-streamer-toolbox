@@ -8,7 +8,8 @@ from streamer_toolbox.core.flows.outline_entry import OutlineEntry
 class FlowOutline:
     """A flow's graph as a list, the way SAMMI shows commands: a chain stays one flat list; boxes that run at
     the same time and the outputs of an If become indented blocks. ports_of(action, params) gives a box's outputs,
-    lines_of(action, params) the run dots of a box with lines (Choose value, End): a wire into one runs it too."""
+    lines_of(action, params) the extra run dots that start a box (Choose value's lines, a Loop's switch): a wire
+    into one runs it too."""
 
     def __init__(self, flow: Flow, ports_of: Callable[[str, dict], tuple[str, ...]],
                  lines_of: Callable[[str, dict], list[str]] = lambda action, params: []) -> None:
@@ -17,12 +18,15 @@ class FlowOutline:
         self._lines_of = lines_of
         self._seen: set[str] = set()
 
-    def build(self) -> tuple[OutlineEntry, ...]:
-        self._seen = set()
-        return self._after(START, "out")
+    def build(self, start: str = START) -> tuple[OutlineEntry, ...]:
+        """What a Start box runs; the first call (Manual Start) starts over, the next ones (a trigger's Start box)
+        show the boxes shown already as a ref."""
+        if start == START:
+            self._seen = set()
+        return self._after(start, "out")
 
     def loose(self) -> list[str]:
-        """Boxes no wire from Start reaches (call after build)."""
+        """Boxes no wire from a Start box reaches (call after build)."""
         return [n.id for n in self._flow.nodes if n.id not in self._seen]
 
     def _after(self, source: str, port: str) -> tuple[OutlineEntry, ...]:

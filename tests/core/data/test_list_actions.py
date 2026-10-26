@@ -3,6 +3,17 @@ import unittest
 from pathlib import Path
 
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
+from streamer_toolbox.core.data.boxes.add_to_list import AddToList
+from streamer_toolbox.core.data.boxes.find_in_list import FindInList
+from streamer_toolbox.core.data.boxes.get_from_list import GetFromList
+from streamer_toolbox.core.data.boxes.insert_into_list import InsertIntoList
+from streamer_toolbox.core.data.boxes.list_has import ListHas
+from streamer_toolbox.core.data.boxes.list_size import ListSize
+from streamer_toolbox.core.data.boxes.random_from_list import RandomFromList
+from streamer_toolbox.core.data.boxes.remove_at_position import RemoveAtPosition
+from streamer_toolbox.core.data.boxes.remove_from_list import RemoveFromList
+from streamer_toolbox.core.data.boxes.shuffle_list import ShuffleList
+from streamer_toolbox.core.data.boxes.sort_list import SortList
 from streamer_toolbox.core.data.list_actions import ListActions
 from streamer_toolbox.core.variables.variable_store import VariableStore
 
@@ -17,32 +28,32 @@ class TestListActions(unittest.IsolatedAsyncioTestCase):
         self.tmp.cleanup()
 
     async def test_add_and_remove_change_the_variable(self) -> None:
-        await self.lists.add("vts_saves", "desk")
-        await self.lists.add("vts_saves", "couch")
-        await self.lists.add("vts_saves", "bed", where="start")
-        self.assertEqual(await self.lists.add("vts_saves", "DESK", only_once="true"), ["bed", "desk", "couch"])
-        await self.lists.add("vts_saves", "desk")
-        self.assertEqual(await self.lists.remove("vts_saves", "Desk"), ["bed", "couch"])
+        await AddToList(self.variables).run("vts_saves", "desk")
+        await AddToList(self.variables).run("vts_saves", "couch")
+        await AddToList(self.variables).run("vts_saves", "bed", where="start")
+        self.assertEqual(await AddToList(self.variables).run("vts_saves", "DESK", only_once="true"), ["bed", "desk", "couch"])
+        await AddToList(self.variables).run("vts_saves", "desk")
+        self.assertEqual(await RemoveFromList(self.variables).run("vts_saves", "Desk"), ["bed", "couch"])
         self.assertEqual(self.variables.get("vts_saves"), ["bed", "couch"])
         with self.assertRaises(ValueError):
-            await self.lists.add("vts_saves", "x", where="middle")
+            await AddToList(self.variables).run("vts_saves", "x", where="middle")
         self.variables.set("scene", "desktop")
         with self.assertRaises(ValueError):
-            await self.lists.add("scene", "x")
+            await AddToList(self.variables).run("scene", "x")
 
     async def test_reading(self) -> None:
         items = ["hat", "fan", "cape"]
-        self.assertTrue(await ListActions.contains(items, "FAN"))
-        self.assertFalse(await ListActions.contains('["hat"]', "fan"))
-        self.assertEqual(await ListActions.size(""), 0)
-        self.assertEqual(await ListActions.get(items, 1), "hat")
-        self.assertEqual(await ListActions.get(items, "-1"), "cape")
+        self.assertTrue(await ListHas().run(items, "FAN"))
+        self.assertFalse(await ListHas().run('["hat"]', "fan"))
+        self.assertEqual(await ListSize().run(""), 0)
+        self.assertEqual(await GetFromList().run(items, 1), "hat")
+        self.assertEqual(await GetFromList().run(items, "-1"), "cape")
         for position in (0, 4, -4):
             with self.assertRaises(IndexError):
-                await ListActions.get(items, position)
-        self.assertIn(await ListActions.pick_random(items), items)
+                await GetFromList().run(items, position)
+        self.assertIn(await RandomFromList().run(items), items)
         with self.assertRaises(IndexError):
-            await ListActions.pick_random([])
+            await RandomFromList().run([])
 
     async def test_registered_with_menu_groups(self) -> None:
         actions = ActionRegistry()
@@ -52,19 +63,18 @@ class TestListActions(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await actions.get("list.add").options["where"](), ["end", "start"])
 
     async def test_new_list_boxes(self) -> None:
-        L = ListActions
         names = ["right_arm", "left_arm", "right_leg"]
-        self.assertEqual(await L.find(names, "LEFT_ARM"), 2)
-        self.assertEqual(await L.find(names, "tail"), 0)
-        self.assertEqual(await L.insert(names, "left_leg"), [*names, "left_leg"])
-        self.assertEqual(await L.insert(names, "tail", 1), ["tail", *names])
-        self.assertEqual(await L.remove_at(names, -1), ["right_arm", "left_arm"])
+        self.assertEqual(await FindInList().run(names, "LEFT_ARM"), 2)
+        self.assertEqual(await FindInList().run(names, "tail"), 0)
+        self.assertEqual(await InsertIntoList().run(names, "left_leg"), [*names, "left_leg"])
+        self.assertEqual(await InsertIntoList().run(names, "tail", 1), ["tail", *names])
+        self.assertEqual(await RemoveAtPosition().run(names, -1), ["right_arm", "left_arm"])
         self.assertEqual(names, ["right_arm", "left_arm", "right_leg"])  # the original stays
-        self.assertEqual(await L.sort(["b", 10, "A", 2]), [2, 10, "A", "b"])
+        self.assertEqual(await SortList().run(["b", 10, "A", 2]), [2, 10, "A", "b"])
         top = [{"user": "kit", "value": 1}, {"user": "vex", "value": 3}]
-        self.assertEqual(await L.sort(top, "true", "value"), [top[1], top[0]])
-        self.assertEqual(sorted(await L.shuffle(names)), sorted(names))
-        self.assertEqual(await L.get(["ll"], 2, default=5), 5)
+        self.assertEqual(await SortList().run(top, "true", "value"), [top[1], top[0]])
+        self.assertEqual(sorted(await ShuffleList().run(names)), sorted(names))
+        self.assertEqual(await GetFromList().run(["ll"], 2, default=5), 5)
 
 if __name__ == "__main__":
     unittest.main()

@@ -116,21 +116,21 @@ def build_widget_router(store: WidgetStore, hub: WidgetHub, page: WidgetPage,
         answer = await fallback.get(path) if fallback else None
         return answer if answer is not None else _not_found(missing)
 
-    def kept(name: str, file: str, keep_count: int) -> KeptAnswers:
+    def kept_answers(name: str, file: str, keep_count: int) -> KeptAnswers:
         """The answers kept for that widget, in its data folder (read each time: he may have cleared it)."""
         _widget(store, name)
         return KeptAnswers(store.data_folder(name) / file, keep_count)
 
     @router.get(API + "/channels/{who}")
     async def channel(name: str, who: str) -> Any:
-        answer = await channels.channel(who, kept(name, "channels.json", 500)) if channels else None
+        answer = await channels.channel(who, kept_answers(name, "channels.json", 500)) if channels else None
         return answer if answer is not None else await elsewhere(f"channels/{who}", f"channel {who} was not found")
 
     @router.get(API + "/channels/{who}/emotes")
     async def emotes(name: str, who: str) -> Any:
-        known = await channels.channel(who, kept(name, "channels.json", 500)) if channels else None
+        known = await channels.channel(who, kept_answers(name, "channels.json", 500)) if channels else None
         twitch_id = known["providerId"] if known else who  # a Twitch id works without the Twitch login too
-        return await emote_lookup.emotes(twitch_id, kept(name, "emotes.json", 100)) if emote_lookup else NO_EMOTES
+        return await emote_lookup.emotes(twitch_id, kept_answers(name, "emotes.json", 100)) if emote_lookup else NO_EMOTES
 
     @router.get(API + "/{path:path}")
     async def other_question(name: str, path: str) -> Any:

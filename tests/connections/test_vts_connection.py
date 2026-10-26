@@ -89,6 +89,7 @@ class TestVtsConnection(unittest.IsolatedAsyncioTestCase):
             connection.add_actions(actions)
             await connection.start()
             await actions.run("vts.move_model", x=-0.3, size="", seconds=0.5)
+            self.assertEqual(await actions.run("vts.get_model"), "Dragon")
             move = [data for kind, data in server.requests if kind == "MoveModelRequest"][-1]
             await connection.stop()
         self.assertEqual(move, {"timeInSeconds": 0.5, "valuesAreRelativeToModel": False, "positionX": -0.3,
@@ -160,6 +161,19 @@ class TestVtsConnection(unittest.IsolatedAsyncioTestCase):
             await connection.stop()
         self.assertEqual(move, {"timeInSeconds": 0.5, "valuesAreRelativeToModel": True, "positionX": -0.2,
                                 "positionY": 0.0, "rotation": 0.0, "size": 0.0})
+
+    async def test_move_model_from_where_it_is_is_relative_too(self) -> None:
+        async with FakeVtsServer() as server:
+            connection = self._paired(server)
+            actions = ActionRegistry()
+            connection.add_actions(actions)
+            await connection.start()
+            await actions.run("vts.move_model", x="-0.2", y="", seconds=0.5, from_where_it_is=True)
+            move = [data for kind, data in server.requests if kind == "MoveModelRequest"][-1]
+            await connection.stop()
+        self.assertEqual(move, {"timeInSeconds": 0.5, "valuesAreRelativeToModel": True, "positionX": -0.2,
+                                "positionY": 0.0, "rotation": 0.0, "size": 0.0})
+        self.assertFalse(actions.get("vts.move_model_by").offered)  # one box for both ways now (round 60)
 
     async def test_vts_events_become_flow_events(self) -> None:
         events, seen = EventBus(), []

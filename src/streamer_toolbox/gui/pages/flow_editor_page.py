@@ -37,6 +37,7 @@ class FlowEditorPage:
     def build(self) -> None:
         query = ui.context.client.request.query_params
         old_name = query.get("flow")
+        self._library.reload()  # its file may have changed outside the toolbox (his round 63)
         if old_name:
             flow = self._library.get(old_name)
             if flow is None:
@@ -52,7 +53,7 @@ class FlowEditorPage:
             draft = FlowDraft.from_flow(template)
             draft.name = ""
         else:
-            draft = FlowDraft("", "New flow")
+            draft = FlowDraft.new()
         FlowEditor(draft, old_name, self._library, self._actions, self._runner, self._variables,
                    self._box_files, self._trigger_choices, self._box_filters,
                    self._switched_off, self._last_events, self._test_view).build()

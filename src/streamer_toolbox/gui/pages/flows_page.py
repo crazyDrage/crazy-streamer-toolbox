@@ -9,8 +9,10 @@ from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.flows.flow import Flow
 from streamer_toolbox.core.flows.flow_library import FlowLibrary
 from streamer_toolbox.core.flows.flow_outline import FlowOutline
+from streamer_toolbox.core.flows.flow_runner import FlowRunner
 from streamer_toolbox.core.flows.outline_entry import OutlineEntry
 from streamer_toolbox.gui.components.folder_field import FolderField
+from streamer_toolbox.gui.components.save_as import SaveAs
 from streamer_toolbox.gui.services.activity_log import ActivityLog
 
 
@@ -32,12 +34,18 @@ class FlowsPage:
 
     A folder starts closed and its flows are only drawn when it is opened (hundreds of rows at once made the page
     slow); which folders are open is kept. The folders are also the page's side list (`side_items`):
-    /flows?show=<folder> shows that folder alone, already open."""
+    /flows?show=<folder> shows that folder alone, already open.
 
-    def __init__(self, library: FlowLibrary, actions: ActionRegistry, activity: ActivityLog) -> None:
+    A flow that runs gets a red Stop next to Run, and the top a Stop all while any flow runs (his round 63: an
+    endless loop); both are looked at once a second."""
+
+    def __init__(self, library: FlowLibrary, actions: ActionRegistry, activity: ActivityLog,
+                 runner: FlowRunner | None = None) -> None:
         self._library = library
         self._actions = actions
         self._activity = activity
+        self._runner = runner
+        self._stops: list[tuple[str, ui.button]] = []  # (flow name, its Stop button) of the rows drawn
 
     def side_items(self) -> list[tuple[str, str, str] | tuple[str, str, str, bool]]:
         """The side list of the Flows area: a row per folder ("No folder" last, for the flows outside them) with
@@ -69,6 +77,7 @@ class FlowsPage:
 
     @ui.refreshable_method
     def build(self) -> None:
+        self._library.reload()  # files changed outside the toolbox (his round 63)
         # the buttons, search and selection stay on top while the list scrolls (his wish, round 51)
         with ui.column().classes("tb-sticky w-full gap-2 py-2 -my-2"):
             with ui.row().classes("items-center gap-2"):
@@ -92,10 +101,18 @@ class FlowsPage:
                 search = ui.input(placeholder="Search flows").props("dense outlined clearable").classes("w-56")
                 with search.add_slot("prepend"):
                     ui.icon("search")
+                ui.button(icon="refresh", on_click=self._reload).props("flat round dense") \
+                    .tooltip("Reload: reads the flow files again (a file changed, added or deleted outside the "
+                             "toolbox). Opening this page does it too")
                 ui.button(icon="unfold_less", on_click=lambda: self._close_all(search.value or "")) \
                     .props("flat round dense").tooltip("Close all folders")
                 ui.toggle(VIEWS, value=app.storage.general.get("flows_page_view", "list"),
                           on_change=lambda e: self._set_view(e.value, search.value or "")).props("no-caps dense")
+                self._stop_all = ui.button("Stop all", icon="stop", on_click=lambda: self._stop(None)) \
+                    .props("no-caps unelevated color=negative").tooltip("Stops every flow that runs now")
+                self._stop_all.set_visibility(False)
+                if self._runner is not None:
+                    ui.timer(1.0, self._show_stops)
             search.on_value_change(lambda: self._flows.refresh(search.value or ""))
             self._selection_bar()
         self._flows()
@@ -275,6 +292,7 @@ class FlowsPage:
             self._switches(flow)
             button = ui.button(icon="play_arrow").props("flat round dense").tooltip("Run")
             button.on_click(lambda f=flow, b=button: self._run(f, b))
+            self._stop_button(flow, ui.button(icon="stop").props("flat round dense color=negative"))
             ui.button(icon="edit").props(f"flat round dense href=/flows/edit?flow={flow.name}").tooltip("Edit")
             self._more(flow)
             self._right_click(flow, button)
@@ -310,7 +328,7 @@ class FlowsPage:
                 ui.menu_item("Move to folder", on_click=lambda f=flow: self._move(f))
                 ui.menu_item("Duplicate", on_click=lambda f=flow: self._duplicate(f))
                 ui.menu_item("Save as template", on_click=lambda f=flow: self._template(f))
-                ui.menu_item("Export (download file)", on_click=lambda f=flow: self._export(f))
+                ui.menu_item("Export (save as file)", on_click=lambda f=flow: self._export(f))
                 ui.menu_item("Delete", on_click=lambda f=flow: self._delete(f))
 
     def _right_click(self, flow: Flow, run: ui.button) -> None:
@@ -321,8 +339,10 @@ class FlowsPage:
             ui.menu_item("Open in new window", on_click=lambda f=flow: ui.run_javascript(
                 f"tbNewWindow('/flows/edit?flow={quote(f.name)}')")).props("dense")
             ui.menu_item("Run", on_click=lambda f=flow, b=run: self._run(f, b)).props("dense")
+            if self._runner is not None:
+                ui.menu_item("Stop", on_click=lambda f=flow: self._stop(f.name)).props("dense")
             ui.menu_item("Move to folder", on_click=lambda f=flow: self._move(f)).props("dense")
-            ui.menu_item("Export (download file)", on_click=lambda f=flow: self._export(f)).props("dense")
+            ui.menu_item("Export (save as file)", on_click=lambda f=flow: self._export(f)).props("dense")
             ui.menu_item("Delete", on_click=lambda f=flow: self._delete(f)).props("dense").classes("text-negative")
 
     async def _move(self, flow: Flow) -> None:
@@ -425,6 +445,7 @@ class FlowsPage:
                 self._switches(flow)
                 button = ui.button("Run", icon="play_arrow").props("no-caps unelevated")
                 button.on_click(lambda f=flow, b=button: self._run(f, b))
+                self._stop_button(flow, ui.button("Stop", icon="stop").props("no-caps unelevated color=negative"))
                 ui.button("Edit", icon="edit").props(f"no-caps outline href=/flows/edit?flow={flow.name}")
                 self._more(flow)
                 self._right_click(flow, button)
@@ -478,7 +499,34 @@ class FlowsPage:
         return (found.ports_for(params) if found else ()) or ("done",)
 
     def _lines(self, action: str, params: dict) -> list[str]:
-        return self._actions.get(action).entry_lines(params) if action in self._actions else []
+        return self._actions.get(action).starts_at(params) if action in self._actions else []
+
+    def _reload(self) -> None:
+        changed = self._library.reload()
+        ui.notify(f"Read again: {', '.join(changed)}" if changed else "No flow file changed",
+                  type="positive" if changed else "info")
+        self.build.refresh()
+
+    def _stop_button(self, flow: Flow, button: ui.button) -> None:
+        button.on_click(lambda f=flow: self._stop(f.name))
+        button.tooltip("Stop: ends its runs where they are (a loop too)")
+        button.set_visibility(bool(self._runner and self._runner.running(flow.name)))
+        self._stops.append((flow.name, button))
+
+    def _show_stops(self) -> None:
+        self._stops = [(name, button) for name, button in self._stops if not button.is_deleted]
+        for name, button in self._stops:
+            button.set_visibility(self._runner.running(name) > 0)
+        running = self._runner.running()
+        self._stop_all.set_visibility(running > 0)
+        self._stop_all.set_text(f"Stop all ({running})")
+
+    def _stop(self, name: str | None) -> None:
+        stopped = self._runner.stop(name) if self._runner else 0
+        what = "flow" if name is None else repr(self._library.get(name).label if self._library.get(name) else name)
+        ui.notify(f"Stopped {stopped} run{'s' if stopped != 1 else ''}" + ("" if name is None else f" of {what}")
+                  if stopped else "Nothing was running", type="positive" if stopped else "info")
+        self._show_stops()
 
     async def _run(self, flow: Flow, button: ui.button) -> None:
         if any(i.default is None for i in flow.inputs):
@@ -498,17 +546,18 @@ class FlowsPage:
 
     def _duplicate(self, flow: Flow) -> None:
         label = f"{flow.label} copy"
-        self._library.save(replace(flow, name=self._library.free_name(label), label=label, triggers=()))
+        self._library.save(replace(flow.without_triggers(), name=self._library.free_name(label), label=label))
         ui.notify(f"{label} created" + (" (without its triggers, so a redeem doesn't start both)"
                                         if flow.triggers else ""), type="positive")
         self.build.refresh()
 
-    def _export(self, flow: Flow) -> None:
-        ui.download.content(self._library.export_text(flow.name), f"{flow.name}.toml", "application/toml")
+    async def _export(self, flow: Flow) -> None:
+        await SaveAs.text(self._library.export_text(flow.name), f"{flow.name}.toml", "application/toml")
 
-    def _export_folder(self, folder: str) -> None:
+    async def _export_folder(self, folder: str) -> None:
         pack = self._library.folder_pack(folder)
-        ui.download.content(pack.to_text(), f"{_file_name(folder)}.flows.toml", "application/toml")
+        if not await SaveAs.text(pack.to_text(), f"{_file_name(folder)}.flows.toml", "application/toml"):
+            return
         along = [f.label for f in pack.flows if f.folder != folder]
         if along:
             ui.notify(f"Also in the file, because the folder's flows use them as boxes: {', '.join(along)}.",

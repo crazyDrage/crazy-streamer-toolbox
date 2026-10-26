@@ -2,8 +2,9 @@ from pathlib import Path
 
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.interfaces.sound_player import SoundPlayer
-
-SOUND_TYPES = (".ogg", ".mp3", ".wav", ".flac")
+from streamer_toolbox.core.media.boxes.play_sound import PlaySound
+from streamer_toolbox.core.media.boxes.sound_shared import SOUND_TYPES
+from streamer_toolbox.core.media.boxes.stop_all_sounds import StopAllSounds
 
 
 class SoundActions:
@@ -15,11 +16,8 @@ class SoundActions:
         self._folder = folder
 
     def add_to(self, actions: ActionRegistry) -> None:
-        actions.add("sound.play", self.play, "Plays a sound file on this PC (volume 0 to 1). Wait = the flow goes "
-                    "on when the sound ended", "Play sound", group="Play", options={"file": self.files},
-                    files={"file": SOUND_TYPES})
-        actions.add("sound.stop_all", self._player.stop_all, "Stops every sound the toolbox is playing",
-                    "Stop all sounds", group="Play")
+        for box in (PlaySound(self), StopAllSounds(self._player)):
+            actions.add_box(box, "sound")
 
     async def play(self, file: str, volume: float = 1.0, wait: bool = False) -> float:
         path = Path(file)

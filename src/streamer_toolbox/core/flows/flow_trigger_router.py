@@ -8,7 +8,9 @@ from streamer_toolbox.core.flows.flow_cooldowns import FlowCooldowns
 from streamer_toolbox.core.flows.flow_library import FlowLibrary
 from streamer_toolbox.core.flows.flow_runner import FlowRunner
 from streamer_toolbox.core.flows.flow_skipped import FlowSkipped
+from streamer_toolbox.core.flows.flow_stopped import FlowStopped
 from streamer_toolbox.core.flows.flow_trigger import REWARDS
+from streamer_toolbox.core.flows.flow_wire import START
 
 log = logging.getLogger(__name__)
 Report = Callable[[str, str, bool, Any], None]  # (who, action, ok, result or error), like ActivityLog.add
@@ -18,8 +20,9 @@ QUIET = {"timer", "vts.model_moved"}
 
 
 class FlowTriggerRouter:
-    """Listens on the EventBus and starts every flow with a matching trigger; the event's data is what the
-    flow's boxes read as ${event.key} (a redeem: reward, user, input, ...)."""
+    """Listens on the EventBus and starts every flow with a matching trigger, at that trigger's Start box; the
+    event's data is what its orange dots give (and ${event.key}: a redeem's reward, user, input, ...). When two
+    of a flow's triggers fit one event, the first one starts it (one event, one run per flow)."""
 
     def __init__(self, library: FlowLibrary, runner: FlowRunner, report: Report | None = None,
                  refund: Refund | None = None, cooldowns: FlowCooldowns | None = None) -> None:
@@ -35,11 +38,12 @@ class FlowTriggerRouter:
         if kind == REWARDS:
             return
         # side by side, so a flow waiting in line doesn't hold back the others
-        await asyncio.gather(*(self._run(flow, kind, data) for flow in self._library.all()
-                               if flow.enabled and flow.triggers_enabled  # a switched-off one stays quiet
-                               and any(t.matches(kind, data) for t in flow.triggers)))
+        starts = [(flow, trigger) for flow in self._library.all()
+                  if flow.enabled and flow.triggers_enabled  # a switched-off one stays quiet
+                  for trigger in [next((t for t in flow.triggers if t.matches(kind, data)), None)] if trigger]
+        await asyncio.gather(*(self._run(flow, kind, data, trigger.id) for flow, trigger in starts))
 
-    async def _run(self, flow: Flow, kind: str, data: dict[str, Any]) -> None:
+    async def _run(self, flow: Flow, kind: str, data: dict[str, Any], start: str) -> None:
         key = (flow.name, kind)
         if kind in QUIET and key in self._running:
             return
@@ -51,10 +55,14 @@ class FlowTriggerRouter:
         self._cooldowns.started(flow, data)
         self._running.add(key)
         try:
-            result = await self._runner.run(flow, event=data)
+            result = await self._runner.run(flow, event=data, start=start or START)
         except FlowSkipped as e:  # it's set to skip while busy: not a failure
             self._held_back(flow, kind, str(e))
             await self._give_back(flow, kind, data)
+            return
+        except FlowStopped as e:  # stopped by hand: it ran, so the points aren't given back
+            if self._report:
+                self._report(kind, flow.action_name, False, e)
             return
         except Exception as e:
             log.warning("flow %s (from %s) failed: %s", flow.name, kind, e)

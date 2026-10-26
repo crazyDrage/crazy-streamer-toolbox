@@ -69,8 +69,8 @@ with three checks: **Works**, **Understandable**, **Usable**. Most rows are stil
 Please test on a testing profile or scene collection, not while you are live.
 
 With the source code (see below) there is also a **test window** that lists every row and writes your ticks
-into `docs/tested`, and a **test toolbox** with a ready flow for every box:
-`docs/tested/test-window.bat` and `docs/tested/test-toolbox.bat` (Linux: the `.sh` files next to them).
+into `docs/tested`, and a **test toolbox** with a ready flow for every box. `docs/tested/test-window.bat` starts
+both (Linux: `test-window.sh` next to it); `test-toolbox.bat` starts only the test toolbox.
 
 ## Help us improve the tool
 

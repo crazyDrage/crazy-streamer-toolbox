@@ -12,8 +12,8 @@ from streamer_toolbox.core.variables.variable_store import VariableStore
 
 
 class TestFlowRunnerLinesIn(unittest.IsolatedAsyncioTestCase):
-    """Boxes with a run dot per line (Choose value, End): the line a wire comes in at is the one that's read
-    (his round 53)."""
+    """Boxes with a run dot per line (Choose value): the line a wire comes in at is the one that's read (his
+    round 53)."""
 
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
@@ -63,21 +63,6 @@ class TestFlowRunnerLinesIn(unittest.IsolatedAsyncioTestCase):
         wires = (FlowWire("start", "out", "c", "value_1"), FlowWire("c", "done", "r"))
         await self.runner.run(Flow("f", "F", nodes, wires))
         self.assertEqual(self.calls, [{"n": 5}])  # a typed line is read like Value's: 5 is a number
-
-    async def test_one_end_box_with_two_names_gives_the_flow_box_two_outputs(self) -> None:
-        nodes = (FlowNode("ask", "logic.if", {"left": "${input.n}", "op": ">", "right": "5"}),
-                 FlowNode("end", "logic.end", {"names": 2, "name_1": "big", "name_2": "small"}))
-        inner = Flow("size", "Size", nodes, (FlowWire("start", "out", "ask"), FlowWire("ask", "then", "end", "name_1"),
-                                              FlowWire("ask", "else", "end", "name_2")))
-        self.assertEqual(inner.ends, ("big", "small"))
-        self.runner.register(inner)
-        outer_nodes = (FlowNode("s", "flow.size", {"n": "${input.n}"}), FlowNode("b", "a.record", {"was": "big"}),
-                       FlowNode("m", "a.record", {"was": "small"}))
-        outer = Flow("outer", "Outer", outer_nodes,
-                     (FlowWire("start", "out", "s"), FlowWire("s", "big", "b"), FlowWire("s", "small", "m")))
-        await self.runner.run(outer, inputs={"n": "9"})
-        await self.runner.run(outer, inputs={"n": "2"})
-        self.assertEqual(self.calls, [{"was": "big"}, {"was": "small"}])
 
     async def test_a_box_with_lines_gives_what_it_gave_when_it_ran(self) -> None:
         nodes = (FlowNode("c", "logic.choose", {"value_1": "a", "value_2": "b"}),

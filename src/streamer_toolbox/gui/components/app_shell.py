@@ -12,7 +12,6 @@ from streamer_toolbox.gui.services.ui_registry import UiRegistry
 AREAS = [
     ("Live", "/", "bolt"),
     ("Flows", "/flows", "account_tree"),
-    ("Triggers", "/triggers", "sensors"),
     ("Variables", "/variables", "data_object"),
     ("Overlay", "/overlays", "layers"),
     ("Tools", "/tools", "handyman"),
@@ -83,18 +82,13 @@ class AppShell:
 
     Every item can be hidden: the eye in the header ("Show all") shows the hidden ones too (dimmed) and gives
     every tab and item an eye to hide it or bring it back; with it off the hidden ones are gone, on the
-    phone's bottom tabs too. The page being shown is always there.
-
-    `left_out` holds the addresses a build doesn't have because they are not tested yet (TestGate): they are in
-    no menu, whatever "Show all" says, and opening one shows a line instead of the page. An area that is left
-    out keeps its row while something below it is still there."""
+    phone's bottom tabs too. The page being shown is always there."""
 
     def __init__(self, ui_registry: UiRegistry, pages: OpenPages) -> None:
         self._ui = ui_registry
         self._pages = pages
         self.sub_items: dict[str, SubItems | Callable[[], SubItems]] = {PLUGINS: lambda: list(ui_registry.pages)}
         self.side_tools: dict[str, SideTool] = {}
-        self.left_out: set[str] = set()
 
     @staticmethod
     def theme() -> str:
@@ -102,6 +96,15 @@ class AppShell:
 
     def page(self, title: str, path: str, builder: Callable[[], None]) -> None:
         ui.page(path, title=f"{title} · {APP_NAME}")(lambda: self.frame(title, path, builder))
+
+    def bare(self, title: str, path: str, builder: Callable[[], None]) -> None:
+        """A page without the frame: no header, no side list (the Live buttons on their own)."""
+        @ui.page(path, title=f"{title} · {APP_NAME}")
+        def page() -> None:
+            self._pages.attach(ui.context.client)
+            Look.apply(self.theme())
+            with ui.column().classes("w-full p-2 gap-2"):
+                builder()
 
     def frame(self, title: str, path: str, builder: Callable[[], None]) -> None:
         self._pages.attach(ui.context.client)
@@ -158,10 +161,7 @@ class AppShell:
 
         with ui.column().classes("w-full max-w-7xl mx-auto p-4 gap-4"):
             ui.label(title).classes("text-2xl font-semibold max-lg:hidden")
-            if not self.offers(here):
-                ui.label("This page is not in this build: it has not been tested yet.").classes("opacity-70")
-            else:
-                builder()
+            builder()
 
     @staticmethod
     def _here(path: str) -> str:
@@ -181,12 +181,12 @@ class AppShell:
         return max(above, key=len) if above else path
 
     def _shown(self, path: str) -> list[tuple[str, str, str]]:
-        """The areas that are tabs now: this copy has them, and he didn't hide them (the one being shown and,
-        with "Show all", the hidden ones are there too)."""
+        """The areas that are tabs now: the ones he didn't hide (the one being shown and, with "Show all", the
+        hidden ones are there too)."""
         hidden = _hidden()
         show_all = bool(app.storage.general.get(SHOW_ALL_KEY, False))
         return [page for page in AREAS
-                if self.in_menu(page[1]) and (show_all or page[1] == path or page[1] not in hidden)]
+                if show_all or page[1] == path or page[1] not in hidden]
 
     def _tabs(self, path: str, redraw: Callable[[], None]) -> None:
         """The main tabs in the header (a wide screen); path: the area being shown. redraw: after an eye was
@@ -215,7 +215,7 @@ class AppShell:
         with ui.list().classes("w-full pt-2"):
             if below:
                 area = next((a for a in AREAS if a[1] == path), None)
-                if area and self.offers(path):
+                if area:
                     self._nav_item("Overview", path, area[2], here == path)
                 for row, subs in _groups(below):
                     self._side_row(row, subs, here, hidden, show_all, redraw)
@@ -251,18 +251,10 @@ class AppShell:
             for sub in shown_subs:
                 self._nav_item(sub[0], sub[1], sub[2], active(sub[1]), sub=True, show_all=show_all, redraw=redraw)
 
-    def offers(self, address: str) -> bool:
-        """Whether this copy has the page at that address (with its ?show=... for a sub item)."""
-        return address not in self.left_out
-
-    def in_menu(self, path: str) -> bool:
-        """Whether the menu may list it: this copy has it, or it is an area with something left below it."""
-        return self.offers(path) or bool(self._below(path))
-
     def _below(self, path: str) -> SubItems:
-        """An area's sub items that this copy has."""
+        """An area's sub items."""
         given = self.sub_items.get(path, [])
-        return [item for item in (given() if callable(given) else given) if item[1] not in self.left_out]
+        return list(given() if callable(given) else given)
 
     @staticmethod
     def _nav_item(title: str, path: str, icon: str, active: bool, sub: bool = False, show_all: bool = False,

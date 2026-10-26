@@ -64,14 +64,23 @@ class TestFlowSwitches(unittest.IsolatedAsyncioTestCase):
 
     def test_the_switches_are_kept_in_the_file_and_only_said_when_off(self) -> None:
         self.assertNotIn("enabled", FlowStore.to_data(self.flow))
-        off = replace(self.flow, enabled=False, triggers_enabled=False)
+        off = replace(self.flow, enabled=False, triggers_enabled=False, as_box=False)
         data = FlowStore.to_data(off)
-        self.assertEqual((data["enabled"], data["triggers_enabled"]), (False, False))
+        self.assertEqual((data["enabled"], data["triggers_enabled"], data["as_box"]), (False, False, False))
         self.store.save(off)
         loaded = next(f for f in self.store.all() if f.name == "hug")
-        self.assertEqual((loaded.enabled, loaded.triggers_enabled), (False, False))
+        self.assertEqual((loaded.enabled, loaded.triggers_enabled, loaded.as_box), (False, False, False))
         self.assertEqual(FlowDraft.from_flow(loaded).to_flow(), loaded)  # the editor keeps them
         self.assertTrue(FlowStore.parse("old", {"label": "Old"}).enabled)  # a flow from before is on
+        self.assertTrue(FlowStore.parse("old", {"label": "Old"}).as_box)
+
+    def test_add_box_sorts_flows_by_folder_and_leaves_out_those_not_offered(self) -> None:
+        self.library.save(replace(self.flow, folder="lizard"))
+        self.library.save(replace(self.flow, name="hidden", as_box=False))
+        self.library.save(replace(self.flow, name="loose"))
+        hug, hidden, loose = (self.actions.get(f"flow.{n}") for n in ("hug", "hidden", "loose"))
+        self.assertEqual((hug.group, loose.group), ("lizard", "No folder"))
+        self.assertEqual((hug.offered, hidden.offered), (True, False))
 
 
 if __name__ == "__main__":

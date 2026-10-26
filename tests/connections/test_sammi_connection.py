@@ -92,6 +92,8 @@ class TestSammiConnection(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await actions.get("sammi.set_variable").options["button_id"]())["(global)"],
                          {"global": "global (not a button)"})
         self.assertEqual(str(self.requests[0].url), "http://127.0.0.1:9450/api?request=getDeckList")
+        self.assertEqual(await actions.run("sammi.get_decks"), [
+            {"name": "stream", "id": "1", "enabled": True, "buttons": [{"id": "ID24", "text": "twitch_marker"}]}])
 
     async def test_switched_off_refuses(self) -> None:
         actions = ActionRegistry()

@@ -1,7 +1,8 @@
 import unittest
 
 from streamer_toolbox.connections.obs.obs_placement import ObsPlacement
-from streamer_toolbox.connections.obs.obs_placement_actions import MARKER_COLOR, ObsPlacementActions
+from streamer_toolbox.connections.obs.boxes.obs_placement_box import MARKER_COLOR
+from streamer_toolbox.connections.obs.obs_placement_actions import ObsPlacementActions
 from streamer_toolbox.connections.obs.obs_requests import ObsRequests
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from tests.fakes.fake_obs_script import FakeObsScript
@@ -44,7 +45,7 @@ class TestObsPlacementActions(unittest.IsolatedAsyncioTestCase):
 
     async def test_a_marker_that_cant_be_read_is_still_removed(self) -> None:
         self.obs.responses["GetSceneItemTransform"] = None
-        with self.assertRaisesRegex(Exception, "GetSceneItemTransform failed"):
+        with self.assertRaisesRegex(Exception, r"\(GetSceneItemTransform, OBS code 600\)"):
             await self.actions.run("obs.take_place_marker", scene="s", source="m")
         self.assertEqual(self.obs.kinds()[-1], "RemoveInput")
 

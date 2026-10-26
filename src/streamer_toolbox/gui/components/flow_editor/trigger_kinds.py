@@ -7,8 +7,7 @@ from streamer_toolbox.core.testing.test_view import TestView
 from streamer_toolbox.gui.components.flow_editor.action_picker import SwitchedOff
 
 # kind: (icon, name, the event field it matches, value for a new one); no field = it has nothing to filter by
-TRIGGER_KINDS = {"custom": ("bolt", "Custom trigger", "trigger", ""),
-                 # every platform at once (CommonEvents); the platform's own ones follow
+TRIGGER_KINDS = {  # every platform at once (CommonEvents); the platform's own ones follow
                  "chat": ("chat", "Chat message (any platform)", "command", "!command"),
                  "follow": ("favorite", "Follow (any platform)", "user", "*"),
                  "sub": ("star", "Sub (any platform)", "user", "*"),
@@ -57,6 +56,9 @@ TRIGGER_KINDS = {"custom": ("bolt", "Custom trigger", "trigger", ""),
                  "vts.model_loaded": ("face", "Model loaded", "model", "*"),
                  "vts.tracking": ("visibility", "Tracking found / lost", "face", "*"),
                  "vts.background": ("wallpaper", "VTS background changed", "background", "*"),
+                 "fansly.chat": ("chat", "Fansly chat message", "command", "!command"),
+                 "fansly.tip": ("payments", "Fansly tip", "user", "*"),
+                 "fansly.sub": ("star", "Fansly sub", "user", "*"),
                  "vts.hotkey": ("bolt", "VTS hotkey fired", "hotkey", "*"),
                  "vts.model_config": ("tune", "VTS model settings changed", "model", "*"),
                  "vts.model_moved": ("open_with", "Model moved", "model", "*"),
@@ -73,7 +75,6 @@ TRIGGER_KINDS = {"custom": ("bolt", "Custom trigger", "trigger", ""),
 
 # kind → one line for the Add trigger window (a kind without one shows only what it gives)
 TRIGGER_INFO: dict[str, str] = {
-    "custom": "One of your custom triggers (Triggers page) fired",
     "chat": "A chat message on any connected platform: a command, a word in it, or a pattern",
     "follow": "Someone followed, on any connected platform",
     "sub": "A new sub or member, on any connected platform",
@@ -114,6 +115,9 @@ TRIGGER_INFO: dict[str, str] = {
     "youtube.gift_members": "Someone gifted memberships; amount = how many",
     "youtube.online": "Your YouTube stream went live",
     "youtube.offline": "Your YouTube stream ended",
+    "fansly.chat": "A message in your Fansly chat: a command, a word in it, or a pattern",
+    "fansly.tip": "A tip in your Fansly chat, with its message (amount in dollars)",
+    "fansly.sub": "A new sub on Fansly, with the tier's name",
     "rumble.chat": "A message in your Rumble chat: a command, a word in it, or a pattern",
     "rumble.follow": "Someone followed on Rumble",
     "rumble.sub": "A new sub on Rumble",
@@ -136,8 +140,8 @@ TRIGGER_INFO: dict[str, str] = {
     "tits.trigger_ended": "A T.I.T.S. trigger ended",
     "streamerbot.event": "Anything Streamer.bot tells, by its type (Follow, ...)",
     "lumia.event": "Anything Lumia Stream tells, by its type (chat, command, alert, ...)",
-    "heartrate": "Your heart rate changed (Pulsoid or HypeRate): any change, or only higher than, lower than or "
-                 "equal to a number",
+    "heartrate": "Your heart rate changed (Pulsoid or HypeRate): any change, or only higher than, lower than, "
+                 "equal to a number, or once when it rises above / falls below it",
     "tiltify.donation": "A donation to your Tiltify campaign (charity, not a tip)",
     "crowdcontrol.effect": "A viewer asked for an effect in the game",
     "key.pressed": "A key on this PC was pressed, e.g. f23",

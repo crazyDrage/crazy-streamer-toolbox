@@ -20,6 +20,7 @@ from streamer_toolbox.core.config.toolbox_config import ToolboxConfig
 from streamer_toolbox.core.system.parent_watch import ParentWatch
 from streamer_toolbox.core.system.toolbox_launcher import ToolboxLauncher
 from streamer_toolbox.gui.services.app_window_page_opener import AppWindowPageOpener
+from streamer_toolbox.gui.services.tied_launch import TiedLaunch
 from streamer_toolbox.gui.services.browser_page_opener import BrowserPageOpener
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -41,6 +42,8 @@ def main() -> None:
     if args.settings is not None:
         args.config = args.settings / "toolbox.toml"
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    # httpx writes every request's whole address at INFO: a web box's key can be in one ({secret.key})
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     config = ToolboxConfig.read(args.config)
     if not args.child:
         sys.exit(_launch(args, config))
@@ -62,8 +65,9 @@ def _launch(args: argparse.Namespace, config: ToolboxConfig) -> int:
     if args.open != "none":
         opener = BrowserPageOpener()
         if args.open == "window":
-            # closing the window stops the toolbox (his wish, round 12); a restart keeps the window
-            opener = AppWindowPageOpener(opener, profile_dir=args.config.parent / "app_window",
+            # closing the window stops the toolbox (his wish, round 12); a restart keeps the window, and the
+            # window goes when the toolbox stops, also when its console is closed (OPEN 93)
+            opener = AppWindowPageOpener(opener, launch=TiedLaunch(), profile_dir=args.config.parent / "app_window",
                                          on_closed=lambda: launcher.stop())
     launcher = ToolboxLauncher(command, f"http://{host}:{args.port or config.port}", opener)
     return launcher.run()

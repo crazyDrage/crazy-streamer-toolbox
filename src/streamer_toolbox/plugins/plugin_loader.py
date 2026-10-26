@@ -1,3 +1,4 @@
+import functools
 import importlib
 import importlib.metadata
 import importlib.util
@@ -12,8 +13,12 @@ from typing import Any, Optional
 from streamer_toolbox.core.interfaces.plugin_context import PluginContext
 from streamer_toolbox.plugins.plugin_manifest import MANIFEST, PluginManifest
 from streamer_toolbox.core.interfaces.toolbox_plugin import ToolboxPlugin
+from streamer_toolbox.plugins.web_only_plugin import WebOnlyPlugin
 
-API_VERSION = 2  # 2 added connections, triggers, events and full boxes; a plugin made for 1 still loads
+API_VERSION = 4  # 2 added connections, triggers, events and full boxes; 3 every box option (End, Loop, Wait: his
+# round 56), box_signals, retrigger, add_field_editor; 4 one class per kind and ctx.add, web boxes in JSON (his
+# round 57); a plugin made for 1 to 3 still loads
+WEB_BOXES = "boxes"  # the folder of a plugin without code
 ENTRY_POINT_GROUP = "streamer_toolbox.plugins"
 PACKAGE_ROOT = "toolbox_plugins"
 log = logging.getLogger(__name__)
@@ -44,6 +49,7 @@ class PluginLoader:
         self.failed: dict[str, str] = {}
         self.disabled: list[str] = []  # found but not in the enable list
         self.manifests: dict[str, PluginManifest] = {}  # folder plugins by id, whatever their status
+        self.plugins: dict[str, ToolboxPlugin] = {}  # the loaded ones (PluginPower starts and stops them)
 
     def load_all(self, enabled: Optional[set[str]] = None) -> None:
         """Load every plugin found, or only those whose id is in `enabled`."""
@@ -71,6 +77,13 @@ class PluginLoader:
             return
         if not 1 <= manifest.api_version <= API_VERSION:
             self._fail(manifest.id, f"made for api_version {manifest.api_version}, toolbox has {API_VERSION}")
+            return
+        if not (manifest.folder / manifest.main).exists():
+            if (manifest.folder / WEB_BOXES).is_dir():  # no code: only web boxes
+                self._register(manifest.id, lambda: functools.partial(WebOnlyPlugin, manifest.folder / WEB_BOXES),
+                               manifest.folder)
+            else:
+                self._fail(manifest.id, f"has no {manifest.main} and no {WEB_BOXES}/ folder")
             return
         self._register(manifest.id, lambda: self._import_folder_plugin(manifest), manifest.folder)
 
@@ -115,6 +128,7 @@ class PluginLoader:
             self._fail(plugin_id, f"{type(e).__name__}: {e}")
             return
         self.loaded.append(plugin_id)
+        self.plugins[plugin_id] = plugin
         log.info("plugin %s loaded", plugin_id)
 
     def _fail(self, plugin_id: str, reason: str) -> None:

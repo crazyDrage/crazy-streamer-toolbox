@@ -128,9 +128,9 @@ after you pressed Connect (or switched it on) on its tab. From then on it connec
   commands and alerts and set the lights; the trigger "Lumia event" starts flows.
 - **Voicemod**: ask Voicemod for an API key (the tab has the link) and put it into
   `config/secrets/voicemod_key.txt`. Boxes switch the voice, play a soundboard sound, flip its switches.
-- **Pulsoid**, **HypeRate** (heart rate): put the token / key into `config/secrets/pulsoid_token.txt` /
-  `config/secrets/hyperate_key.txt` (HypeRate also wants your id on the tab). The trigger "Heart rate changed"
-  starts flows, and "Get heart rate" reads it.
+- **Pulsoid**, **HypeRate** (heart rate): put the token / key into the field on its tab (HypeRate also wants
+  your id there). The trigger "Heart rate changed" starts flows: at any change, at every change higher than /
+  lower than / equal to a number, or once when it rises above / falls below one. "Get heart rate" reads it.
 - **Discord**: make a webhook for a channel (channel settings → Integrations → Webhooks) and put its
   address into `config/secrets/discord_webhook.txt`. "Post to Discord" writes there; names in the text only ping
   when the box says so.
@@ -141,18 +141,26 @@ after you pressed Connect (or switched it on) on its tab. From then on it connec
   viewer asks for in your game starts flows with the trigger "Crowd Control effect".
 - **Rumble**: put your Live Stream API address into `config/secrets/rumble_address.txt` (the tab has the link to
   Rumble's page). Chat, follows, subs, gifted subs and rants then start flows; Rumble can only be read.
+- **Fansly**: paste your chat's address on the tab (Fansly → Streaming → the 3 dots next to the chat → Copy
+  Chat Url). No login: the toolbox reads the chatroom like a viewer. Chat messages, tips (also as the Tip
+  trigger) and new subs then start flows; nothing is sent to Fansly. Fansly has no official API, so this uses
+  their website's chat connection and can stop working when Fansly changes it.
   The toolbox only listens to their events (tips and co.).
 
 Boxes of a program that is switched off are hidden when you add a box to a flow.
 
 ### 2. Make a flow
 
-**Flows → New flow.** A flow starts at its Start box. **Add box** lists everything the connected programs
-can do (switch a scene, play a sound, move the model, write in chat, wait, if / else, loops, variables, ...).
-Drag from a box's output to the next box's input. A value of one box can be wired into a field of another.
+**Flows → New flow.** A new flow has a Start box wired to an End box; your boxes go in between. **Add box**
+lists everything the connected programs can do (switch a scene, play a sound, move the model, write in chat,
+wait, if / else, loops, variables, ...). Drag from a box's output to the next box's input. A value of one box
+can be wired into a field of another.
 
-Pick what starts it in the Start box (a channel point reward, a follow, a key, a timer, a custom trigger), or
-leave it without a trigger and put it on a button on the **Live** page. **Test run** tries it at once.
+**Start** is the flow's button (Live page, SAMMI, Kit, the API, another flow). **Add trigger** gives it one more
+way to start (a channel point reward, a follow, a key, a timer, ...): each trigger is a Start box of its own,
+wired like Start, and its orange dots are what happened (who redeemed, what they typed). A box reading those dots
+gets nothing when another Start box started the run. The **Input** box holds the values a button or another
+flow gives the flow. **Test run** tries it at once, from the Start box you pick.
 
 ### 3. Alerts
 
@@ -221,6 +229,9 @@ Next to each platform's own triggers ("Follow" = Twitch, "Rumble follow", ...) t
 **(any platform)**: chat message, follow, sub, resub, gift subs, cheer, raid, redeem, stream online / offline.
 They start for every platform you connected; the Start box's `platform` says which one it was. Alerts and
 widgets work this way by themselves: a Rumble follow shows your Follow alert.
+
+One flow for several events (a Twitch redeem and a Rumble chat command): give it a trigger for each. Each
+one is its own Start box; wire them into the same boxes.
 
 ## Sub, Resub and Gift subs: which one starts when
 

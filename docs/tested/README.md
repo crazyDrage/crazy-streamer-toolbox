@@ -22,21 +22,22 @@ The real program was not asked; that is what **Works** is for. A box that talks 
 when it was tried on the real program (the example lamp's pretend lamp is its program).
 
 A build of the toolbox carries everything, tested or not. What of it is shown is chosen in Settings → What
-you see, which starts on Normal with Works ticked: only the boxes, triggers and tools with the check Works. (A build made
-with `devtools.package tested_only` leaves out what is not tested here.)
+you see, which starts on Normal with Works ticked: only the boxes, triggers and tools with the check Works.
 
 Tick the checks in the **test window**, a small window of its own next to the toolbox (it stays open while
 the toolbox is restarted, and writes the row's file at once):
 
     test-window.bat          (Linux: ./test-window.sh)      both are in this folder
 
-To try the boxes without building a flow for each, start the **test toolbox** next to it: a second toolbox on
+To try the boxes without building a flow for each, the same script starts the **test toolbox** next to it: a second toolbox on
 its own settings folder (`temp/test_settings`) and port 8855, with a flow for every box (Start and that box).
 Triggers get none: you set them up in a flow of your own.
 The flows are numbered in the order of this record ("012 Mute"), and the test window shows the
 same number on the row.
 What you set in a test flow stays when the flows are written again, and a test flow you delete stays deleted
 (`temp/test_settings/test_flows.json` lists the written ones: delete that file to get them all back).
+
+Both run in the script's console: closing it closes both. To start only the test toolbox:
 
     test-toolbox.bat         (Linux: ./test-toolbox.sh)
 
@@ -54,11 +55,12 @@ anew and renews the table below (ticks, days and notes stay):
 |---|---|---|
 | **[live](live/)** | **0** | **1** |
 | [live/page](live/page.md) | 0 | 1 |
-| **[flows](flows/)** | **15** | **322** |
+| **[flows](flows/)** | **15** | **335** |
 | [flows/page](flows/page.md) | 0 | 2 |
 | [flows/triggers/any_platform](flows/triggers/any_platform.md) | 3 | 10 |
 | [flows/triggers/crowdcontrol](flows/triggers/crowdcontrol.md) | 0 | 1 |
 | [flows/triggers/example](flows/triggers/example.md) | 0 | 1 |
+| [flows/triggers/fansly](flows/triggers/fansly.md) | 0 | 3 |
 | [flows/triggers/heart_rate](flows/triggers/heart_rate.md) | 1 | 1 |
 | [flows/triggers/keyboard](flows/triggers/keyboard.md) | 0 | 1 |
 | [flows/triggers/lumia](flows/triggers/lumia.md) | 0 | 1 |
@@ -69,7 +71,7 @@ anew and renews the table below (ticks, days and notes stay):
 | [flows/triggers/streamsocket](flows/triggers/streamsocket.md) | 0 | 1 |
 | [flows/triggers/tiltify](flows/triggers/tiltify.md) | 0 | 1 |
 | [flows/triggers/tits](flows/triggers/tits.md) | 3 | 3 |
-| [flows/triggers/toolbox](flows/triggers/toolbox.md) | 0 | 3 |
+| [flows/triggers/toolbox](flows/triggers/toolbox.md) | 0 | 2 |
 | [flows/triggers/twitch](flows/triggers/twitch.md) | 3 | 14 |
 | [flows/triggers/veadotube](flows/triggers/veadotube.md) | 0 | 1 |
 | [flows/triggers/vtube_studio](flows/triggers/vtube_studio.md) | 4 | 6 |
@@ -85,13 +87,14 @@ anew and renews the table below (ticks, days and notes stay):
 | [flows/boxes/heartrate/general](flows/boxes/heartrate/general.md) | 0 | 1 |
 | [flows/boxes/hello/general](flows/boxes/hello/general.md) | 0 | 2 |
 | [flows/boxes/history/history](flows/boxes/history/history.md) | 0 | 2 |
+| [flows/boxes/jokes/jokes](flows/boxes/jokes/jokes.md) | 0 | 2 |
 | [flows/boxes/json/json](flows/boxes/json/json.md) | 0 | 2 |
 | [flows/boxes/list/change](flows/boxes/list/change.md) | 0 | 2 |
 | [flows/boxes/list/new_list](flows/boxes/list/new_list.md) | 0 | 4 |
 | [flows/boxes/list/read](flows/boxes/list/read.md) | 0 | 5 |
 | [flows/boxes/logic/flow](flows/boxes/logic/flow.md) | 0 | 4 |
 | [flows/boxes/logic/if](flows/boxes/logic/if.md) | 0 | 3 |
-| [flows/boxes/logic/math](flows/boxes/logic/math.md) | 0 | 3 |
+| [flows/boxes/logic/math](flows/boxes/logic/math.md) | 0 | 4 |
 | [flows/boxes/logic/random](flows/boxes/logic/random.md) | 0 | 1 |
 | [flows/boxes/logic/repeat](flows/boxes/logic/repeat.md) | 0 | 3 |
 | [flows/boxes/logic/wait](flows/boxes/logic/wait.md) | 0 | 2 |
@@ -103,15 +106,16 @@ anew and renews the table below (ticks, days and notes stay):
 | [flows/boxes/mixitup/inventory](flows/boxes/mixitup/inventory.md) | 0 | 3 |
 | [flows/boxes/mixitup/viewers](flows/boxes/mixitup/viewers.md) | 0 | 1 |
 | [flows/boxes/object/change](flows/boxes/object/change.md) | 0 | 3 |
-| [flows/boxes/object/read](flows/boxes/object/read.md) | 0 | 4 |
+| [flows/boxes/object/read](flows/boxes/object/read.md) | 0 | 5 |
 | [flows/boxes/obs/advanced](flows/boxes/obs/advanced.md) | 0 | 5 |
 | [flows/boxes/obs/audio](flows/boxes/obs/audio.md) | 0 | 8 |
 | [flows/boxes/obs/filters](flows/boxes/obs/filters.md) | 0 | 2 |
 | [flows/boxes/obs/media](flows/boxes/obs/media.md) | 0 | 7 |
+| [flows/boxes/obs/profile_scene_collection](flows/boxes/obs/profile_scene_collection.md) | 0 | 2 |
 | [flows/boxes/obs/recording_streaming](flows/boxes/obs/recording_streaming.md) | 0 | 8 |
-| [flows/boxes/obs/scenes](flows/boxes/obs/scenes.md) | 1 | 5 |
-| [flows/boxes/obs/sources](flows/boxes/obs/sources.md) | 0 | 12 |
-| [flows/boxes/obs/studio_mode](flows/boxes/obs/studio_mode.md) | 0 | 3 |
+| [flows/boxes/obs/scenes](flows/boxes/obs/scenes.md) | 1 | 6 |
+| [flows/boxes/obs/sources](flows/boxes/obs/sources.md) | 0 | 14 |
+| [flows/boxes/obs/studio_mode](flows/boxes/obs/studio_mode.md) | 0 | 5 |
 | [flows/boxes/obs/windows](flows/boxes/obs/windows.md) | 0 | 4 |
 | [flows/boxes/points/points](flows/boxes/points/points.md) | 0 | 6 |
 | [flows/boxes/popup/popups](flows/boxes/popup/popups.md) | 0 | 2 |
@@ -126,7 +130,6 @@ anew and renews the table below (ticks, days and notes stay):
 | [flows/boxes/time/time](flows/boxes/time/time.md) | 0 | 2 |
 | [flows/boxes/tip/tips](flows/boxes/tip/tips.md) | 0 | 1 |
 | [flows/boxes/tits/general](flows/boxes/tits/general.md) | 0 | 5 |
-| [flows/boxes/trigger/custom_triggers](flows/boxes/trigger/custom_triggers.md) | 0 | 1 |
 | [flows/boxes/twitch/channel_points](flows/boxes/twitch/channel_points.md) | 0 | 5 |
 | [flows/boxes/twitch/chat](flows/boxes/twitch/chat.md) | 0 | 5 |
 | [flows/boxes/twitch/polls_and_predictions](flows/boxes/twitch/polls_and_predictions.md) | 0 | 4 |
@@ -145,7 +148,7 @@ anew and renews the table below (ticks, days and notes stay):
 | [flows/boxes/vtube_studio/hotkeys](flows/boxes/vtube_studio/hotkeys.md) | 0 | 1 |
 | [flows/boxes/vtube_studio/items](flows/boxes/vtube_studio/items.md) | 0 | 4 |
 | [flows/boxes/vtube_studio/look](flows/boxes/vtube_studio/look.md) | 0 | 3 |
-| [flows/boxes/vtube_studio/model](flows/boxes/vtube_studio/model.md) | 0 | 4 |
+| [flows/boxes/vtube_studio/model](flows/boxes/vtube_studio/model.md) | 0 | 5 |
 | [flows/boxes/vtube_studio/model_position](flows/boxes/vtube_studio/model_position.md) | 0 | 8 |
 | [flows/boxes/vtube_studio/parameters](flows/boxes/vtube_studio/parameters.md) | 0 | 2 |
 | [flows/boxes/vtube_studio/visual_effects](flows/boxes/vtube_studio/visual_effects.md) | 0 | 4 |
@@ -153,8 +156,6 @@ anew and renews the table below (ticks, days and notes stay):
 | [flows/boxes/web/request](flows/boxes/web/request.md) | 0 | 1 |
 | [flows/boxes/widget/widgets](flows/boxes/widget/widgets.md) | 0 | 1 |
 | [flows/boxes/youtube/chat](flows/boxes/youtube/chat.md) | 0 | 1 |
-| **[triggers](triggers/)** | **0** | **1** |
-| [triggers/page](triggers/page.md) | 0 | 1 |
 | **[variables](variables/)** | **0** | **1** |
 | [variables/page](variables/page.md) | 0 | 1 |
 | **[overlay](overlay/)** | **0** | **3** |
@@ -166,7 +167,7 @@ anew and renews the table below (ticks, days and notes stay):
 | [tools/example_lamp](tools/example_lamp.md) | 0 | 1 |
 | [tools/hello](tools/hello.md) | 0 | 1 |
 | [tools/sammi_decks](tools/sammi_decks.md) | 0 | 1 |
-| **[connections](connections/)** | **0** | **27** |
+| **[connections](connections/)** | **0** | **28** |
 | [connections/page](connections/page.md) | 0 | 2 |
 | [connections/obs](connections/obs.md) | 0 | 1 |
 | [connections/sammi](connections/sammi.md) | 0 | 1 |
@@ -178,6 +179,7 @@ anew and renews the table below (ticks, days and notes stay):
 | [connections/streamlabs](connections/streamlabs.md) | 0 | 1 |
 | [connections/rumble](connections/rumble.md) | 0 | 1 |
 | [connections/youtube](connections/youtube.md) | 0 | 1 |
+| [connections/fansly](connections/fansly.md) | 0 | 1 |
 | [connections/streamsocket](connections/streamsocket.md) | 0 | 1 |
 | [connections/vnyan](connections/vnyan.md) | 0 | 1 |
 | [connections/warudo](connections/warudo.md) | 0 | 1 |
@@ -197,4 +199,4 @@ anew and renews the table below (ticks, days and notes stay):
 | [plugins/page](plugins/page.md) | 0 | 3 |
 | **[settings](settings/)** | **0** | **8** |
 | [settings/page](settings/page.md) | 0 | 8 |
-| **All** | **15** | **372** |
+| **All** | **15** | **385** |

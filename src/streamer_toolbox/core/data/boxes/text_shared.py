@@ -1,0 +1,1 @@
+CASES = ["upper", "lower", "title"]

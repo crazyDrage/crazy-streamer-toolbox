@@ -8,11 +8,11 @@ from streamer_toolbox.gui.components.flow_editor.trigger_kinds import TRIGGER_IN
 
 TOOLBOX, ANY_PLATFORM = "Toolbox", "Any platform"
 FIRST = (TOOLBOX, ANY_PLATFORM)  # on top; the programs follow by name
-OWN = ("custom", "timer", "tip")  # nobody's events: the toolbox's own
+OWN = ("timer", "tip")  # nobody's events: the toolbox's own
 # an event's first word → its group's name, where the box categories (CATEGORY_TITLES) have none
-GROUP_TITLES = {"key": "Keyboard", "youtube": "YouTube", "rumble": "Rumble", "streamelements": "StreamElements",
-                "streamlabs": "Streamlabs", "streamsocket": "StreamSocket", "tiltify": "Tiltify",
-                "crowdcontrol": "Crowd Control"}
+GROUP_TITLES = {"key": "Keyboard", "youtube": "YouTube", "rumble": "Rumble", "fansly": "Fansly",
+                "streamelements": "StreamElements", "streamlabs": "Streamlabs", "streamsocket": "StreamSocket",
+                "tiltify": "Tiltify", "crowdcontrol": "Crowd Control"}
 
 
 class TriggerCatalog:

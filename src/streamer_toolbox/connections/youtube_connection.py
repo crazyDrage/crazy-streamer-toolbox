@@ -11,6 +11,7 @@ from nicegui import ui
 from streamer_toolbox.connections.oauth.oauth_code_listener import OAuthCodeListener
 from streamer_toolbox.connections.oauth.oauth_token import OAuthToken
 from streamer_toolbox.connections.oauth.oauth_token_store import OAuthTokenStore
+from streamer_toolbox.connections.youtube.boxes.send_chat_message import SendChatMessage
 from streamer_toolbox.connections.youtube.youtube_api import YouTubeApi
 from streamer_toolbox.connections.youtube.youtube_api_error import YouTubeApiError
 from streamer_toolbox.connections.youtube.youtube_auth import WRITE, YouTubeAuth
@@ -133,8 +134,8 @@ class YouTubeConnection(ConnectionBase):
         await self._api().send_chat(self._chat.chat["chat"], str(message))
 
     def add_actions(self, actions: ActionRegistry) -> None:
-        actions.add("youtube.send_chat", self.send_chat, "Writes in your YouTube live chat as you (only while "
-                    "live, and only with \"May write in chat\" switched on)", "Send chat message", group="Chat")
+        for box in (SendChatMessage(self),):
+            actions.add_box(box, "youtube")
 
     # ---- internals ----
 

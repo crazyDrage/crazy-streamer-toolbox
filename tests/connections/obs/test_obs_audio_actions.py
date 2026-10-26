@@ -1,6 +1,7 @@
 import unittest
 
-from streamer_toolbox.connections.obs.obs_audio_actions import ObsAudioActions, track_numbers
+from streamer_toolbox.connections.obs.boxes.obs_audio_box import track_numbers
+from streamer_toolbox.connections.obs.obs_audio_actions import ObsAudioActions
 from streamer_toolbox.connections.obs.obs_requests import ObsRequests
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from tests.fakes.fake_obs_script import FakeObsScript

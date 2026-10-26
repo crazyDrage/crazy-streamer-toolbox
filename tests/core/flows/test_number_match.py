@@ -15,8 +15,25 @@ class TestNumberMatch(unittest.TestCase):
         self.assertEqual(self._fires("<", 60, 59, 60, 61), [True, False, False])
         self.assertEqual(self._fires("=", 100, 99, 100, 101), [False, True, False])
 
+    def test_rises_above_and_falls_below_start_once_when_it_is_crossed(self) -> None:
+        def fires(how: str, *rates: int) -> list[bool]:
+            trigger = FlowTrigger("heartrate", {"bpm": to_compare(how, 120)})
+            return [trigger.matches("heartrate", {"bpm": now, "previous_bpm": before, "source": "pulsoid"})
+                    for before, now in zip((0,) + rates, rates)]
+
+        # 121, 123, 125: "higher than" starts three times, "rises above" once
+        self.assertEqual(fires(">", 110, 121, 123, 125), [False, True, True, True])
+        self.assertEqual(fires(">>", 110, 121, 123, 125, 118, 120, 130),
+                         [False, True, False, False, False, False, True])
+        self.assertEqual(fires("<<", 130, 121, 119, 115, 125, 110), [False, False, True, False, False, True])
+        self.assertEqual(fires(">>", 130), [True])  # the first beat counts from 0
+        no_before = FlowTrigger("heartrate", {"bpm": ">>120"})
+        self.assertFalse(no_before.matches("heartrate", {"bpm": 130, "source": "pulsoid"}))
+
     def test_what_is_saved_and_read_back(self) -> None:
-        self.assertEqual([to_compare(how, 120) for how in ("", ">", "<", "=")], ["*", ">120", "<120", "=120"])
+        self.assertEqual([to_compare(how, 120) for how in ("", ">", "<", "=", ">>", "<<", "?")],
+                         ["*", ">120", "<120", "=120", ">>120", "<<120", "*"])
+        self.assertEqual(compare_of(">>120"), (">>", 120.0))
         self.assertEqual(to_compare(">", "99.5"), ">99.5")
         self.assertEqual(to_compare(">", None), ">0")  # an emptied number field
         self.assertEqual((compare_of(">120"), compare_of(" < 60 "), compare_of("=99.5")),

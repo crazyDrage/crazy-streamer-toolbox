@@ -1,20 +1,19 @@
 import re
+from collections.abc import Callable
 from dataclasses import replace
 from typing import Any
 
 from streamer_toolbox.core.flows.flow import Flow
 
-# box fields that hold a variable's name itself (not ${var.x}): Set / Get variable, Math on variable, Set field,
-# For each, lists
-NAME_FIELDS = {("var.set", "name"), ("var.get", "name"), ("var.add", "name"), ("var.set_field", "name"), ("logic.for_each", "item"),
-               ("list.add", "name"), ("list.remove", "name")}
 
 
 class VariableRenamer:
     """Renames a variable inside a flow, everywhere a flow can use one: ${var.old} and ${var.old.field} (also
-    inside longer text), "save result in variable", and the fields that take a variable's name."""
+    inside longer text), "save result in variable", and the fields that take a variable's name (`fields`: a box's
+    action → its RegisteredAction.variable_fields)."""
 
-    def __init__(self, old: str, new: str) -> None:
+    def __init__(self, old: str, new: str, fields: Callable[[str], tuple[str, ...]] = lambda action: ()) -> None:
+        self._fields = fields
         self._old = old
         self._new = new
         self._pattern = re.compile(r"\$\{var\." + re.escape(old) + r"(?=[.}])")
@@ -32,7 +31,7 @@ class VariableRenamer:
         return replace(flow, nodes=tuple(nodes)) if changed else None
 
     def _value(self, action: str, key: str, value: Any) -> Any:
-        if (action, key) in NAME_FIELDS and value == self._old:
+        if key in self._fields(action) and value == self._old:
             return self._new
         if isinstance(value, str):
             return self._pattern.sub("${var." + self._new, value)

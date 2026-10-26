@@ -23,16 +23,17 @@ class FlowListView:
 
     @ui.refreshable_method
     def build(self) -> None:
-        outline = FlowOutline(self._draft.to_flow(), self._editor.dots.ports, self._editor.dots.lines)
-        entries = outline.build()
-        with ui.row().classes("items-center gap-2"):
-            ui.icon("play_circle").classes("text-2xl text-positive")
-            ui.label("Start").classes("font-semibold")
-            ui.label("button, SAMMI, Kit, API" + (", triggers" if self._draft.triggers else "")) \
-                .classes("text-xs opacity-60")
-        with ui.column().classes("w-full gap-2 pl-3 border-l-2 border-positive/40"):
-            self._entries(entries)
-            self._add_button("Add box", entries, START, "out")
+        outline = FlowOutline(self._draft.to_flow(), self._editor.dots.ports, self._editor.dots.starts)
+        for start in [START, *(t.id for t in self._draft.triggers)]:  # a block per Start box (his round 63)
+            entries = outline.build(start)
+            title, detail = self._editor.dots.start_text(start)
+            with ui.row().classes("items-center gap-2"):
+                ui.icon("play_circle").classes("text-2xl text-positive")
+                ui.label(title).classes("font-semibold")
+                ui.label(detail).classes("text-xs opacity-60")
+            with ui.column().classes("w-full gap-2 pl-3 border-l-2 border-positive/40"):
+                self._entries(entries)
+                self._add_button("Add box", entries, start, "out")
         loose = outline.loose()
         # a box no run wire reaches runs anyway when a field is wired to it (it gives a value)
         feeding = {s[0] for n in self._draft.nodes for s in map(box_source, n.params.values()) if s}
@@ -130,7 +131,7 @@ class FlowListView:
 
     async def _add(self, source: str, port: str) -> None:
         action = await self._editor.picker().pick()
-        if action:
+        if action and not self._refused(action):
             node = self._draft.new_node(action)  # a box that only gives values gets no run wire
             if not self._editor.dots.data_only(node):
                 self._draft.nodes.remove(node)
@@ -141,7 +142,7 @@ class FlowListView:
 
     async def _add_beside(self, node_id: str) -> None:
         action = await self._editor.picker().pick("Add a box that runs at the same time")
-        if action:
+        if action and not self._refused(action):
             node = self._draft.new_node(action)  # a box that only gives values gets no run wire
             if not self._editor.dots.data_only(node):
                 self._draft.nodes.remove(node)
@@ -149,6 +150,13 @@ class FlowListView:
             self._editor.prepare(node)
             self._open = node.id
             self.build.refresh()
+
+    def _refused(self, action: str) -> bool:
+        """True (and says why) if the flow can't have one more box of this action (a second End)."""
+        why = self._draft.refuses(self._editor.dots.action(action))
+        if why:
+            ui.notify(why, type="warning")
+        return bool(why)
 
     def _delete(self, node: NodeDraft) -> None:
         self._draft.remove(node.id, self._editor.dots.ports(node.action, node.params))

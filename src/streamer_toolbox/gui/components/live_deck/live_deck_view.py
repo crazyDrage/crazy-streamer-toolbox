@@ -2,7 +2,7 @@ from copy import deepcopy
 from typing import Any
 from urllib.parse import quote
 
-from nicegui import ui
+from nicegui import app, ui
 
 from streamer_toolbox.core.actions.action_description import required_and_optional_params
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
@@ -17,7 +17,15 @@ from streamer_toolbox.gui.services.activity_log import ActivityLog
 
 HEAD = '<link rel="stylesheet" href="/static/live_deck.css"><script src="/static/live_deck.js"></script>'
 MOVED = "tb_deck_spot"  # live_deck.js: a button was dragged to another spot or size
-CELL_AT_LEAST = 64  # px: a cell is never smaller (a phone scrolls the page sideways)
+TURNED = "tb_deck_turn"  # live_deck.js: a swipe or an arrow key, {by: 1 or -1}: the next / last page
+CELL_AT_LEAST = 64  # px: a cell is never smaller (a phone scrolls the page sideways) when it fits the width
+SIZE_KEY = "live_size"  # app.storage.user (this browser): "width", "screen" or a cell's size in px
+SIZES = {"width": "Fit the width", "screen": "Fit the screen"}
+FIXED_LIMITS = (16, 400)  # px: a fixed cell's size
+BUTTONS_ONLY = "/live/buttons"  # the deck on its own (LivePage.build_bare)
+# run in the browser: it only allows full screen from the click itself (no trip to the server first)
+FULL_SCREEN = ("() => document.fullscreenElement ? document.exitFullscreen() : "
+               "document.documentElement.requestFullscreen().catch((e) => console.warn('full screen:', e))")
 
 
 class LiveDeckView:
@@ -27,10 +35,15 @@ class LiveDeckView:
     pulses until it's done (a looping flow keeps pulsing). The pencil switches to editing: drag a button to
     move it, drag its corner to change its size, click it to change what it is; the row above adds a button,
     sets the page's columns, rows and background and adds / renames / moves / deletes pages. Every change is
-    saved at once; other open Live pages pick it up within two seconds."""
+    saved at once; other open Live pages pick it up within two seconds.
+
+    The view menu (his round 63): the size of the cells (fit the width, fit the screen without scrolling, or a
+    fixed size: smaller buttons; kept per browser), Only the buttons (/live/buttons: the page tabs and the
+    buttons, nothing of the toolbox around them; `bare`) and Full screen (only the buttons: a swipe or the arrow
+    keys go to the next page, the corner button or Esc leave it; for a tablet)."""
 
     def __init__(self, store: DeckStore, actions: ActionRegistry, flows: FlowLibrary, activity: ActivityLog,
-                 images: DeckImages) -> None:
+                 images: DeckImages, bare: bool = False) -> None:
         self._store = store
         self._actions = actions
         self._flows = flows
@@ -41,10 +54,15 @@ class LiveDeckView:
         self._editing = False
         self._seen = store.version
         self._running: dict[int, int] = {}  # id() of a button → how many of its presses still run (this tab)
+        self._bare = bare
 
     def build(self) -> None:
+        self._user = app.storage.user  # this browser's; only reachable while the page is built
         ui.add_head_html(HEAD)
         ui.on(MOVED, lambda e: self._placed(e.args))
+        ui.on(TURNED, lambda e: self._turn(int(e.args.get("by", 1))))
+        ui.button(icon="fullscreen_exit").props("flat round dense").classes("tb-deck-exit") \
+            .on("click", js_handler=FULL_SCREEN)
         self._view()
         ui.timer(2.0, self._check_saved_elsewhere)
 
@@ -58,15 +76,17 @@ class LiveDeckView:
 
     @ui.refreshable_method
     def _view(self) -> None:
-        with ui.row().classes("w-full items-center no-wrap gap-2"):
+        with ui.row().classes("tb-deck-bar w-full items-center no-wrap gap-2"):
             with ui.tabs(value=self._page or None, on_change=lambda e: self._show_page(e.value)) \
                     .props("dense inline-label outside-arrows mobile-arrows no-caps align=left") \
                     .classes("flex-1 min-w-0"):
                 for page in self._deck.pages:
                     ui.tab(page.name)
-            ui.button(icon="check" if self._editing else "edit", on_click=self._toggle_edit) \
-                .props(f"round dense {'unelevated' if self._editing else 'flat'}") \
-                .tooltip("Done" if self._editing else "Edit the buttons")
+            self._view_menu()
+            if not self._bare:
+                ui.button(icon="check" if self._editing else "edit", on_click=self._toggle_edit) \
+                    .props(f"round dense {'unelevated' if self._editing else 'flat'}") \
+                    .tooltip("Done" if self._editing else "Edit the buttons")
         if self._editing:
             self._page_tools()
         page = self._deck.page(self._page)
@@ -76,13 +96,18 @@ class LiveDeckView:
         if not page.buttons and not self._editing:
             ui.label("This page has no buttons yet: the pencil, then Add button.").classes("opacity-70")
             return
-        # the cells are squares; while editing their lines show. On a narrow screen a cell keeps a size a
-        # thumb can hit and the page is pushed sideways instead
-        with ui.element("div").classes("w-full overflow-x-auto"):
+        # the cells are squares; while editing their lines show. Fit the width: on a narrow screen a cell keeps a
+        # size a thumb can hit and the page is pushed sideways instead. Fit the screen: live_deck.js keeps it as
+        # high as the window. Fixed: every cell that many px
+        size = self._size()
+        width = (f"width: {page.columns * size}px; " if isinstance(size, int) else
+                 f"min-width: {page.columns * CELL_AT_LEAST}px; " if size == "width" else "")
+        with ui.element("div").classes("w-full overflow-auto flex justify-center"):
             with ui.element("div").classes("tb-deck" + (" tb-deck-edit" if self._editing else "")) \
-                    .props(f"data-columns={page.columns} data-rows={page.rows}") \
-                    .style(f"aspect-ratio: {page.columns} / {page.rows}; "
-                           f"min-width: {page.columns * CELL_AT_LEAST}px; "
+                    .props(f"data-columns={page.columns} data-rows={page.rows}"
+                           + (" data-fit=screen" if size == "screen" else "")) \
+                    .style(f"aspect-ratio: {page.columns} / {page.rows}; flex: none; {width}"
+                           + ("" if isinstance(size, int) else "width: 100%; ")
                            + (f"background-color: {page.background}; " if page.background else "") +
                            f"background-size: {100 / page.columns:.4f}% {100 / page.rows:.4f}%"):
                 for index, button in enumerate(page.buttons):
@@ -115,6 +140,58 @@ class LiveDeckView:
                         .classes("text-negative")
         if not known:
             tile.tooltip(f"{button.action} isn't there anymore (renamed or deleted?): edit it")
+
+    # ---- the view ----
+
+    def _size(self) -> str | int:
+        size = self._user.get(SIZE_KEY, "screen" if self._bare else "width")
+        return size if size in SIZES or isinstance(size, int) else "width"
+
+    def _view_menu(self) -> None:
+        size = self._size()
+        with ui.button(icon="aspect_ratio").props("flat round dense").tooltip("View: size, only the buttons, "
+                                                                              "full screen"):
+            with ui.menu():
+                for key, text in SIZES.items():
+                    ui.menu_item(("✓ " if size == key else "") + text, on_click=lambda k=key: self._set_size(k))
+                ui.menu_item((f"✓ Fixed: {size} px per cell" if isinstance(size, int) else "Fixed size ...")
+                             , on_click=self._ask_size)
+                ui.separator()
+                if self._bare:
+                    ui.menu_item("Back to the toolbox", on_click=lambda: ui.navigate.to("/"))
+                else:
+                    ui.menu_item("Only the buttons", on_click=lambda: ui.navigate.to(BUTTONS_ONLY))
+                ui.menu_item("Full screen (only the buttons)").on("click", js_handler=FULL_SCREEN)
+
+    def _set_size(self, size: str | int) -> None:
+        self._user[SIZE_KEY] = size
+        self._view.refresh()
+
+    async def _ask_size(self) -> None:
+        low, high = FIXED_LIMITS
+        size = self._size()
+        with ui.dialog() as dialog, ui.card().classes("w-80"):
+            ui.label("Size of a cell").classes("font-semibold")
+            ui.label("A button one cell big is this many pixels wide and high; smaller = smaller buttons. "
+                     "Kept for this browser.").classes("text-xs opacity-70")
+            field = ui.number("px", value=size if isinstance(size, int) else 64, min=low, max=high, precision=0) \
+                .props("outlined dense autofocus").classes("w-full")
+            ui.slider(min=low, max=high, step=4).bind_value(field)
+            with ui.row().classes("w-full justify-end"):
+                ui.button("Cancel", on_click=lambda: dialog.submit(None)).props("flat no-caps")
+                ui.button("OK", on_click=lambda: dialog.submit(field.value)).props("unelevated no-caps")
+        result = await dialog
+        dialog.delete()
+        if result:
+            self._set_size(max(low, min(high, int(result))))
+
+    def _turn(self, by: int) -> None:
+        """A swipe or an arrow key: the next page (by 1) or the one before (-1), round the end."""
+        names = [p.name for p in self._deck.pages]
+        if self._editing or len(names) < 2:
+            return
+        index = names.index(self._page) if self._page in names else 0
+        self._show_page(names[(index + by) % len(names)])
 
     def _placed(self, spot: dict[str, Any]) -> None:
         """A button was dragged to another spot or size (live_deck.js)."""

@@ -1,28 +1,31 @@
 from collections.abc import Callable, Collection
 from itertools import groupby
 
-from streamer_toolbox.core.actions.action_registry import ActionRegistry
+from streamer_toolbox.core.actions.action_registry import SECTIONS, ActionRegistry
 from streamer_toolbox.core.actions.box_filter import GENERAL, BoxFilter
 from streamer_toolbox.core.actions.registered_action import RegisteredAction
+from streamer_toolbox.core.flows.flow_runner import NO_FOLDER
 
 FIRST, LAST = ("logic", "var", "sound", "file"), ("flow",)  # like SAMMI: the basics on top
 
 
 class ActionCatalog:
-    """What the Add box window lists: categories in SAMMI's order (basics first, flows last) with how many boxes
-    each has, a category's boxes by sub group, and a search over every box (all words must be somewhere in its
+    """What the Add box window lists: categories in three groups (Utils, Services, Plugins: ActionRegistry.section;
+    his round 63), inside one in SAMMI's order (basics first, flows last), with how many boxes each has, a category's boxes by sub group, and a search over every box (all words must be somewhere in its
     name, description, category or group; boxes whose name starts with the search come first). With a
     BoxFilter only the boxes that fit it are there at all; `hide` leaves out whole categories (the programs
     that are switched off under Connections); `shows` leaves out single boxes (TestView.shows_box: the ones
-    his checks hide)."""
+    his checks hide), and so are boxes not `offered` (flows switched off as a box)."""
 
     def __init__(self, actions: ActionRegistry, exclude: str = "", box_filter: BoxFilter | None = None,
                  hide: Collection[str] = (), shows: Callable[[RegisteredAction], bool] | None = None) -> None:
         self._actions = sorted((a for a in actions.all(include_flow_only=True)
-                                if a.name != exclude and a.category not in hide
+                                if a.name != exclude and a.offered and a.category not in hide
                                 and (box_filter is None or box_filter.fits(a))
                                 and (shows is None or shows(a))),
-                               key=lambda a: (_category_order(a), a.group or GENERAL, a.title.casefold()))
+                               key=lambda a: (SECTIONS.index(actions.section(a.category)), _category_order(a),
+                                              _group_order(a), a.title.casefold()))
+        self._section = {a.category: actions.section(a.category) for a in self._actions}
 
     def count(self) -> int:
         return len(self._actions)
@@ -31,6 +34,12 @@ class ActionCatalog:
         """(category, its title, number of boxes)."""
         return [(category, items[0].category_title, len(items))
                 for category, items in ((c, list(i)) for c, i in groupby(self._actions, key=lambda a: a.category))]
+
+    def sections(self) -> list[tuple[str, list[tuple[str, str, int]]]]:
+        """(Utils / Services / Plugins, its categories as categories() gives them); a group without boxes is left
+        out."""
+        return [(section, list(items))
+                for section, items in groupby(self.categories(), key=lambda c: self._section[c[0]])]
 
     def groups(self, category: str) -> list[tuple[str, list[RegisteredAction]]]:
         """(sub group, its boxes) of one category; one without sub groups gives one group named ""."""
@@ -55,6 +64,12 @@ class ActionCatalog:
 def _haystack(action: RegisteredAction) -> str:
     return " ".join((action.title, action.description, action.name, action.category_title,
                      action.group)).casefold()
+
+
+def _group_order(action: RegisteredAction) -> tuple:
+    """Sub groups A to Z without caring about upper / lower case (his flow folders); flows without one last."""
+    group = action.group or GENERAL
+    return group == NO_FOLDER, group.casefold(), group
 
 
 def _category_order(action: RegisteredAction) -> tuple:

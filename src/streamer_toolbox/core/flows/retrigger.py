@@ -1,7 +1,6 @@
 import asyncio
 from contextvars import ContextVar
 
-WAIT_ACTION = "logic.wait"
 # a Wait box's "If started again": what a new start of the flow does while the run hasn't got past this wait
 ON_RETRIGGER = {"nothing": "Nothing (as the flow is set)", "restart": "Start the wait over",
                 "add": "Add the time again"}

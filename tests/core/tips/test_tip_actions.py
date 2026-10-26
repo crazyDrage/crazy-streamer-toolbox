@@ -6,7 +6,8 @@ from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.events.event_bus import EventBus
 from streamer_toolbox.core.events.event_fields import EVENT_FIELDS
 from streamer_toolbox.core.flows.flow_trigger import FlowTrigger
-from streamer_toolbox.core.tips.tip_actions import TIP, TipActions
+from streamer_toolbox.core.tips.boxes.tip_box import TIP
+from streamer_toolbox.core.tips.tip_actions import TipActions
 from streamer_toolbox.core.widgets.widget_actions import WidgetActions
 from streamer_toolbox.core.widgets.widget_hub import WidgetHub
 from streamer_toolbox.core.widgets.widget_store import WidgetStore

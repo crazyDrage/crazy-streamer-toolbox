@@ -15,12 +15,14 @@ class NodeDraft:
     note: str = ""
     save_as: str = ""
     box: tuple[float, float] | None = None
+    outputs: dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def from_node(cls, node: FlowNode) -> "NodeDraft":
-        return cls(node.id, node.action, dict(node.params), node.enabled, node.note, node.save_as, node.box)
+        return cls(node.id, node.action, dict(node.params), node.enabled, node.note, node.save_as, node.box,
+                   dict(node.outputs))
 
     def to_node(self) -> FlowNode:
         params = {k: v for k, v in self.params.items() if v not in ("", None)}
         return FlowNode(self.id, self.action, params, self.enabled, self.note.strip(), self.save_as.strip(),
-                        self.box)
+                        self.box, dict(self.outputs))

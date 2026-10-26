@@ -1,6 +1,6 @@
 """What each event gives a flow it starts: the keys of its data. Keep this in step with the publish() calls
 (TwitchConnection, VtsConnection, TimerClock, KeyboardConnection, TipActions, StreamElementsConnection,
-StreamlabsConnection, RumbleNews, youtube_events,
+StreamlabsConnection, RumbleNews, youtube_events, FanslyNews,
 VeadotubeClient, TitsConnection, streamerbot_events, LumiaConnection, HeartRate, tiltify_feed); the flow editor shows them as orange dots on the
 Start box."""
 
@@ -57,6 +57,12 @@ EVENT_FIELDS: dict[str, tuple[str, ...]] = {
     "rumble.rant": ("user", "amount", "message", "role", "platform"),
     "rumble.online": ("title", "platform"),
     "rumble.offline": ("title", "platform"),
+    # Fansly (FanslyNews): its chat, tips (a chat message with a tip; also a tip) and new subs. tier_name = the
+    # sub tier's name as the creator named it; following = the chatter follows; streak / total_days = sub days
+    "fansly.chat": ("user", "user_login", "user_id", "message", "command", "args", "message_id", "color", "role",
+                    "tier_name", "following", "platform"),
+    "fansly.tip": ("user", "user_login", "user_id", "amount", "message", "role", "platform"),
+    "fansly.sub": ("user", "user_login", "user_id", "tier_name", "streak", "total_days", "role", "platform"),
     # YouTube (youtube_events): everything comes through the live chat; a Super Chat / Sticker is also a tip
     "youtube.chat": ("user", "message", "command", "args", "role", "user_id", "message_id", "platform"),
     "youtube.superchat": ("user", "amount", "currency", "message", "role", "platform"),
@@ -80,7 +86,7 @@ EVENT_FIELDS: dict[str, tuple[str, ...]] = {
     # anything Lumia Stream tells: type (chat, command, alert, ...); alert = the alert's name; data = all it sent
     "lumia.event": ("type", "alert", "origin", "user", "message", "data"),
     # the streamer's heart rate changed (Pulsoid, HypeRate); source = which of them told
-    "heartrate": ("bpm", "source"),
+    "heartrate": ("bpm", "previous_bpm", "source"),
     # a donation to the Tiltify campaign (charity: not a tip)
     "tiltify.donation": ("user", "amount", "currency", "message", "campaign", "platform"),
     # Crowd Control: a viewer asked for an effect in the game (status: requested, succeeded, failed)
@@ -94,8 +100,6 @@ EVENT_FIELDS: dict[str, tuple[str, ...]] = {
     "vts.model_config": ("model", "model_id", "hotkeys_changed", "data"),
     "vts.model_moved": ("model", "x", "y", "rotation", "size"),
     "key.pressed": ("key",),
-    # a custom trigger: the source event's fields come along too (a redeem's reward, a chat's message, ...)
-    "custom": ("trigger", "platform", "source", "user", "user_login", "input", "role"),
 }
 
 # a viewer's "role", lowest to highest. Only a chat message tells it; every other event with "role" above gets

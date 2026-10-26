@@ -22,6 +22,10 @@ class TestObsFilterActions(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(await self.actions.run("obs.set_filter", source="cam", filter="Blur", state="off"))
         self.assertEqual([d["filterEnabled"] for d in self.obs.sent("SetSourceFilterEnabled")], [False, True, False])
 
+    async def test_is_filter_on(self) -> None:
+        self.assertTrue(await self.actions.run("obs.get_filter", source="cam", filter="Blur"))
+        self.assertEqual(self.obs.sent("GetSourceFilter"), [{"sourceName": "cam", "filterName": "Blur"}])
+
     async def test_filter_picker_by_source(self) -> None:
         picker = await self.actions.get("obs.set_filter").options["filter"]()
         self.assertEqual(picker, {"cam": {"Blur": "Blur"}})

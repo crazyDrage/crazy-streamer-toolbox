@@ -3,12 +3,11 @@ from html import escape
 from typing import Any
 
 from streamer_toolbox.core.flows.box_wire import box_ref, box_source, is_wire_in
-from streamer_toolbox.core.flows.flow_wire import START, FlowWire
+from streamer_toolbox.core.flows.flow_wire import INPUT, START, FlowWire
 from streamer_toolbox.gui.components.flow_editor.flow_draft import FlowDraft
 from streamer_toolbox.gui.components.flow_editor.node_draft import NodeDraft
 
 START_ID = 1
-BY_NAME = "*"  # the "by name" data dot: a result dropped there fills the fields named like its keys
 # auto placement: columns leave room for the dot names outside the boxes; a column stacks by each box's height
 LEFT, TOP, COLUMN, GAP = 20, 20, 330, 40
 DOT, BOX = 24, 70  # one row of a box (a dot and its name, flow_boxes.css), a box with the title row only
@@ -33,20 +32,29 @@ class DrawflowGraph:
     left a field's name and value, on the right an output's name. A box that only gives values (data_only_of)
     keeps its run dots in place but hidden (tb-data-only), and read() drops any run wire to or from it. A box with
     lines (lines_of: Choose value's value_1, value_2, ...) has no normal run dot (tb-lines-in) but one per line
-    (they are among its entries); a wire saved into the normal one is drawn into the first line's.
-    A box without a saved spot is placed by how many wires it is from Start (columns), stacked when several share a
-    column.
+    (they are among its entries); a wire saved into the normal one is drawn into the first line's. Its dots are
+    shown in pairs, each line's run dot above its value (his round 54): data.order_in has the input numbers in
+    the order they are shown (flow_boxes.js sets it), the rows follow the same order.
+    The boxes every flow has without adding them (his round 63), drawn from the draft itself: Manual Start, a
+    Start box per trigger (its id; deleting it on the canvas takes the trigger away) and the Input box (the
+    inputs as orange dots, no run wire). They have no dots on the left; start_text gives their title and line,
+    start_outputs their orange dots. data.special tells flow_boxes.js which one it is ("start", "trigger",
+    "input").
+    A box without a saved spot is placed by how many wires it is from a Start box (columns), stacked when several
+    share a column; Start boxes and Input stack in the first column.
     """
 
     def __init__(self, ports_of: Callable[[str, dict], tuple[str, ...]], title_of: Callable[[str], str],
                  data_inputs_of: DataInputs = lambda node: [], data_outputs_of: DataOutputs = lambda node: [],
                  summary_of: Callable[[NodeDraft], str] | None = None,
-                 start_outputs: Callable[[], list[tuple[str, str]]] = lambda: [],
+                 start_outputs: Callable[[str], list[tuple[str, str]]] = lambda node_id: [],
+                 start_text: Callable[[str], tuple[str, str]] = lambda node_id: (node_id, ""),
                  entries_of: Callable[[NodeDraft], list[str]] = lambda node: [],
                  value_of: Callable[[NodeDraft, str], str] = lambda node, name: "",
                  name_of: Callable[[NodeDraft, str], str] = lambda node, name: name.replace("_", " "),
                  data_only_of: Callable[[NodeDraft], bool] = lambda node: False,
                  lines_of: Callable[[NodeDraft], list[str]] = lambda node: []) -> None:
+        self._start_text = start_text
         self._data_only_of = data_only_of
         self._lines_of = lines_of
         self._value_of = value_of
@@ -71,15 +79,23 @@ class DrawflowGraph:
         return index + 2
 
     def build(self, draft: FlowDraft) -> dict[str, Any]:
-        spots = _default_spots(draft, {n.id: self._dot_rows(n) for n in draft.nodes})
-        numbers = {START: START_ID} | {n.id: self.node_id(i) for i, n in enumerate(draft.nodes)}
-        start_text = "button, SAMMI, Kit, API" + (", triggers" if draft.triggers else "")
-        start_out = self._start_outputs()  # what started the flow: trigger data, flow inputs
-        gives = [(label, "tb-flow-input" if label.endswith(" (input)") else "") for _, label in start_out]
-        nodes = {str(START_ID): _node(START_ID, START, _html("Start", right=gives, detail=start_text), (LEFT, TOP),
-                                      0, 1 + len(start_out), "tb-start")}
-        nodes[str(START_ID)]["data"].update(ports=["out"], entries=[], data_in=[], data_out=[f for f, _ in start_out],
-                                            labels_out=[label for _, label in start_out], tag="Start")
+        starts = _starts(draft)
+        spots = _default_spots(draft, {n.id: self._dot_rows(n) for n in draft.nodes}, starts)
+        numbers = {n.id: self.node_id(i) for i, n in enumerate(draft.nodes)}
+        numbers |= {START: START_ID} | {box: len(draft.nodes) + 2 + i for i, box in enumerate(starts[1:] + [INPUT])}
+        nodes = {}
+        top = TOP
+        for box in [*starts, INPUT]:
+            title, detail = self._start_text(box)
+            gives = self._start_outputs(box)
+            spot = self._start_spot(draft, box) or (LEFT, top)
+            top = spot[1] + max(BOX, DOT * (1 + len(gives))) + GAP + (DOT if detail else 0)
+            special = "input" if box == INPUT else "start" if box == START else "trigger"
+            nodes[str(numbers[box])] = _node(numbers[box], box, self.start_html(box), spot, 0, 1 + len(gives),
+                                             self.start_css(box))
+            nodes[str(numbers[box])]["data"].update(ports=["out"], entries=[], data_in=[], lines_in=[],
+                                                    data_out=[f for f, _ in gives], special=special,
+                                                    labels_out=[label for _, label in gives], tag=title)
         for index, node in enumerate(draft.nodes):
             number = self.node_id(index)
             ports = self._ports_of(node.action, node.params)
@@ -93,7 +109,8 @@ class DrawflowGraph:
                                               data_out=[f for f, _ in data_out],
                                               labels_out=[label for _, label in data_out], tag=self._tag(node),
                                               port_labels=[_port_label(node, port) for port in ports],
-                                              lines_in=self._lines_of(node))
+                                              lines_in=self._lines_of(node),
+                                              order_in=self._order_in(node, entries, data_in))
         for wire in draft.wires:
             source, target = numbers.get(wire.source), numbers.get(wire.target)
             ports = self._ports(draft, wire.source)
@@ -101,7 +118,7 @@ class DrawflowGraph:
                 continue
             entries = nodes[str(target)]["data"].get("entries", [])
             entry = wire.entry
-            if not entry and nodes[str(target)]["data"]["lines_in"]:
+            if not entry and nodes[str(target)]["data"].get("lines_in"):
                 entry = self._lines_of(draft.node(wire.target))[0]  # the normal run dot counts as the first line
             if entry and entry not in entries:
                 continue
@@ -110,27 +127,65 @@ class DrawflowGraph:
             target = nodes[str(numbers[node.id])]
             first = 2 + len(target["data"]["entries"])  # the first data dot
             for index, name in enumerate(target["data"]["data_in"]):
-                wired = box_source(node.params.get(name))
+                value = node.params.get(name)
+                wired = box_source(value)
                 source = nodes.get(str(numbers.get(wired[0], 0))) if wired else None
                 dot = _dot(source["data"], wired[1]) if source else None
                 if dot is not None:
                     _connect(nodes, source["id"], dot, target["id"], index + first)
-                    target["data"].setdefault("wired", {})[name] = node.params[name]
+                    target["data"].setdefault("wired", {})[name] = value
         return {"drawflow": {"Home": {"data": nodes}}}
+
+    def start_html(self, box: str) -> str:
+        """The inside of a Start box or the Input box."""
+        title, detail = self._start_text(box)
+        return _html(title, right=[(label, "") for _, label in self._start_outputs(box)], detail=detail)
+
+    @staticmethod
+    def start_css(box: str) -> str:
+        return "tb-start" + (" tb-data-only tb-input-box" if box == INPUT else "")  # Input: its run dot hidden
+
+    @staticmethod
+    def _start_spot(draft: FlowDraft, box: str) -> tuple[float, float] | None:
+        if box == START:
+            return draft.start_box
+        if box == INPUT:
+            return draft.input_box
+        trigger = draft.trigger(box)
+        return trigger.box if trigger else None
 
     def html(self, node: NodeDraft) -> str:
         extra = f"→ {node.save_as}" if node.save_as else ""
         ports = self._ports_of(node.action, node.params)
         names = [(_port_label(node, port) or port, f"tb-port-{port}") for port in ports] if len(ports) > 1 else []
         lines = self._lines_of(node)
-        left = [(self._name_of(node, entry), "tb-line-in", "") if entry in lines else (entry, "tb-entry", "")
-                for entry in self._entries_of(node)]
-        left += [("by name", "tb-by-name", "") if name == BY_NAME else
-                 (self._name_of(node, name), "", self._value_of(node, name)) for name in self._data_inputs_of(node)]
+        left = [(self._name_of(node, entry), "tb-line-in", "") if entry in lines
+                else (entry, f"tb-entry tb-entry-{entry}", "") for entry in self._entries_of(node)]
+        left += [(self._name_of(node, name), "", self._value_of(node, name)) for name in self._data_inputs_of(node)]
+        order = self._order_in(node, self._entries_of(node), self._data_inputs_of(node))
+        if order:  # the rows in the order the dots are shown (input_1 is the title's row)
+            left = [left[number - 2] for number in order[1:]]
         right = names[1:] if names else [("", "")] * (len(ports) - 1)
         right += [(label, "") for _, label in self._data_outputs_of(node)]
+        # a box with extra run dots (Loop: stop, switch) names its own one too: start (his round 55)
+        started = any(entry not in lines for entry in self._entries_of(node))
         return _html(self._title_of(node.action) + ("" if node.enabled else " (off)"), names[0] if names else None,
-                     left, right, self._summary_of(node), node.note, extra)
+                     left, right, self._summary_of(node), node.note, extra, "start" if started else "")
+
+    def _order_in(self, node: NodeDraft, entries: list[str], data_in: list[str]) -> list[int]:
+        """A box with lines: its input numbers in the order they are shown, each line's run dot followed by its
+        value's dot, then the other data dots; [] for other boxes (shown as they are numbered)."""
+        lines = self._lines_of(node)
+        if not lines:
+            return []
+        first = 2 + len(entries)  # the first data dot
+        order = [1] + [number for number, entry in enumerate(entries, 2) if entry not in lines]
+        for line in lines:
+            if line in entries:
+                order.append(2 + entries.index(line))
+            if line in data_in:
+                order.append(first + data_in.index(line))
+        return order + [first + i for i, name in enumerate(data_in) if first + i not in order]
 
     def _tag(self, node: NodeDraft) -> str:
         """How short wire ends name the box: "2 Video info"."""
@@ -142,19 +197,29 @@ class DrawflowGraph:
             + (" tb-lines-in" if self._lines_of(node) else "")
 
     def read(self, export: dict[str, Any], draft: FlowDraft) -> None:
-        """Positions, deleted boxes and both kinds of wires, mapped by the dot names the graph was drawn with
-        (the form may have changed a box's dots since)."""
+        """Positions, deleted boxes (a trigger's Start box: the trigger) and both kinds of wires, mapped by the
+        dot names the graph was drawn with (the form may have changed a box's dots since). Manual Start and Input
+        can't go: deleted, they come back."""
         nodes = export["drawflow"]["Home"]["data"]
         by_number = {int(k): v["data"]["node"] for k, v in nodes.items()}
         kept = set(by_number.values())
         draft.nodes = [n for n in draft.nodes if n.id in kept]
+        draft.triggers = [t for t in draft.triggers if t.id in kept]
+        starts = {START, INPUT, *(t.id for t in draft.triggers)}
         wires = []
         for number, data in nodes.items():
             source = by_number[int(number)]
             node = draft.node(source)
+            spot = (float(data["pos_x"]), float(data["pos_y"]))
             if node is not None:
-                node.box = (float(data["pos_x"]), float(data["pos_y"]))
-            ports = data["data"].get("ports") or list(self._ports(draft, source))
+                node.box = spot
+            elif source == START:
+                draft.start_box = spot
+            elif source == INPUT:
+                draft.input_box = spot
+            elif draft.trigger(source) is not None:
+                draft.set_trigger(source, box=spot)
+            ports = [] if source == INPUT else data["data"].get("ports") or list(self._ports(draft, source))
             for output, links in data["outputs"].items():
                 index = int(output.split("_")[1]) - 1
                 if index >= len(ports):
@@ -163,7 +228,7 @@ class DrawflowGraph:
                     target = by_number.get(int(link["node"]))
                     dot = int(link["output"].split("_")[1])
                     entries = nodes.get(str(link["node"]), {}).get("data", {}).get("entries", [])
-                    if not target or target == START or dot > 1 + len(entries):
+                    if not target or target in starts or dot > 1 + len(entries):
                         continue  # a data dot
                     if self._only_data(draft, source) or self._only_data(draft, target):
                         continue  # a box that only gives values has no run wire
@@ -201,8 +266,10 @@ class DrawflowGraph:
         return node is not None and self._data_only_of(node)
 
     def _ports(self, draft: FlowDraft, node_id: str) -> tuple[str, ...]:
-        if node_id == START:
+        if node_id == START or draft.trigger(node_id) is not None:
             return ("out",)
+        if node_id == INPUT:
+            return ()
         node = draft.node(node_id)
         return self._ports_of(node.action, node.params) if node else ()
 
@@ -224,9 +291,15 @@ def _connect(nodes: dict[str, Any], source: int, output: int, target: int, input
         {"node": str(source), "input": f"output_{output}"})
 
 
-def _default_spots(draft: FlowDraft, dot_rows: dict[str, int]) -> dict[str, tuple[float, float]]:
+def _starts(draft: FlowDraft) -> list[str]:
+    """Manual Start first, then a Start box per trigger."""
+    return [START, *(t.id for t in draft.triggers)]
+
+
+def _default_spots(draft: FlowDraft, dot_rows: dict[str, int],
+                   starts: list[str]) -> dict[str, tuple[float, float]]:
     depth: dict[str, int] = {}
-    todo = [(START, 0)]
+    todo = [(start, 0) for start in starts]
     while todo:
         current, level = todo.pop(0)
         for wire in draft.wires:
@@ -266,17 +339,19 @@ def _port_label(node: NodeDraft, port: str) -> str:
 
 
 def _html(title: str, head: tuple[str, str] | None = None, left: list[tuple[str, str, str]] | None = None,
-          right: list[tuple[str, str]] | None = None, detail: str = "", note: str = "", extra: str = "") -> str:
+          right: list[tuple[str, str]] | None = None, detail: str = "", note: str = "", extra: str = "",
+          run_dot: str = "") -> str:
     """A box's inside: the title's row, then one row per dot. left: (name, css, value) per dot on the left after
-    the run dot; right: (name, css) per dot on the right after the first one, whose name is `head`."""
+    the run dot, which is named `run_dot` in the title's row if given; right: (name, css) per dot on the right
+    after the first one, whose name is `head`."""
     left, right = left or [], right or []
-    parts = [f'<div class="tb-row tb-head"><span class="tb-title" title="{escape(title)}">{escape(title)}</span>'
-             f'{_out(head)}</div>']
-    apart = next((i for i, (_, css) in enumerate(right) if "tb-flow-input" in css), None)  # Start: the flow's inputs
+    named = f'<span class="tb-run-dot tb-entry-{escape(run_dot)}">{escape(run_dot)}</span>' if run_dot else ""
+    parts = [f'<div class="tb-row tb-head">{named}<span class="tb-title" title="{escape(title)}">{escape(title)}'
+             f'</span>{_out(head)}</div>']
     for index in range(max(len(left), len(right))):
         name, css, value = left[index] if index < len(left) else ("", "", "")
         shown = f'{escape(name)}<span class="tb-value"> = {escape(value)}</span>' if value else escape(name)
-        parts.append(f'<div class="tb-row{" tb-apart" if index == apart and index else ""}">'
+        parts.append(f'<div class="tb-row">'
                      f'<span class="tb-in {css}" title="{escape(name + (" = " + value if value else ""))}">{shown}'
                      f'</span>{_out(right[index] if index < len(right) else None)}</div>')
     for text, css in ((detail, "tb-detail"), (extra, "tb-save"), (note, "tb-note")):

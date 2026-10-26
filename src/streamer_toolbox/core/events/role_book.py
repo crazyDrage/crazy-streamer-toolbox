@@ -3,7 +3,8 @@ from typing import Any
 
 from streamer_toolbox.core.events.event_fields import CHAT_ROLES, EVENT_FIELDS
 
-SUBS = ("sub", "resub", "twitch.sub", "twitch.resub", "rumble.sub", "youtube.member", "youtube.member_milestone")
+SUBS = ("sub", "resub", "twitch.sub", "twitch.resub", "rumble.sub", "fansly.sub", "youtube.member",
+        "youtube.member_milestone")
 IDS = ("user_id", "user_login", "user")
 
 
@@ -37,7 +38,7 @@ class RoleBook:
         if data.get("role") in CHAT_ROLES:
             if kind.rpartition(".")[2] == "chat":  # a chat message: the newest word on this viewer
                 self._roles.update(dict.fromkeys(keys, data["role"]))
-            return data  # or an event made from a filled one (the common one, a custom trigger)
+            return data  # or an event made from a filled one (the common one)
         role = next((self._roles[key] for key in keys if key in self._roles), "viewer")
         if kind in SUBS:
             role = max(role, "sub", key=CHAT_ROLES.index)

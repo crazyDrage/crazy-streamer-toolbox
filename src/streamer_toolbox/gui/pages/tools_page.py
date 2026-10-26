@@ -22,11 +22,11 @@ class ToolsPage:
 
     def shown(self) -> list[tuple]:
         """The tools the overview and the side menu list now."""
-        return [tool for tool in self._ui.tools
+        return [tool for tool in self._ui.tools_on()
                 if self._view is None or self._view.shows_key(f"{TOOL}:{tool_slug(tool[1])}")]
 
     def build(self) -> None:
-        tools = self._ui.tools
+        tools = self._ui.tools_on()
         if not tools:
             ui.label("No tools yet. Plugins add them (ctx.add_tool); see docs/PLUGINS.md.").classes("opacity-70")
             return
@@ -48,7 +48,7 @@ class ToolsPage:
 
     def _overview(self) -> None:
         tools = self.shown()
-        hidden = len(self._ui.tools) - len(tools)
+        hidden = len(self._ui.tools_on()) - len(tools)
         if hidden:
             ui.label(f"{hidden} tools hidden: {self._view.why()}. Change it in Settings → What you see") \
                 .classes("text-xs opacity-60")

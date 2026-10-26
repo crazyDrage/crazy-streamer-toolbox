@@ -54,7 +54,7 @@ class TestHypeRateConnection(unittest.IsolatedAsyncioTestCase):
             await server.tell({"event": "hr_update", "payload": {"hr": 99}, "ref": None, "topic": "hr:other"})
             await server.tell({"event": "hr_update", "payload": {"hr": 79}, "ref": None, "topic": "hr:AB12"})
             await until(lambda: len(self.seen) == 1)
-            self.assertEqual(self.seen, [("heartrate", {"bpm": 79, "source": "hyperate"})])
+            self.assertEqual(self.seen, [("heartrate", {"bpm": 79, "previous_bpm": 0, "source": "hyperate"})])
             await connection.stop()
 
     async def test_the_id_and_the_key_are_needed(self) -> None:

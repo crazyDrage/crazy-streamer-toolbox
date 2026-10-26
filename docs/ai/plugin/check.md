@@ -2,14 +2,15 @@
 
 How to write one is in `docs/PLUGINS.md`. If the example plugins are there (they are kept apart from the
 toolbox's repository), copy `plugins/example/` as a start: it has one of everything and its `README.md`
-walks through it (`plugins/hello/` is the smallest one).
+walks through it (`plugins/hello/` is a small one, `plugins/jokes/` one without code that calls a web API).
 
 ## Plugin, or a change to the toolbox?
 
 | Your idea | Where it goes |
 |---|---|
-| An action (with pickers, outputs, hints), a tool tab, a page, a card, an API route of your own | plugin |
-| The toolbox should talk to a new program: its own tab under Connections, its boxes, its events as triggers | plugin (`ctx.add_connection`, `ctx.add_trigger`, `ctx.publish`), `api_version` 2 |
+| Boxes that call a web API, without code | plugin without code: `plugin.json` + `boxes/*.json` |
+| A box (with pickers, outputs, hints), a tool tab, a page, a card, an API route of your own | plugin (a `Box`, `Tool`, `Page`, `Panel` class, an `APIRouter`; `ctx.add`) |
+| The toolbox should talk to a new program: its own tab under Connections, its boxes, its events as triggers | plugin (a `ConnectionBase` with `boxes()`, a `Trigger` class and its `fire`) |
 | Glue between actions that already exist | plugin, or just a flow in the dashboard |
 | A program that should ship with the toolbox itself | the toolbox's code: `docs/ai/code/connection.md` |
 | One of the events every platform has (follow, sub, chat as the common event), alerts for it, a box with its own editor window | the toolbox's code: `docs/ai/code/events.md`, `docs/ai/code/action.md` |
@@ -22,9 +23,13 @@ A plugin only gets `ctx` (PluginContext). What it can't do: take anything away a
 The dashboard's Plugins page lists every plugin: loaded, failed (with the reason) or disabled. The same
 reason is in the console the toolbox was started from. Usual causes:
 
-- `plugin.json`: one of `id`, `name`, `version`, `api_version` is missing; `api_version` isn't 1; or `id`
-  isn't lowercase letters, digits and `_`, starting with a letter.
-- `ctx.add_connection`: the connection's `id` isn't the plugin's id.
+- `plugin.json`: one of `id`, `name`, `version`, `api_version` is missing; `api_version` is newer than the
+  toolbox's (4); or `id` isn't lowercase letters, digits and `_`, starting with a letter.
+- "has no main.py and no boxes/ folder": the folder has neither code nor web boxes.
+- A web box file is wrong: the reason names the file, the box and what (an unknown key, a url without
+  http(s)://, a `{field}` in the target that is no input).
+- `ctx.add(connection)`: the connection's `id` isn't the plugin's id.
+- `ctx.add(box)`: the Box class has no `name` (Trigger: no `event` / `title`; FieldEditor: no `kind`).
 - `main.py` has no class that extends `ToolboxPlugin`, or more than one without `"class"` in plugin.json.
 - An import inside the plugin isn't relative. Use `from .lib.board import Board`.
 - `config/toolbox.toml` has `[plugins] enabled = [...]` and your id isn't in it.

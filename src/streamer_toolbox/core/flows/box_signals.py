@@ -2,6 +2,9 @@ import asyncio
 from contextvars import ContextVar
 
 _CURRENT: ContextVar["BoxSignals | None"] = ContextVar("box_signals", default=None)
+# a box with entries reached while it already runs (in another run of the flow): its `alongside` field says
+ONE, ALONGSIDE = "one", "alongside"
+ON_ALREADY_RUNNING = {ONE: "Only one: a new start stops here", ALONGSIDE: "Another one alongside"}
 
 
 class BoxSignals:
@@ -25,16 +28,17 @@ class BoxSignals:
         self._arrived.add(entry)
         self._changed.set()
 
-    def has(self, entry: str) -> bool:
-        return entry in self._arrived
+    def has(self, *entries: str) -> bool:
+        """True if one of the entries arrived."""
+        return any(entry in self._arrived for entry in entries)
 
-    async def wait_for(self, entry: str, seconds: float) -> bool:
-        """Waits up to seconds; True as soon as entry arrived (also if it had before)."""
+    async def wait_for(self, seconds: float, *entries: str) -> bool:
+        """Waits up to seconds; True as soon as one of the entries arrived (also if it had before)."""
         try:
             async with asyncio.timeout(seconds):
-                while not self.has(entry):
+                while not self.has(*entries):
                     self._changed.clear()
                     await self._changed.wait()
         except TimeoutError:
             pass
-        return self.has(entry)
+        return self.has(*entries)

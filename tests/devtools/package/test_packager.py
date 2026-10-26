@@ -4,7 +4,6 @@ import zipfile
 import unittest
 from pathlib import Path
 
-from streamer_toolbox.core.testing.release_marker import RELEASE_MARKER, is_release
 from streamer_toolbox.devtools.package.packager import LINUX, WINDOWS, Packager
 from tests.fakes.fake_linux_python import FakeLinuxPython
 from tests.fakes.fake_python_packager import FakePythonPackager
@@ -26,20 +25,12 @@ class TestPackager(unittest.TestCase):
         self._dir.cleanup()
 
     def test_only_the_code_the_example_settings_and_the_user_docs_go_in(self) -> None:
-        copied = ListedPackager(self.repo, self.out, tested_only=False)._files(self.out)
+        copied = ListedPackager(self.repo, self.out)._files(self.out)
         files = sorted(p.relative_to(self.out).as_posix() for p in self.out.rglob("*") if p.is_file())
         self.assertEqual(files, ["README.md", "config/toolbox.example.toml", "docs/WIDGETS.md", "docs/ai/rules.md",
                                  "plugins/hello/main.py", "requirements.txt", "src/streamer_toolbox/__main__.py"])
         self.assertEqual(copied, len(files))
         self.assertEqual((self.out / "README.md").read_text(encoding="utf-8"), "docs/USER_GUIDE.md")  # the guide
-
-    def test_a_build_carries_everything_unless_asked_for_tested_only(self) -> None:
-        marker = self.out / "src" / "streamer_toolbox" / RELEASE_MARKER
-        ListedPackager(self.repo, self.out)._files(self.out)
-        self.assertFalse(is_release(marker.parent))
-        ListedPackager(self.repo, self.out, tested_only=True)._files(self.out)
-        self.assertTrue(is_release(marker.parent))
-        self.assertFalse(is_release())  # the project folder itself never is
 
     def test_the_archive_gets_start_scripts_for_windows_and_linux(self) -> None:
         self.out.mkdir()

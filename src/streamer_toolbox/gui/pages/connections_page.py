@@ -34,11 +34,13 @@ class ConnectionsPage:
     def shown(self) -> list[Connection]:
         """The connections the overview and the side menu list now."""
         return [connection for connection in self._connections.all()
-                if self._view is None or self._view.shows_key(f"{CONNECTION}:{connection.id}")]
+                if not self._connections.is_paused(connection.id)
+                and (self._view is None or self._view.shows_key(f"{CONNECTION}:{connection.id}"))]
 
     def build(self) -> None:
         show = ui.context.client.request.query_params.get("show", "")
-        connection = next((c for c in self._connections.all() if c.id == show), None)
+        connection = next((c for c in self._connections.all() if c.id == show
+                           and not self._connections.is_paused(c.id)), None)
         if connection is not None:
             self._back()
             ConnectionPanel(connection, self._connections).build()

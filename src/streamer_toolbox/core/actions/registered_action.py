@@ -17,7 +17,7 @@ CATEGORY_TITLES = {"obs": "OBS", "vts": "VTube Studio", "sammi": "SAMMI", "mixit
                    "file": "Files", "list": "Lists", "json": "JSON", "popup": "Popups", "data": "Data",
                    "video": "Video", "object": "Objects", "text": "Text", "web": "Web",
                    "system": "Programs", "time": "Time", "viewer": "Viewers",
-                   "trigger": "Custom triggers", "alert": "Alerts", "tip": "Tips", "widget": "Widgets",
+                   "alert": "Alerts", "tip": "Tips", "widget": "Widgets",
                    "vnyan": "VNyan", "warudo": "Warudo", "veadotube": "veadotube mini",
                    "tits": "T.I.T.S.", "streamerbot": "Streamer.bot", "firebot": "Firebot",
                    "lumia": "Lumia Stream", "voicemod": "Voicemod", "heartrate": "Heart rate",
@@ -42,7 +42,21 @@ class RegisteredAction:
     field a value the box keeps itself, edited in its own window ({field: kind}, e.g. "animation" →
     "vts_animation"; the kind also names its folder of saved files); `entries` are extra run dots on the box's
     left (a Loop's "stop"): a wire arriving there while the box runs is passed to it (BoxSignals), it doesn't
-    start it. `fills` fill other fields when a field is set ({field: provider(value) → {other field: value}}, the
+    start it; `toggles` names entries that do start it when it isn't running (a Loop's "switch": stops it if it
+    loops, else starts it; his round 55). `offered=False` leaves the box out of the Add box window (a flow
+    he switched off as a box, his round 56); it still runs everywhere else. `ends_flow`: reaching the box lets
+    the flow's box in another flow go on, and a dict it gives (its `named_lines`) becomes that box's orange dots
+    (End). `gives_back` names the field whose text is the name the box's result is given back under (Flow
+    output: "name"). `once_per_flow`: a flow takes one such box (End). `retrigger` names the field that says
+    what a new start of the flow does while the box runs ("nothing", "restart", "add"; Wait's
+    if_started_again): the handler gets the Retrigger (PluginContext.retrigger). `variable_fields` hold a
+    variable's own name (Set variable's name): renaming the variable renames them too.
+    `keys_of` names a field whose value's keys become the box's data dots, following what is wired into it
+    (Object values, his round 60). A box with `entries` runs once at a time per flow (a second run that reaches it
+    stops there); `alongside` names the field that can say ALONGSIDE (core/flows/box_signals.py): then every run
+    gets its own copy of the box (Loop's if_already_looping, his round 63). Every one of these is a
+    keyword of ActionRegistry.add and PluginContext.add_action, so a plugin can make the same boxes (his round
+    56; tests/test_plugin_parity.py keeps it so). `fills` fill other fields when a field is set ({field: provider(value) → {other field: value}}, the
     Raw request's data template for the request picked): only a field that is empty or still holds the last fill
     is changed, so typed values stay; `live_hints` give a field a hint worked out from the box's values (what the
     picked request needs); `files` marks the fields that hold a file on this PC ({field: the endings it takes},
@@ -63,7 +77,9 @@ class RegisteredAction:
     variable; his round 52). `entry_fields` names a field the box can have any number of (End: "name" → name_1,
     name_2, ...), each with a run dot of its own on the left: a run wire into one starts the box, and only that
     field is read, handed to the handler under the plain name (name=...). The box's normal run dot isn't drawn; a
-    wire into it counts as the first one (Choose value, End; his round 53).
+    wire into it counts as the first one (Choose value; his round 53). `named_lines`: the box's params beyond its
+    handler's own are lines he names (End's values, his round 54): each one a field of its own with a data dot on
+    the left, read like a `typed` field and handed to the handler under its name (**values).
 
     `is_tested`, `is_understandable` and `is_usable` are his three checks of the box (works, understandable,
     usable). No box sets them itself: they are read from the test record at start (TestGate), and TestView
@@ -98,6 +114,16 @@ class RegisteredAction:
     value_lines: str = ""
     data_only: bool = False
     entry_fields: str = ""
+    named_lines: bool = False
+    toggles: tuple[str, ...] = ()
+    offered: bool = True
+    ends_flow: bool = False
+    gives_back: str = ""
+    once_per_flow: bool = False
+    retrigger: str = ""
+    variable_fields: tuple[str, ...] = ()
+    keys_of: str = ""
+    alongside: str = ""
     is_tested: bool = False
     is_understandable: bool = False
     is_usable: bool = False
@@ -111,6 +137,17 @@ class RegisteredAction:
     def entry_lines(self, params: Mapping[str, Any]) -> list[str]:
         """The run dots of a box with entry_fields, one per numbered field (name_1, name_2, ...); else none."""
         return numbered_fields(self.entry_fields, params) if self.entry_fields else []
+
+    def starts_at(self, params: Mapping[str, Any]) -> list[str]:
+        """The extra run dots a wire into can start the box: its lines (entry_fields) and its toggles."""
+        return [*self.entry_lines(params), *self.toggles]
+
+    def lines_named(self, params: Mapping[str, Any]) -> list[str]:
+        """The lines he named (named_lines: the params that aren't the handler's own), in their order; else none."""
+        if not self.named_lines:
+            return []
+        own = {n for n, p in inspect.signature(self.handler).parameters.items() if p.kind != p.VAR_KEYWORD}
+        return [key for key in params if key not in own]
 
     def shows(self, name: str, params: Mapping[str, Any]) -> bool:
         """False for a field that `shown` hides with the box's values as they are. A chooser that is empty counts

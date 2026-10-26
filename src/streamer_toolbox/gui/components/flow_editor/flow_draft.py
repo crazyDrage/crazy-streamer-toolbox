@@ -1,18 +1,22 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from streamer_toolbox.core.actions.numbered_fields import count_field, numbered_fields
 from streamer_toolbox.core.flows.box_wire import WIRE_IN, box_ref, box_source
+from streamer_toolbox.core.actions.registered_action import RegisteredAction
 from streamer_toolbox.core.flows.flow import Flow
 from streamer_toolbox.core.flows.flow_input import FlowInput
 from streamer_toolbox.core.flows.flow_trigger import FlowTrigger
-from streamer_toolbox.core.flows.flow_wire import FlowWire
+from streamer_toolbox.core.flows.flow_wire import INPUT, START, FlowWire
+from streamer_toolbox.core.flows.old_start_box import start_boxes_from_triggers
+from streamer_toolbox.core.flows.start_boxes import first_wires, free_trigger_id, new_flow
 from streamer_toolbox.gui.components.flow_editor.node_draft import NodeDraft
 
 
 @dataclass
 class FlowDraft:
     """A flow while it's being edited: boxes, wires, inputs, triggers. Inputs, triggers and wires are frozen
-    values and replaced whole. The list view edits the graph through add_after / add_beside / remove."""
+    values and replaced whole. The list view edits the graph through add_after / add_beside / remove. Each
+    trigger is a Start box (its id); start_box / input_box are where Manual Start and Input sit."""
 
     name: str
     label: str
@@ -28,15 +32,27 @@ class FlowDraft:
     folder: str = ""
     enabled: bool = True
     triggers_enabled: bool = True
+    as_box: bool = True
+    start_box: tuple[float, float] | None = None
+    input_box: tuple[float, float] | None = None
 
     @classmethod
     def from_flow(cls, flow: Flow) -> "FlowDraft":
+        if any(not t.id for t in flow.triggers):  # made in code, not read from a file: each trigger its Start box
+            flow = replace(flow, **dict(zip(("nodes", "wires", "triggers"), start_boxes_from_triggers(
+                flow.nodes, flow.wires, flow.triggers, flow.inputs))))
         return cls(flow.name, flow.label, flow.description, [NodeDraft.from_node(n) for n in flow.nodes],
                    list(flow.wires), list(flow.inputs), list(flow.triggers), flow.when_busy, flow.cooldown,
-                   flow.user_cooldown, flow.refund_on_fail, flow.folder, flow.enabled, flow.triggers_enabled)
+                   flow.user_cooldown, flow.refund_on_fail, flow.folder, flow.enabled, flow.triggers_enabled,
+                   flow.as_box, flow.start_box, flow.input_box)
+
+    @classmethod
+    def new(cls) -> "FlowDraft":
+        """A new flow: Start wired to its End box (his round 63)."""
+        return cls.from_flow(new_flow("", "New flow"))
 
     def to_flow(self) -> Flow:
-        ids = {n.id for n in self.nodes} | {"start"}
+        ids = {n.id for n in self.nodes} | {START, INPUT} | {t.id for t in self.triggers}
         for node in self.nodes:  # a field wired to a deleted box waits for a new wire
             for key, value in node.params.items():
                 source = box_source(value)
@@ -46,10 +62,38 @@ class FlowDraft:
         return Flow(self.name, self.label.strip() or self.name, tuple(n.to_node() for n in self.nodes), wires,
                     tuple(self.triggers), self.description.strip(), tuple(self.inputs), self.when_busy,
                     float(self.cooldown or 0), float(self.user_cooldown or 0), self.refund_on_fail,
-                    self.folder.strip(), self.enabled, self.triggers_enabled)
+                    self.folder.strip(), self.enabled, self.triggers_enabled, self.as_box, self.start_box,
+                    self.input_box)
+
+    def trigger(self, node_id: str) -> FlowTrigger | None:
+        return next((t for t in self.triggers if t.id == node_id), None)
+
+    def add_trigger(self, trigger: FlowTrigger) -> FlowTrigger:
+        """One more trigger, as its own Start box wired like the Manual Start (a new flow's: into End)."""
+        trigger = replace(trigger, id=free_trigger_id([t.id for t in self.triggers]))
+        self.triggers.append(trigger)
+        self.wires += first_wires(trigger.id, self.wires)
+        return trigger
+
+    def remove_trigger(self, node_id: str) -> None:
+        """Takes a trigger away with its Start box's wires; fields wired to its dots wait for a new wire."""
+        self.triggers = [t for t in self.triggers if t.id != node_id]
+        self.wires = [w for w in self.wires if w.source != node_id]
+
+    def set_trigger(self, node_id: str, **changes) -> None:
+        """Changes a trigger (kind, match), keeping its Start box."""
+        self.triggers = [replace(t, **changes) if t.id == node_id else t for t in self.triggers]
 
     def node(self, node_id: str) -> NodeDraft | None:
         return next((n for n in self.nodes if n.id == node_id), None)
+
+    def refuses(self, action: RegisteredAction | None) -> str:
+        """Why a box of this action can't be added here ("" = it can): a once_per_flow box (End) that the flow
+        has already (his round 55)."""
+        if action and action.once_per_flow and any(n.action == action.name for n in self.nodes):
+            more = ": give it more values instead (+ Add value)" if action.named_lines else ""
+            return f"This flow has its {action.title} box already" + more
+        return ""
 
     def new_node(self, action: str) -> NodeDraft:
         numbers = [int(n.id[1:]) for n in self.nodes if n.id[:1] == "n" and n.id[1:].isdigit()]
@@ -64,18 +108,29 @@ class FlowDraft:
         node = self.new_node(original.action)
         node.params = {k: (v if same_flow or not box_source(v) else WIRE_IN) for k, v in original.params.items()}
         node.enabled, node.note, node.save_as = original.enabled, original.note, original.save_as
+        node.outputs = dict(original.outputs)
         if original.box is not None:
             node.box = (original.box[0] + 40, original.box[1] + 60)
         return node
 
     def add_after(self, source: str, port: str, action: str, first_port: str) -> NodeDraft:
-        """A new box right after source's port; what came after it now comes after the new box."""
+        """A new box right after source's port; what came after it now comes after the new box. Right after a
+        Start box it also goes after the other Start boxes wired the same way (a new flow's all lead into End),
+        so a box added for Start runs for every trigger too."""
         node = self.new_node(action)
         moved = [w for w in self.wires if w.source == source and w.port == port]
-        self.wires = [w for w in self.wires if w not in moved]
-        self.wires.append(FlowWire(source, port, node.id))
+        sources = [source]
+        if source in {START, *(t.id for t in self.triggers)}:
+            after = self._after_start(source)
+            sources += [t.id for t in self.triggers if t.id != source and self._after_start(t.id) == after]
+            sources += [START] if source != START and self._after_start(START) == after else []
+        self.wires = [w for w in self.wires if w not in moved and not (w.source in sources[1:] and w.port == port)]
+        self.wires += [FlowWire(s, port, node.id) for s in sources]
         self.wires += [FlowWire(node.id, first_port, w.target, w.entry) for w in moved]
         return node
+
+    def _after_start(self, start: str) -> set[tuple[str, str]]:
+        return {(w.target, w.entry) for w in self.wires if w.source == start}
 
     def add_beside(self, node_id: str, action: str) -> NodeDraft:
         """A new box that starts at the same time as node_id (same wires in)."""
@@ -101,6 +156,21 @@ class FlowDraft:
                                moved.get(w.entry, w.entry) if w.target == node_id else w.entry)
                       for w in self.wires
                       if not (w.source == node_id and w.port == gone or w.target == node_id and w.entry == gone)]
+
+    def move_numbered(self, node_id: str, prefix: str, number: int, step: int) -> None:
+        """Moves one numbered field up (step -1) or down (+1) by trading places with its neighbour (his round 59):
+        their values and their wires (a Switch case's output, a Choose value line's run dot) trade too."""
+        node = self.node(node_id)
+        names = numbered_fields(prefix, node.params) if node else []
+        if not (1 <= number <= len(names) and 1 <= number + step <= len(names)) or step == 0:
+            return
+        this, other = names[number - 1], names[number - 1 + step]
+        values = {name: node.params.pop(name) for name in (this, other) if name in node.params}
+        node.params.update({other if name == this else this: value for name, value in values.items()})
+        traded = {this: other, other: this}
+        self.wires = [FlowWire(w.source, traded.get(w.port, w.port) if w.source == node_id else w.port, w.target,
+                               traded.get(w.entry, w.entry) if w.target == node_id else w.entry)
+                      for w in self.wires]
 
     def rename_output(self, node_id: str, old: str, new: str) -> None:
         """A Value box's line renamed: the fields wired to it follow (${box.n3.old} → ${box.n3.new}). new = "" (the

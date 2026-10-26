@@ -57,8 +57,8 @@ class TestPulsoidConnection(unittest.IsolatedAsyncioTestCase):
             for rate in (72, 72, 0, "x", 75):  # the same again, and nonsense, are no news
                 await server.tell({"measured_at": 1625310655000, "data": {"heart_rate": rate}})
             await until(lambda: len(self.seen) == 2)
-            self.assertEqual(self.seen, [("heartrate", {"bpm": 72, "source": "pulsoid"}),
-                                         ("heartrate", {"bpm": 75, "source": "pulsoid"})])
+            self.assertEqual(self.seen, [("heartrate", {"bpm": 72, "previous_bpm": 0, "source": "pulsoid"}),
+                                         ("heartrate", {"bpm": 75, "previous_bpm": 72, "source": "pulsoid"})])
             self.assertEqual(set(self.seen[0][1]), set(EVENT_FIELDS["heartrate"]))
             self.assertEqual(await self.actions.run("heartrate.get"), {"bpm": 75, "source": "pulsoid"})
             self.assertTrue(self.actions.get("heartrate.get").live)
@@ -86,7 +86,7 @@ class TestPulsoidConnection(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(server.paths[-1], "/real_time?access_token=widget-token&response_mode=legacy_json")
             self.assertEqual(connection.status.facts, (("Feed", "heart rate, from the widget link"),))
             await server.tell({"timestamp": 1791661631028, "data": {"heartRate": 51}})  # as the real one said
-            await until(lambda: self.seen == [("heartrate", {"bpm": 51, "source": "pulsoid"})])
+            await until(lambda: self.seen == [("heartrate", {"bpm": 51, "previous_bpm": 0, "source": "pulsoid"})])
             await connection.stop()
             self.gone = True  # a link Pulsoid doesn't know: said in words, nothing of the link shown
             status = await connection.test({})

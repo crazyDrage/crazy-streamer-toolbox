@@ -16,7 +16,8 @@ class TestTwitchClipActions(unittest.IsolatedAsyncioTestCase):
 
     async def test_the_best_file_unless_a_quality_is_asked_for(self) -> None:
         self.assertEqual(await self.address(clip="https://clips.twitch.tv/Abc-1"), {
-            "address": "https://cdn.test/https://clips.twitch.tv/Abc-1/1080.mp4", "quality": 1080, "id": "Abc-1"})
+            "address": "https://cdn.test/https://clips.twitch.tv/Abc-1/1080.mp4", "quality": 1080, "id": "Abc-1",
+            "found": True, "problem": ""})
         self.assertEqual((await self.address(clip="Abc-1", quality="720"))["quality"], 720)
         self.assertEqual((await self.address(clip="Abc-1", quality="480p"))["quality"], 360)  # the best below it
         self.assertEqual((await self.address(clip="Abc-1", quality="Best"))["quality"], 1080)
@@ -33,10 +34,18 @@ class TestTwitchClipActions(unittest.IsolatedAsyncioTestCase):
         await self.address(clip="Abc-1", finder=True)
         self.assertEqual(self.files.finder, [True, False, True])
 
+    async def test_with_fail_off_no_address_is_found_false_so_an_if_can_take_another_way(self) -> None:
+        self.files.refused = "Twitch doesn't let this clip be played: age restricted"
+        with self.assertRaisesRegex(RuntimeError, "age restricted"):
+            await self.address(clip="Abc-1")
+        self.assertEqual(await self.address(clip="Abc-1", fail_on_error="false"), {
+            "address": "", "quality": 0, "id": "Abc-1", "found": False,
+            "problem": "Twitch doesn't let this clip be played: age restricted"})
+
     async def test_the_box_offers_its_qualities(self) -> None:
         box = self.actions.get("twitch.clip_address")
         self.assertEqual(await box.options["quality"](), ["best", "1080", "720", "480", "360"])
-        self.assertEqual(set(box.outputs), {"address", "quality", "id"})
+        self.assertEqual(set(box.outputs), {"address", "quality", "id", "found", "problem"})
 
 
 if __name__ == "__main__":

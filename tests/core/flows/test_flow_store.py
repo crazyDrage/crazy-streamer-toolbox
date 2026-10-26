@@ -36,17 +36,20 @@ class TestFlowStore(unittest.TestCase):
         flow = flows[0]
         self.assertEqual(flow.nodes[0], FlowNode("n1", "obs.switch_scene", {"scene": "Just_chatting"}))
         self.assertFalse(flow.nodes[1].enabled)
-        self.assertEqual(flow.wires, (FlowWire("start", "out", "n1"), FlowWire("n1", "done", "n2")))
-        self.assertEqual(flow.triggers, (FlowTrigger("twitch.redeem", {"reward": "Big Action: clean screen"}),))
+        # the trigger of an older file gets its own Start box (t1), wired like Start (his round 63)
+        self.assertEqual(flow.wires, (FlowWire("start", "out", "n1"), FlowWire("n1", "done", "n2"),
+                                      FlowWire("t1", "out", "n1")))
+        self.assertEqual(flow.triggers, (FlowTrigger("twitch.redeem", {"reward": "Big Action: clean screen"}, "t1"),))
 
     def test_save_and_read_back(self) -> None:
         flow = Flow("sound", 'Sound "redeem"', (
             FlowNode("a", "vts.get_model_position", save_as="spot", box=(300, 80)),
             FlowNode("b", "logic.if", {"left": "${var.model}", "op": "contains", "right": "human"}),
             FlowNode("c", "vts.move_model_to", {"position": "${var.spot}", "seconds": 1.5}, False, "n"),
-        ), (FlowWire("start", "out", "a"), FlowWire("start", "out", "b"), FlowWire("b", "then", "c")),
-            (FlowTrigger("twitch.redeem", {"reward": "Big Action"}),), "plays it",
-            (FlowInput("video"), FlowInput("volume", "80")), "queue", 30, 120.5, True)
+        ), (FlowWire("start", "out", "a"), FlowWire("t1", "out", "b"), FlowWire("b", "then", "c")),
+            (FlowTrigger("twitch.redeem", {"reward": "Big Action"}, "t1", (20, 140)),), "plays it",
+            (FlowInput("video"), FlowInput("volume", "80")), "queue", 30, 120.5, True, start_box=(20, 20),
+            input_box=(20, 300))
         with tempfile.TemporaryDirectory() as tmp:
             store = FlowStore(Path(tmp) / "flows")
             store.save(flow)

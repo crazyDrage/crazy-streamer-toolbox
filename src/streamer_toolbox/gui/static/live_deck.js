@@ -1,5 +1,6 @@
 // The Live deck while editing: drag a button to move it, drag its corner to change its size. Both snap to
 // the page's cells. Python hears "tb_deck_spot" {index, x, y, w, h} when the button is let go somewhere new.
+// Not editing: swipes and arrow keys turn the page, full screen, and Fit the screen (round 63).
 (() => {
   if (window.tbDeckReady) return;
   window.tbDeckReady = true;
@@ -53,6 +54,44 @@
   };
   document.addEventListener("pointerup", end);
   document.addEventListener("pointercancel", end);
+
+  // not editing: a swipe sideways or an arrow key goes to the next / last page ("tb_deck_turn" {by})
+  let swipe = null;
+  document.addEventListener("pointerdown", (event) => {
+    const board = event.target.closest(".tb-deck");
+    swipe = board && !board.classList.contains("tb-deck-edit") ? { x: event.clientX, y: event.clientY } : null;
+  });
+  document.addEventListener("pointerup", (event) => {
+    if (!swipe) return;
+    const dx = event.clientX - swipe.x;
+    const dy = event.clientY - swipe.y;
+    swipe = null;
+    if (Math.abs(dx) < 80 || Math.abs(dy) > Math.abs(dx) / 2) return;
+    swallowClick = true;  // a swipe that ends on a button doesn't press it
+    setTimeout(() => { swallowClick = false; }, 300);
+    emitEvent("tb_deck_turn", { by: dx < 0 ? 1 : -1 });
+  });
+  document.addEventListener("keydown", (event) => {
+    if (!["ArrowLeft", "ArrowRight"].includes(event.key) || !document.querySelector(".tb-deck")) return;
+    if (document.querySelector(".tb-deck-edit, .q-dialog") || event.target.closest("input, textarea")) return;
+    emitEvent("tb_deck_turn", { by: event.key === "ArrowRight" ? 1 : -1 });
+  });
+
+  // Fit the screen: the deck as wide as it can be while all of it stays in the window
+  let fitting = false;
+  const fit = () => {
+    fitting = false;
+    document.querySelectorAll(".tb-deck[data-fit=screen]").forEach((board) => {
+      const left = window.innerHeight - board.getBoundingClientRect().top - 8;
+      const columns = Number(board.dataset.columns);
+      const rows = Number(board.dataset.rows);
+      board.style.maxWidth = `${Math.max(columns * 16, (left * columns) / rows)}px`;
+    });
+  };
+  const fitSoon = () => { if (!fitting) { fitting = true; requestAnimationFrame(fit); } };
+  window.addEventListener("resize", fitSoon);
+  document.addEventListener("fullscreenchange", fitSoon);
+  new MutationObserver(fitSoon).observe(document.documentElement, { childList: true, subtree: true });
 
   document.addEventListener("click", (event) => {
     if (!swallowClick) return;

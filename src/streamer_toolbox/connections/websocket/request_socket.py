@@ -19,7 +19,8 @@ class RequestSocket:
     message goes to on_message. After each connect on_open(self) runs (log in, subscribe; it may use
     request); once it is through, on_state gets "connected". A PermissionError from on_open (a refused key)
     stops it for good; anything else is tried again, slower each time. `beat` = (seconds, message) is sent
-    again and again while connected, for servers that drop a quiet client. `hide` takes secrets out of a
+    again and again while connected, for servers that drop a quiet client (a text message goes as it is, not
+    as JSON: Fansly wants a plain "p"). `hide` takes secrets out of a
     text before it is shown."""
 
     def __init__(self, name: str, url: Callable[[], str],
@@ -28,7 +29,7 @@ class RequestSocket:
                  on_state: Callable[[str], None] = lambda text: None, id_key: str = "id",
                  reply_id: Callable[[dict[str, Any]], Any] | None = None,
                  connect: Callable[..., Any] = websockets.connect, retry_delay: float = 5.0,
-                 timeout: float = 5.0, beat: tuple[float, dict[str, Any]] | None = None,
+                 timeout: float = 5.0, beat: tuple[float, dict[str, Any] | str] | None = None,
                  hide: Callable[[str], str] = lambda text: text) -> None:
         self._name = name
         self._url = url
@@ -112,7 +113,10 @@ class RequestSocket:
         self._on_state("connected")
         while self._beat is not None:
             await asyncio.sleep(self._beat[0])
-            await self.send(self._beat[1])
+            if isinstance(self._beat[1], str):
+                await self._socket.send(self._beat[1])
+            else:
+                await self.send(self._beat[1])
 
     async def _close(self, opener: asyncio.Task | None) -> None:
         socket, self._socket = self._socket, None

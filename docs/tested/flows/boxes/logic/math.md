@@ -4,4 +4,5 @@
 |---|---|---|---|---|---|---|---|
 | Calculate | `logic.math` | 2026-10-08 | - | - | - | - |  |
 | Clamp | `logic.clamp` | 2026-10-08 | - | - | - | - |  |
+| Colour from numbers | `logic.color` | - | - | - | - | - |  |
 | Round | `logic.round` | 2026-10-08 | - | - | - | - |  |

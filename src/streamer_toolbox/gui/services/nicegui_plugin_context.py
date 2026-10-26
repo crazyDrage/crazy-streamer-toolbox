@@ -8,16 +8,23 @@ from nicegui import app, ui
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.actions.registered_action import ActionHandler, OptionsProvider
 from streamer_toolbox.core.app_name import APP_NAME
+from streamer_toolbox.core.connections.secret_file import SecretFile
+from streamer_toolbox.core.connections.secrets_folder import SecretsFolder
 from streamer_toolbox.core.events.event_bus import EventBus, EventHandler
 from streamer_toolbox.core.events.event_fields import EVENT_FIELDS
+from streamer_toolbox.core.flows.box_signals import BoxSignals
+from streamer_toolbox.core.flows.retrigger import Retrigger, current_retrigger
 from streamer_toolbox.core.interfaces.confirm_service import ConfirmService
 from streamer_toolbox.core.interfaces.connection import Connection
+from streamer_toolbox.core.interfaces.field_editor import FieldEditor
 from streamer_toolbox.gui.components.flow_editor.trigger_kinds import (TRIGGER_CHOICES, TRIGGER_INFO,
                                                                        TRIGGER_KINDS)
+from streamer_toolbox.gui.components.flow_editor.value_editors import add_editor
 from streamer_toolbox.gui.services.ui_registry import SECTIONS, UiRegistry
 from streamer_toolbox.core.actions.json_boxes import JsonBoxes, Send
 from streamer_toolbox.core.values.value_kind import ValueKind
 from streamer_toolbox.core.values.value_kinds import ValueKinds
+from streamer_toolbox.core.web.web_boxes import WebBoxes
 from streamer_toolbox.core.interfaces.plugin_context import PluginContext
 from streamer_toolbox.plugins.plugin_settings import PluginSettings
 
@@ -29,8 +36,11 @@ class NiceGuiPluginContext(PluginContext):
 
     def __init__(self, plugin_id: str, actions: ActionRegistry, ui_registry: UiRegistry,
                  confirm: ConfirmService, page_frame: PageFrame, folder: Optional[Path] = None,
-                 config_folder: Optional[Path] = None, events: Optional[EventBus] = None) -> None:
+                 config_folder: Optional[Path] = None, events: Optional[EventBus] = None,
+                 secrets: Optional[SecretsFolder] = None, is_on: Callable[[], bool] = lambda: True) -> None:
         self._id = plugin_id
+        self._is_on = is_on  # switched off on the Plugins page: its triggers, listeners and page are quiet
+        self._secrets = secrets or SecretsFolder(config_folder or Path("config"))
         self._events = events or EventBus()
         self._actions = actions
         self._ui = ui_registry
@@ -52,8 +62,30 @@ class NiceGuiPluginContext(PluginContext):
                    **box: Any) -> None:
         self._actions.add(f"{self._id}.{name}", handler, description, label, **box)
 
+    def box_signals(self) -> Optional[BoxSignals]:
+        return BoxSignals.current()
+
+    def retrigger(self) -> Optional[Retrigger]:
+        return current_retrigger.get()
+
+    def add_field_editor(self, kind: str, editor: type[FieldEditor]) -> str:
+        add_editor(f"{self._id}.{kind}", editor)
+        return f"{self._id}.{kind}"
+
     def add_json_boxes(self, folder: Path, send: Send, kinds: Collection[ValueKind] = ()) -> None:
         JsonBoxes(folder, ValueKinds(kinds)).add_to(self._actions, self._id, send)
+
+    def secret(self, name: str, label: str, hint: str = "") -> SecretFile:
+        for plugin_id, _, _, known in self._ui.secrets:
+            if plugin_id == self._id and known.path.name == f"{self._id}_{name}.txt":
+                return known
+        file = SecretFile(self._secrets.path(f"{self._id}_{name}.txt"), label,
+                          field=f"its field on the plugin's card (Plugins → {self._id})")
+        self._ui.secrets.append((self._id, label, hint, file))
+        return file
+
+    def add_web_boxes(self, folder: Path) -> None:
+        WebBoxes(folder, secret=self.secret).add_to(self._actions, self._id)
 
     def add_connection(self, connection: Connection) -> None:
         if connection.id != self._id:
@@ -78,20 +110,33 @@ class NiceGuiPluginContext(PluginContext):
         return kind
 
     def publish(self, event: str, data: dict[str, Any]) -> None:
-        self._events.publish(f"{self._id}.{event}", dict(data))
+        if self._is_on():
+            self._events.publish(f"{self._id}.{event}", dict(data))
 
     def on_event(self, handler: EventHandler) -> None:
-        self._events.subscribe(handler)
+        async def heard(kind: str, data: dict[str, Any]) -> None:
+            if self._is_on():
+                await handler(kind, data)
+
+        self._events.subscribe(heard)
 
     def add_router(self, router: APIRouter) -> None:
         app.include_router(router, prefix=f"/api/plugins/{self._id}")
 
     def add_page(self, title: str, builder: Callable[[], None], subpath: str = "", icon: str = "extension") -> str:
         path = f"/plugins/{self._id}" + (f"/{subpath.strip('/')}" if subpath else "")
-        ui.page(path, title=f"{title} · {APP_NAME}")(lambda: self._page_frame(title, path, builder))
+        ui.page(path, title=f"{title} · {APP_NAME}")(lambda: self._page_frame(title, path, self._unless_off(builder)))
         if not subpath:
             self._ui.pages.append((title, path, icon))
         return path
+
+    def _unless_off(self, builder: Callable[[], None]) -> Callable[[], None]:
+        def build() -> None:
+            if self._is_on():
+                builder()
+            else:
+                ui.label(f"The plugin {self._id} is switched off. Switch it on under Plugins.").classes("opacity-70")
+        return build
 
     def add_panel(self, title: str, builder: Callable[[], None], section: str = "live") -> None:
         if section not in SECTIONS:

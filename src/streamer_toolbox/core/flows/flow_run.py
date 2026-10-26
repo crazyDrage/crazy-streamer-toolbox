@@ -2,6 +2,7 @@ import asyncio
 from typing import Any
 
 from streamer_toolbox.core.flows.flow import Flow
+from streamer_toolbox.core.flows.flow_wire import START
 
 
 class FlowRun:
@@ -9,7 +10,7 @@ class FlowRun:
     box's latest result for the data wires. A test run (one box on its own) may use results from earlier runs."""
 
     def __init__(self, flow: Flow, event: dict[str, Any], inputs: dict[str, Any], test: bool = False,
-                 ended: asyncio.Future | None = None) -> None:
+                 ended: asyncio.Future | None = None, start: str = START) -> None:
         self.flow = flow
         self.event = event
         self.inputs = inputs
@@ -21,7 +22,9 @@ class FlowRun:
         self.pulling: set[str] = set()  # boxes running because a data wire needs them (catches a loop)
         self.outputs: dict[str, Any] = {}  # what its Flow output boxes gave, by name
         self.test = test
-        self.ended = ended  # run as a box in another flow: set (End box name, this run) when an End box is reached
+        self.ended = ended  # run as a box in another flow: set (to this run) when the End box is reached
+        self.start = start  # the Start box it started at (a trigger's id, or Manual)
+        self.stopped = False  # stopped by hand (FlowRunner.stop)
 
     def fail(self, error: Exception) -> None:
         if self.error is None:

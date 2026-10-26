@@ -10,7 +10,7 @@ class TestTriggerCatalog(unittest.TestCase):
         self.catalog = TriggerCatalog(TRIGGER_KINDS)
 
     def test_a_trigger_is_listed_under_the_program_that_tells_it(self) -> None:
-        self.assertEqual([group_of(k) for k in ("timer", "custom", "tip")], ["Toolbox"] * 3)
+        self.assertEqual([group_of(k) for k in ("timer", "tip")], ["Toolbox"] * 2)
         self.assertEqual([group_of(k) for k in ("chat", "follow", "offline")], ["Any platform"] * 3)
         self.assertEqual([group_of(k) for k in ("twitch.chat", "vts.hotkey", "key.pressed", "heartrate",
                                                 "youtube.member", "tits.hit", "my_lamp.blinked")],

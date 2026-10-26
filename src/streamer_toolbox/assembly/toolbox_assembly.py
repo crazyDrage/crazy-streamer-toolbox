@@ -19,7 +19,7 @@ from streamer_toolbox.connections.mixitup_connection import MixItUpConnection
 from streamer_toolbox.connections.oauth.oauth_token_store import OAuthTokenStore
 from streamer_toolbox.connections.sammi.toolbox_deck import toolbox_deck
 from streamer_toolbox.connections.twitch_connection import TwitchConnection
-from streamer_toolbox.core.actions.action_registry import ActionRegistry
+from streamer_toolbox.core.actions.action_registry import PLUGINS, SERVICES, ActionRegistry
 from streamer_toolbox.core.actions.box_filter_store import BoxFilterStore
 from streamer_toolbox.core.actions.wip_boxes import WIP_BOXES, shows_wip
 from streamer_toolbox.core.alerts.alert_actions import AlertActions
@@ -70,15 +70,11 @@ from streamer_toolbox.core.security.login_throttle import LoginThrottle
 from streamer_toolbox.core.security.remote_access import RemoteAccess
 from streamer_toolbox.core.security.signed_in_devices import SignedInDevices
 from streamer_toolbox.core.system.toolbox_restart import ToolboxRestart
-from streamer_toolbox.core.testing.release_marker import is_release
 from streamer_toolbox.core.testing.test_gate import TestGate
 from streamer_toolbox.core.testing.test_inventory import TestInventory
 from streamer_toolbox.core.testing.test_list import TestList
 from streamer_toolbox.core.testing.test_view import TestView
 from streamer_toolbox.core.tips.tip_actions import TipActions
-from streamer_toolbox.core.triggers.custom_trigger_actions import CustomTriggerActions
-from streamer_toolbox.core.triggers.custom_trigger_router import CustomTriggerRouter
-from streamer_toolbox.core.triggers.custom_trigger_store import CustomTriggerStore
 from streamer_toolbox.core.variables.variable_store import VariableStore
 from streamer_toolbox.core.widgets.channel_lookup import ChannelLookup
 from streamer_toolbox.core.widgets.emote_lookup import EmoteLookup
@@ -108,13 +104,13 @@ from streamer_toolbox.gui.components.widgets_tool.widgets_tool import WidgetsToo
 from streamer_toolbox.gui.pages.connections_page import ConnectionsPage
 from streamer_toolbox.gui.pages.flow_editor_page import FlowEditorPage
 from streamer_toolbox.gui.pages.flows_page import FlowsPage
+from streamer_toolbox.gui.components.live_deck.live_deck_view import BUTTONS_ONLY
 from streamer_toolbox.gui.pages.live_page import LivePage
 from streamer_toolbox.gui.pages.login_page import LoginPage
 from streamer_toolbox.gui.pages.overlay_page import OverlayPage
 from streamer_toolbox.gui.pages.plugins_page import PluginsPage
 from streamer_toolbox.gui.pages.settings_page import SettingsPage
 from streamer_toolbox.gui.pages.tools_page import ToolsPage, tool_slug
-from streamer_toolbox.gui.pages.triggers_page import TriggersPage
 from streamer_toolbox.gui.pages.variables_page import VariablesPage
 from streamer_toolbox.gui.services.activity_log import ActivityLog
 from streamer_toolbox.gui.services.nicegui_confirm_service import NiceGuiConfirmService
@@ -124,7 +120,9 @@ from streamer_toolbox.gui.services.open_pages import OpenPages
 from streamer_toolbox.gui.services.remote_login_middleware import RemoteLoginMiddleware
 from streamer_toolbox.gui.services.ui_registry import UiRegistry
 from streamer_toolbox.plugins.plugin_loader import PluginLoader
+from streamer_toolbox.plugins.plugin_power import PluginPower
 from streamer_toolbox.plugins.plugin_switches import PluginSwitches
+from streamer_toolbox.plugins.plugin_template import PluginTemplate
 
 log = logging.getLogger("streamer_toolbox")
 
@@ -138,7 +136,7 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
     actions = ActionRegistry()
     parked = set() if shows_wip(config.tables) else set(WIP_BOXES)
     actions.park(parked)
-    gate = TestGate(TestList(), is_release(), parked)  # only a `package tested_only` build leaves things out
+    gate = TestGate(TestList())
     test_view = TestView(gate.tested, app.storage.general)  # what he sees of it (Settings → What you see)
     ui_registry = UiRegistry()
     pages = OpenPages()
@@ -150,8 +148,13 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
     # every event that names a viewer gets their role (only chat tells it): the role filter of the triggers
     roles = RoleBook(lambda: (twitch_tokens.load().user_id if twitch_tokens.load() else ""))
     events = EventBus(roles.fill)
+    plugin_switches = PluginSwitches(args.config.parent / "plugins_off.json")
+    power = PluginPower(plugin_switches, lambda: loader.plugins)  # off stops everything of a plugin (round 57)
     loader = PluginLoader(args.plugins, lambda plugin_id, folder: NiceGuiPluginContext(
-        plugin_id, actions, ui_registry, confirm, shell.frame, folder, args.config.parent, events))
+        plugin_id, actions, ui_registry, confirm, shell.frame, folder, args.config.parent, events, secrets,
+        lambda: not power.is_off(plugin_id)))
+    ui_registry.is_off = power.is_off
+    actions.guard(power.why_not)
     loader.load_all(config.plugins_enabled)
     ui_registry.category_titles.update({pid: m.name for pid, m in loader.manifests.items()})
 
@@ -186,20 +189,26 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
             probe, twitch, twitch_tokens, mixitup, heart, wants_key,
             lambda: toolbox_deck(actions, config.callers, port)),
         *ui_registry.connections,  # a plugin's own (ctx.add_connection)
-    ] if connection.id not in LEFT_OUT and gate.keeps(connection.id)], ConfigTableWriter(args.config))
+    ] if connection.id not in LEFT_OUT], ConfigTableWriter(args.config),
+        paused=power.is_off)
+    power.connections = connections
     for connection in ui_registry.connections:
         connection.configure(config.tables.get(connection.id, {}))
     for connection in connections.all():
         connection.add_actions(actions)
+        for box in connection.boxes():
+            actions.add_box(box, connection.id)
+    actions.sort_into(lambda: {category: SERVICES for c in connections.all()
+                               for category in (c.id, BOX_CATEGORY.get(c.id, c.id))}
+                      | {HEART_RATE: SERVICES}  # HypeRate's and Pulsoid's box
+                      | {plugin_id: PLUGINS for plugin_id in loader.loaded})
     variables = VariableStore(args.config.parent / "variables", args.config.parent / "variables.json")
     LogicActions(variables).add_to(actions)
     DebugActions(activity.add).add_to(actions)
     chat_memory = ChatMemory()
     events.subscribe(chat_memory.handle)
     chat_memory.add_to(actions)
-    custom_triggers = CustomTriggerStore(args.config.parent / "custom_triggers.json")
 
-    plugin_switches = PluginSwitches(args.config.parent / "plugins_off.json")
 
     def switched_off() -> dict[str, str]:
         """Box category → program, for the connections and plugins that are off: their boxes stay out of the
@@ -213,8 +222,6 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
         return off | plugins_off
 
     box_filters = BoxFilterStore(args.config.parent / "box_filters.json")
-    fire_trigger = CustomTriggerActions(custom_triggers, events)
-    fire_trigger.add_to(actions)
     OwnBoxes(variables, probe, NiceGuiMessageService(pages), confirm,
              config.tables.get("sound", {}).get("folder")).add_to(actions)
     runner = FlowRunner(actions, variables)
@@ -225,7 +232,6 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
         await twitch.finish_redeem(data.get("reward_id", ""), data.get("redemption_id", ""), refund=True)
 
     events.subscribe(FlowTriggerRouter(flows, runner, activity.add, refund).handle)
-    events.subscribe(CustomTriggerRouter(custom_triggers, events).handle)
     alert_queue = AlertQueue()
     AlertActions(alert_queue).add_to(actions)
     alert_store = AlertStore(args.config.parent / "alerts.json")
@@ -271,8 +277,6 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
                          own=lambda: (twitch_tokens.load().login if twitch_tokens.load() else ""))
     events.subscribe(earner.handle)
 
-    async def custom_trigger_names() -> list[str]:
-        return custom_triggers.names()
     clock = TimerClock(flows, events)
     payouts: list[asyncio.Task] = []  # keeps the task alive
 
@@ -292,7 +296,7 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
             log.info("%d sub(s) came in while the toolbox was off", len(found))
 
     # with a login set (Settings → Login) nothing starts before the password was typed (UnlockPage)
-    work = StartOnce([connections.start_all, clock.start, start_payouts])
+    work = StartOnce([connections.start_all, clock.start, start_payouts, power.start_all])
 
     async def start_unless_locked() -> None:
         if secrets.vault.unlocked:
@@ -302,9 +306,12 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
 
     app.on_startup(start_unless_locked)
     app.on_shutdown(connections.stop_all)
+    app.on_shutdown(power.stop_all)
     app.on_shutdown(clock.stop)
 
-    app.add_static_files("/static", Path(__file__).resolve().parents[1] / "gui" / "static")
+    # max_cache_age 0: a browser asks again each time (a 304 when unchanged), so a changed script counts at once;
+    # with NiceGUI's hour a new button called a function the old cached file didn't have (round 63)
+    app.add_static_files("/static", Path(__file__).resolve().parents[1] / "gui" / "static", max_cache_age=0)
     access = RemoteAccess(config.tables.get("api", {}), config.tables.get("access", {}),
                           ConfigTableWriter(args.config))
     devices = SignedInDevices(args.config.parent / "signed_in_devices.json")
@@ -322,23 +329,22 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
     deck_images = DeckImages(args.config.parent / "deck_images")
     deck_images.folder.mkdir(parents=True, exist_ok=True)
     app.add_static_files(DECK_IMAGES_URL, deck_images.folder)
-    shell.page("Live", "/", LivePage(actions, activity, DeckStore(args.config.parent / "live_deck.json", flows.all),
-                                     flows, deck_images).build)
-    flows_page = FlowsPage(flows, actions, activity)
+    live_page = LivePage(actions, activity, DeckStore(args.config.parent / "live_deck.json", flows.all), flows,
+                         deck_images)
+    shell.page("Live", "/", live_page.build)
+    shell.bare("Live buttons", BUTTONS_ONLY, live_page.build_bare)
+    flows_page = FlowsPage(flows, actions, activity, runner)
     shell.page("Flows", "/flows", flows_page.build)
     shell.sub_items["/flows"] = flows_page.side_items
     shell.side_tools["/flows"] = flows_page.side_tool
     shell.page("Edit flow", "/flows/edit", FlowEditorPage(flows, actions, runner, variables,
                                                             BoxValueFiles(boxes),
-                                                            {"twitch.redeem": twitch.reward_choices,
-                                                             "custom": custom_trigger_names},
+                                                            {"twitch.redeem": twitch.reward_choices},
                                                             box_filters, switched_off, last_events,
                                                             test_view).build)
-    shell.page("Triggers", "/triggers", TriggersPage(custom_triggers, flows, fire_trigger,
-                                                     twitch.reward_choices).build)
     shell.page("Variables", "/variables", VariablesPage(variables, flows).build)
     ui_registry.tools.insert(0, ("toolbox", "Twitch", "live_tv", "Your channel point rewards (and more Twitch things "
-                                 "later)", lambda: TwitchTool(twitch, flows, custom_triggers).build()))
+                                 "later)", lambda: TwitchTool(twitch, flows).build()))
     ui_registry.tools.insert(1, ("toolbox", "Points", "toll", "Your own currency: how viewers earn it, and who has "
                                  "how much", lambda: PointsTool(points, earner, mixitup_points).build()))
 
@@ -360,7 +366,7 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
         (c.title, f"/connections?show={c.id}", c.icon) for c in connections_page.shown()]
     shell.page("Connections", "/connections", connections_page.build)
     plugins_page = PluginsPage(lambda: (loader.loaded, loader.failed, loader.disabled, loader.manifests),
-                               ui_registry, plugin_switches)
+                               ui_registry, plugin_switches, PluginTemplate(args.plugins), power)
     shell.page("Plugins", "/plugins", plugins_page.build)
     shell.sub_items["/plugins"] = plugins_page.side_items
     restart = ToolboxRestart(app.shutdown, available=args.child)
@@ -382,10 +388,9 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
                  "/settings": [(title, path) for title, path, _ in settings_page.sections()]}
         return [(title, path, below.get(path, [])) for title, path, _ in AREAS]
 
-    gate.apply(actions, ui_registry.tools, lambda: TestInventory(
+    gate.apply(actions, lambda: TestInventory(
         actions, [(c.id, c.title) for c in connections.all()], [title for _, title, *_ in ui_registry.tools],
         {kind: (entry[1], group_of(kind)) for kind, entry in TRIGGER_KINDS.items()}, BOX_CATEGORY, menu()).items())
-    shell.left_out = gate.untested_pages
     return gate, restart
 
 

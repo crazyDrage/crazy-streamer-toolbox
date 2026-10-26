@@ -21,3 +21,7 @@ class LivePage:
 
     def build(self) -> None:
         LiveDeckView(self._deck, self._actions, self._flows, self._activity, self._images).build()
+
+    def build_bare(self) -> None:
+        """/live/buttons: the deck on its own, without the toolbox around it (his round 63; for a tablet)."""
+        LiveDeckView(self._deck, self._actions, self._flows, self._activity, self._images, bare=True).build()
