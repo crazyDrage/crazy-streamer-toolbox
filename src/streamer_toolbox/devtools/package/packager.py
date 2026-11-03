@@ -202,18 +202,22 @@ class Packager:
         Python of the same version (on GitHub: setup-python's). ~8 MB. False (and says so) when there is none."""
         base = base or Path(sys.base_prefix)
         folder_dlls = base / "DLLs"
-        # whatever Tcl/Tk this Python has: tcl86t.dll / tk86t.dll here, tcl90.dll / tcl9tk90.dll with Tcl/Tk 9
-        dlls = [folder_dlls / "_tkinter.pyd", *(p for p in sorted(folder_dlls.glob("*.dll"))
-                                                if p.name.casefold().startswith(("tcl", "tk", "zlib")))]
+        # whatever Tcl/Tk this Python has, wherever it keeps them: DLLs/ here, elsewhere in GitHub's setup-python
+        # (3.14.10 had none in DLLs/); tcl86t.dll / tk86t.dll, or tcl90.dll / tcl9tk90.dll with Tcl/Tk 9
+        found = {p.name.casefold(): p for p in sorted(base.rglob("*.dll"))
+                 if "site-packages" not in p.parts and p.name.casefold().startswith(("tcl", "tk", "zlib"))}
+        dlls = [folder_dlls / "_tkinter.pyd", *found.values()]
         missing = [what for what, there in (
             ("a Windows Python", sys.platform == "win32"),
             ("the same Python version", "{}.{}".format(*sys.version_info[:2]) == ".".join(self._version.split(".")[:2])),
             (f"{folder_dlls / '_tkinter.pyd'}", dlls[0].is_file()),
-            (f"Tcl and Tk DLLs in {folder_dlls}", any(p.name.casefold().startswith("tk") for p in dlls[1:])),
+            (f"Tcl and Tk DLLs anywhere in {base}", any(p.name.casefold().startswith("tk") for p in dlls[1:])),
             (f"{base / 'Lib' / 'tkinter'}", (base / "Lib" / "tkinter").is_dir()),
             (f"{base / 'tcl'}", (base / "tcl").is_dir())) if not there]
         if missing:
-            print("no tkinter in this build, start-settings won't open. Missing: " + "; ".join(missing))
+            there = sorted(p.name for p in folder_dlls.glob("*")) if folder_dlls.is_dir() else []
+            print("no tkinter in this build, start-settings won't open. Missing: " + "; ".join(missing)
+                  + f". In {folder_dlls}: " + ", ".join(there))
             return False
         print("tkinter from " + str(base) + ": " + ", ".join(p.name for p in dlls))
         for dll in dlls:

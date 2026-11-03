@@ -43,7 +43,7 @@ jobs:
           set +e
           python -m unittest discover -s tests -t . 2>&1 | tee test.log
           status=${PIPESTATUS[0]}
-          grep -E "^(FAIL|ERROR):|Error: |Exception: " test.log | head -20 | sed 's/^/::error::/'
+          grep -E "^(FAIL|ERROR):|^[A-Za-z]*Error: " test.log | head -20 | sed 's/^/::error::/'
           exit $status
         env:
           PYTHONPATH: "src${{ runner.os == 'Windows' && ';' || ':' }}."
