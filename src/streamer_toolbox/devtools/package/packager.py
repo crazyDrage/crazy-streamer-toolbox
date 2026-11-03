@@ -203,15 +203,16 @@ class Packager:
         base = base or Path(sys.base_prefix)
         folder_dlls = base / "DLLs"
         # whatever Tcl/Tk this Python has, wherever it keeps them: DLLs/ here, elsewhere in GitHub's setup-python
-        # (3.14.10 had none in DLLs/); tcl86t.dll / tk86t.dll, or tcl90.dll / tcl9tk90.dll with Tcl/Tk 9
+        # Tcl/Tk 8.6: tcl86t.dll + tk86t.dll; Tcl/Tk 9 (GitHub's 3.14.10): tcl90.dll + tcl9tk90.dll + libtommath.dll
+        names = ("tcl", "tk", "zlib", "libtommath")
         found = {p.name.casefold(): p for p in sorted(base.rglob("*.dll"))
-                 if "site-packages" not in p.parts and p.name.casefold().startswith(("tcl", "tk", "zlib"))}
+                 if "site-packages" not in p.parts and p.name.casefold().startswith(names)}
         dlls = [folder_dlls / "_tkinter.pyd", *found.values()]
         missing = [what for what, there in (
             ("a Windows Python", sys.platform == "win32"),
             ("the same Python version", "{}.{}".format(*sys.version_info[:2]) == ".".join(self._version.split(".")[:2])),
             (f"{folder_dlls / '_tkinter.pyd'}", dlls[0].is_file()),
-            (f"Tcl and Tk DLLs anywhere in {base}", any(p.name.casefold().startswith("tk") for p in dlls[1:])),
+            (f"Tcl and Tk DLLs anywhere in {base}", any("tk" in p.name.casefold() for p in dlls[1:])),
             (f"{base / 'Lib' / 'tkinter'}", (base / "Lib" / "tkinter").is_dir()),
             (f"{base / 'tcl'}", (base / "tcl").is_dir())) if not there]
         if missing:
