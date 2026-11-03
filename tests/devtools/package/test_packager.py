@@ -93,8 +93,11 @@ class TestPackager(unittest.TestCase):
         python = self.out / "python"
         python.mkdir(parents=True)
         self.assertTrue(Packager(self.repo, self.out)._tkinter(python))
-        for name in ("_tkinter.pyd", "zlib1.dll", "tkinter/__init__.py", "tcl/tcl8.6/init.tcl"):
+        for name in ("_tkinter.pyd", "zlib1.dll", "tkinter/__init__.py"):
             self.assertTrue((python / name).is_file(), name)
+        # Tcl's own files: tcl/tcl8.6/init.tcl with Tcl/Tk 8.6; Tcl/Tk 9 (GitHub's Python 3.14.10) keeps them inside
+        # its DLL. Whether Tk really opens with them is CI's step "The Windows download's Python opens a Tk window"
+        self.assertTrue((python / "tcl").is_dir())
 
     def test_a_shell_script_is_runnable_in_the_archive(self) -> None:
         self.out.mkdir()

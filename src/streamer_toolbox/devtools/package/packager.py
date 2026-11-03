@@ -201,12 +201,26 @@ class Packager:
         Tcl/Tk DLLs (zlib1 is theirs), the tkinter package and Tcl/Tk's own files, from this PC's own Windows
         Python of the same version (on GitHub: setup-python's). ~8 MB. False (and says so) when there is none."""
         base = base or Path(sys.base_prefix)
-        dlls = [base / "DLLs" / "_tkinter.pyd", base / "DLLs" / "zlib1.dll", *(base / "DLLs").glob("tcl*t.dll"),
-                *(base / "DLLs").glob("tk*t.dll")]
-        if sys.platform != "win32" or not all(dll.is_file() for dll in dlls) or len(dlls) < 4 \
-                or "{}.{}".format(*sys.version_info[:2]) != ".".join(self._version.split(".")[:2]):
-            print("no tkinter in this build (needs a Windows Python of the same version): start-settings won't open")
+        folder_dlls = base / "DLLs"
+        # whatever Tcl/Tk this Python has, wherever it keeps them: DLLs/ here, elsewhere in GitHub's setup-python
+        # Tcl/Tk 8.6: tcl86t.dll + tk86t.dll; Tcl/Tk 9 (GitHub's 3.14.10): tcl90.dll + tcl9tk90.dll + libtommath.dll
+        names = ("tcl", "tk", "zlib", "libtommath")
+        found = {p.name.casefold(): p for p in sorted(base.rglob("*.dll"))
+                 if "site-packages" not in p.parts and p.name.casefold().startswith(names)}
+        dlls = [folder_dlls / "_tkinter.pyd", *found.values()]
+        missing = [what for what, there in (
+            ("a Windows Python", sys.platform == "win32"),
+            ("the same Python version", "{}.{}".format(*sys.version_info[:2]) == ".".join(self._version.split(".")[:2])),
+            (f"{folder_dlls / '_tkinter.pyd'}", dlls[0].is_file()),
+            (f"Tcl and Tk DLLs anywhere in {base}", any("tk" in p.name.casefold() for p in dlls[1:])),
+            (f"{base / 'Lib' / 'tkinter'}", (base / "Lib" / "tkinter").is_dir()),
+            (f"{base / 'tcl'}", (base / "tcl").is_dir())) if not there]
+        if missing:
+            there = sorted(p.name for p in folder_dlls.glob("*")) if folder_dlls.is_dir() else []
+            print("no tkinter in this build, start-settings won't open. Missing: " + "; ".join(missing)
+                  + f". In {folder_dlls}: " + ", ".join(there))
             return False
+        print("tkinter from " + str(base) + ": " + ", ".join(p.name for p in dlls))
         for dll in dlls:
             shutil.copyfile(dll, folder / dll.name)
         ignore = shutil.ignore_patterns("__pycache__", "*.lib", "test", "tests")
