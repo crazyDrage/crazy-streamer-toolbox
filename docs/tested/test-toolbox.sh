@@ -1,8 +1,6 @@
 #!/bin/sh
 # The test toolbox on Linux: a second toolbox on its own settings folder (temp/test_settings) and its own port
-# (8855), with a numbered flow for every box (Start + that box), so nothing has to be built
-# first. The numbers are the ones the test window shows (test-window.sh). What you set in a test flow stays,
-# a test flow you delete stays deleted.
+# (8855): the same toolbox as start.sh, nothing added to the folder.
 # It runs next to your own toolbox and never touches its settings. Another folder:  ./test-toolbox.sh <folder>
 cd "$(dirname "$0")/../.." || exit 1
 
@@ -17,9 +15,6 @@ fi
 
 SETTINGS="${1:-$(pwd)/temp/test_settings}"
 export PYTHONPATH="$(pwd)/src"
-
-echo "Writing the test flows into $SETTINGS/flows ..."
-"$PY" -m streamer_toolbox.devtools.tested flows "$SETTINGS" || exit 1
 
 # its own page settings too, so the two toolboxes don't write the same file
 NICEGUI_STORAGE_PATH="$SETTINGS/.nicegui" exec "$PY" -m streamer_toolbox --settings "$SETTINGS" \

@@ -16,6 +16,7 @@ from streamer_toolbox.core.flows.flow_runner import FlowRunner
 from streamer_toolbox.core.flows.flow_wire import START, FlowWire
 from streamer_toolbox.core.flows.logic_actions import LogicActions
 from streamer_toolbox.core.variables.variable_store import VariableStore
+from tests.fakes.fake_clip_downloader import FakeClipDownloader
 from tests.fakes.fake_clip_files import FakeClipFiles
 from tests.fakes.fake_helix import FakeHelix
 from tests.fakes.fake_obs_script import FakeObsScript
@@ -27,7 +28,9 @@ ENDED = {"mediaState": "OBS_MEDIA_STATE_ENDED", "mediaDuration": 9000, "mediaCur
 
 def shoutout_flow() -> Flow:
     """His shoutout flow (2026-10-09): four tries to find a clip, each saved into one variable and checked by
-    an If; the first that finds one goes on to Clip video address and Play video once; none: a chat line."""
+    an If; the first that finds one goes on to Clip video address and Play video once; none: a chat line.
+    Since 10-23 (round 62 B) the download is the backup: an address that Twitch doesn't give → Download clip;
+    both ways set the variable shoutout_video, which the one Play video once plays."""
     nodes, wires, previous, port = [], [], START, "out"
     for number, (days, featured) in enumerate(TRIES, 1):
         params = {"user": "${input.name}", "max_seconds": 60, "days": days, **({"featured": True} if featured else {})}
@@ -37,11 +40,18 @@ def shoutout_flow() -> Flow:
                   FlowWire(f"if{number}", "then", "address")]
         previous, port = f"if{number}", "else"
     nodes += [FlowNode("none", "twitch.send_chat", {"message": "No clip found for ${input.name}"}),
-              FlowNode("address", "twitch.clip_address", {"clip": "${var.shoutout_clip.id}", "quality": "720"}),
-              FlowNode("play", "obs.play_video_once", {"scene": "toolbox_test", "file": "${box.address.address}"}),
+              FlowNode("address", "twitch.clip_address", {"clip": "${var.shoutout_clip.id}", "quality": "720",
+                                                          "fail_on_error": False}),
+              FlowNode("found", "logic.if", {"left": "${box.address.found}", "op": "==", "right": True}),
+              FlowNode("use_address", "var.set", {"name": "shoutout_video", "value": "${box.address.address}"}),
+              FlowNode("download", "twitch.download_clip", {"clip": "${var.shoutout_clip.id}", "quality": "720"}),
+              FlowNode("use_file", "var.set", {"name": "shoutout_video", "value": "${box.download.file}"}),
+              FlowNode("play", "obs.play_video_once", {"scene": "toolbox_test", "file": "${var.shoutout_video}"}),
               FlowNode("after", "twitch.send_chat", {"message": "that was: ${var.shoutout_clip.title}"})]
-    wires += [FlowWire(previous, port, "none"), FlowWire("address", "done", "play"),
-              FlowWire("play", "done", "after")]
+    wires += [FlowWire(previous, port, "none"), FlowWire("address", "done", "found"),
+              FlowWire("found", "then", "use_address"), FlowWire("found", "else", "download"),
+              FlowWire("download", "done", "use_file"), FlowWire("use_address", "done", "play"),
+              FlowWire("use_file", "done", "play"), FlowWire("play", "done", "after")]
     return Flow("shoutout_clip", "Shoutout clip", tuple(nodes), tuple(wires), inputs=(FlowInput("name", ""),))
 
 
@@ -61,7 +71,8 @@ class TestShoutoutClipFlow(unittest.IsolatedAsyncioTestCase):
         variables = VariableStore(Path(self._dir.name) / "variables.json")
         me = OAuthToken("a", "r", 0, (), "42", "streamer")
         TwitchStreamActions(self.helix, lambda: me, pick=lambda clips: clips[0], now=lambda: NOW).add_to(actions)
-        TwitchClipActions(FakeClipFiles()).add_to(actions)
+        self.files, self.downloader = FakeClipFiles(), FakeClipDownloader()
+        TwitchClipActions(self.files, self.downloader).add_to(actions)
         ObsMediaPlayback(ObsRequests(self.obs.call), poll_seconds=0, start_timeout=0.5).add_to(actions)
         LogicActions(variables).add_to(actions)
         actions.add("twitch.send_chat", self._say, "")
@@ -78,9 +89,10 @@ class TestShoutoutClipFlow(unittest.IsolatedAsyncioTestCase):
         return {"data": self.clips.get((days, "is_featured" in params), [])}
 
     async def _shout(self) -> list[str]:
-        """Runs the flow for kit; gives the files OBS was told to play."""
+        """Runs the flow for kit; gives what OBS was told to play (an address, or a file on this PC)."""
         await self.runner.run(shoutout_flow(), inputs={"name": "kit"})
-        return [made["inputSettings"]["input"] for made in self.obs.sent("CreateInput")]
+        return [made["inputSettings"].get("input") or made["inputSettings"]["local_file"]
+                for made in self.obs.sent("CreateInput")]
 
     async def test_a_featured_clip_of_the_last_60_days_is_found_at_the_first_try(self) -> None:
         self.clips[(60, True)] = [{"id": "New", "title": "fresh", "duration": 20}]
@@ -96,6 +108,20 @@ class TestShoutoutClipFlow(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(asked, [(True, "2026-08-10"), (False, "2026-08-10"), (True, "2025-10-09"),
                                  (False, "2025-10-09")])
         self.assertEqual(self.chat, ["that was: classic"])
+
+    async def test_a_clip_without_an_address_is_downloaded_and_played_from_the_file(self) -> None:
+        self.clips[(60, True)] = [{"id": "Shy", "title": "age gated", "duration": 20}]
+        self.files.refused = "Twitch doesn't let this clip be played: age restricted"
+        played = await self._shout()
+        self.assertEqual(len(played), 1)
+        self.assertEqual(Path(played[0]).name, "Shy.mp4")
+        self.assertEqual(self.downloader.asked, [("Shy", "720")])
+        self.assertEqual(self.chat, ["that was: age gated"])
+
+    async def test_with_an_address_nothing_is_downloaded(self) -> None:
+        self.clips[(60, True)] = [{"id": "New", "title": "fresh", "duration": 20}]
+        await self._shout()
+        self.assertEqual(self.downloader.asked, [])
 
     async def test_a_channel_without_clips_gets_the_chat_line_and_nothing_plays(self) -> None:
         self.assertEqual(await self._shout(), [])

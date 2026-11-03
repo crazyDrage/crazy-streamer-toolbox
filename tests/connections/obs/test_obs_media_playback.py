@@ -80,7 +80,7 @@ class TestObsMediaPlayback(unittest.IsolatedAsyncioTestCase):
 
     async def test_a_failed_set_up_removes_the_new_source(self) -> None:
         self.obs.responses["GetSceneItemId"] = None  # place_like names a source that isn't in the scene
-        with self.assertRaisesRegex(Exception, "GetSceneItemId failed"):
+        with self.assertRaisesRegex(Exception, r"\(GetSceneItemId, OBS code 600\)"):
             await self.actions.run("obs.play_video_once", scene="s", file="C:\\a.mp4", place_like="gone")
         self.assertEqual(self.obs.kinds()[-1], "RemoveInput")
         self.assertNotIn("SetSceneItemEnabled", self.obs.kinds())

@@ -1,5 +1,6 @@
 import re
 import tomllib
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 
@@ -7,16 +8,22 @@ import tomlkit
 
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.flows.flow import Flow
+from streamer_toolbox.core.flows.flow_folders import FlowFolders
 from streamer_toolbox.core.flows.flow_pack import FlowPack
 from streamer_toolbox.core.flows.flow_runner import FlowRunner
-from streamer_toolbox.core.flows.flow_trigger import FlowTrigger
 from streamer_toolbox.core.flows.flow_store import NAME, FlowStore
 from streamer_toolbox.core.flows.variable_renamer import VariableRenamer
+from streamer_toolbox.core.upgrades.settings_version import SETTINGS_VERSION, VERSION_KEY
 
 
 class FlowLibrary:
     """The flows and templates the toolbox knows. Keeps the flow.<name> actions in step with the files when a
-    flow is created, edited, renamed or deleted, so no restart is needed."""
+    flow is created, edited, renamed or deleted, so no restart is needed. A file changed, added or deleted outside
+    the toolbox (by hand, by Hex) is taken in by reload() (his round 63: the Flows page's Reload, and every time
+    the Flows page or the editor opens).
+
+    An exported flow carries the settings version it was made at; `upgrade` (SettingsUpgrades.flow) brings an
+    imported one up to this toolbox's, or refuses one from a newer toolbox."""
 
     def __init__(self, store: FlowStore, templates: FlowStore, runner: FlowRunner, actions: ActionRegistry) -> None:
         self._store = store
@@ -24,14 +31,37 @@ class FlowLibrary:
         self._runner = runner
         self._actions = actions
         self._flows: dict[str, Flow] = {}
+        self._stamps: dict[str, int] = {}  # each file's last change as read (FlowStore.stamps)
+        self.folder_settings = FlowFolders(store.folder.parent / "flow_folders.json")
+        runner.folder_off = self.folder_settings.off  # a switched-off folder: none of its flows starts
+        self.upgrade: Callable[[Flow, int], Flow] | None = None
 
     @property
     def folder(self) -> Path:
         return self._store.folder
 
     def load(self) -> None:
+        self._stamps = self._store.stamps()
         for flow in self._store.all():
             self._register(flow)
+
+    def reload(self) -> list[str]:
+        """Reads the files that changed since they were read (new ones too) and lets go of flows whose file is
+        gone; the names of the flows that changed. A broken file keeps the flow as it was (see the log)."""
+        stamps = self._store.stamps()
+        changed = []
+        for name, stamp in stamps.items():
+            if self._stamps.get(name) == stamp:
+                continue
+            flow = self._store.read(name)
+            if flow is not None and flow != self._flows.get(name):
+                self._register(flow)
+                changed.append(name)
+        for name in [n for n in self._flows if n not in stamps]:
+            self._actions.remove(self._flows.pop(name).action_name)
+            changed.append(name)
+        self._stamps = stamps
+        return changed
 
     def all(self) -> list[Flow]:
         return sorted(self._flows.values(), key=lambda f: f.label.casefold())
@@ -48,9 +78,14 @@ class FlowLibrary:
         self.save(replace(self._flows[name], folder=folder.strip()))
 
     def rename_folder(self, old: str, new: str) -> None:
-        """Every flow in old goes to new ("" = no folder: the folder is gone)."""
+        """Every flow in old goes to new ("" = no folder: the folder is gone); its settings go along."""
         for flow in [f for f in self._flows.values() if f.folder == old]:
             self.move(flow.name, new)
+        self.folder_settings.renamed(old, new)
+
+    def hidden(self, flow: Flow) -> bool:
+        """Left out of the Flows page's list: hidden itself, or in a hidden folder."""
+        return flow.hidden or self.folder_settings.hidden(flow.folder)
 
     def rename_reward(self, reward_id: str, title: str) -> list[str]:
         """A reward got a new title on Twitch: the redeem triggers saved with its id show the new name. Gives the
@@ -58,21 +93,8 @@ class FlowLibrary:
         changed = []
         for flow in list(self._flows.values()):
             triggers = tuple(
-                FlowTrigger(t.kind, {**t.match, "reward": title})
+                replace(t, match={**t.match, "reward": title})
                 if t.match.get("reward_id") == reward_id and t.match.get("reward") != title else t
-                for t in flow.triggers)
-            if triggers != flow.triggers:
-                self.save(replace(flow, triggers=triggers))
-                changed.append(flow.name)
-        return changed
-
-    def rename_custom_trigger(self, old: str, new: str) -> list[str]:
-        """A custom trigger got a new name: flows listening to it listen to the new one. Gives the flows changed."""
-        changed = []
-        for flow in list(self._flows.values()):
-            triggers = tuple(
-                FlowTrigger(t.kind, {**t.match, "trigger": new})
-                if t.kind == "custom" and str(t.match.get("trigger", "")).casefold() == old.casefold() else t
                 for t in flow.triggers)
             if triggers != flow.triggers:
                 self.save(replace(flow, triggers=triggers))
@@ -88,16 +110,18 @@ class FlowLibrary:
         if old_name and old_name != flow.name:
             self.delete(old_name)
         self._register(flow)
+        self._stamps.update({flow.name: s for n, s in self._store.stamps().items() if n == flow.name})
 
     def delete(self, name: str) -> None:
         self._store.delete(name)
+        self._stamps.pop(name, None)
         flow = self._flows.pop(name, None)
         if flow is not None:
             self._actions.remove(flow.action_name)
 
     def export_text(self, name: str) -> str:
         """The flow as its .toml file text, to download and keep or share."""
-        return tomlkit.dumps(FlowStore.to_data(self._flows[name]))
+        return tomlkit.dumps({VERSION_KEY: SETTINGS_VERSION, **FlowStore.to_data(self._flows[name])})
 
     def import_text(self, text: str, file_name: str = "") -> Flow:
         """Adds a flow from an exported .toml file, under a free name. A flow whose label is taken already comes in
@@ -109,9 +133,10 @@ class FlowLibrary:
             flow = FlowStore.parse("imported", data)
         except (ValueError, KeyError, TypeError) as e:
             raise ValueError(f"{file_name or 'this file'} is not a flow file: {e}") from None
+        flow = self._upgraded(flow, int(data.get(VERSION_KEY, 0)))
         label = flow.label if "label" in data else Path(file_name).stem or "Imported flow"
         if any(f.label.casefold() == label.casefold() for f in self._flows.values()):
-            flow = replace(flow, triggers=())
+            flow = flow.without_triggers()
             label = f"{label} (imported)"
         flow = replace(flow, name=self.free_name(label), label=label)
         self.save(flow)
@@ -137,15 +162,18 @@ class FlowLibrary:
             pack = FlowPack.from_data(data)
         except (ValueError, KeyError, TypeError) as e:
             raise ValueError(f"{file_name or 'this file'} is not a file with flows: {e}") from None
-        return self._import_pack(pack)
+        return self.import_pack(pack)
 
-    def _import_pack(self, pack: FlowPack) -> list[Flow]:
+    def import_pack(self, pack: FlowPack, as_is: bool = False) -> list[Flow]:
         """Every flow under its file name (a free one where that is taken), in the pack's folder. A flow whose label is taken comes in as
-        "<label> (imported)" without its triggers; boxes that run a flow of the pack run the imported one."""
+        "<label> (imported)" without its triggers; boxes that run a flow of the pack run the imported one.
+        as_is: labels and triggers stay as they are (DefaultFlows: its flows come in switched off, so a second
+        "Thank a follow" in another folder starts nothing twice)."""
+        pack = FlowPack(pack.folder, tuple(self._upgraded(f, pack.settings_version) for f in pack.flows))
         names: dict[str, str] = {}
         labels: dict[str, str] = {}
         for flow in pack.flows:
-            taken = any(f.label.casefold() == flow.label.casefold() for f in self._flows.values())
+            taken = not as_is and any(f.label.casefold() == flow.label.casefold() for f in self._flows.values())
             labels[flow.name] = f"{flow.label} (imported)" if taken else flow.label
             used = set(names.values())
             keeps = NAME.fullmatch(flow.name) and flow.name not in used and self.free_name(flow.name) == flow.name
@@ -154,15 +182,19 @@ class FlowLibrary:
         imported = []
         for old, flow in zip(names, pack.renamed(names).flows):
             label = labels[old]
-            flow = replace(flow, label=label, triggers=flow.triggers if label == flow.label else ())
+            flow = replace(flow if label == flow.label else flow.without_triggers(), label=label)
             self.save(flow)
             imported.append(flow)
         return imported
 
+    def _upgraded(self, flow: Flow, version: int) -> Flow:
+        return self.upgrade(flow, version) if self.upgrade is not None else flow
+
     def rename_variable(self, old: str, new: str) -> list[str]:
         """A variable got a new name: every flow and template that uses it is changed and saved. Gives back the
         labels of the ones that changed."""
-        renamer = VariableRenamer(old, new)
+        renamer = VariableRenamer(old, new, lambda action: self._actions.get(action).variable_fields
+                                  if action in self._actions else ())
         changed = []
         for flow in list(self._flows.values()):
             renamed = renamer.flow(flow)

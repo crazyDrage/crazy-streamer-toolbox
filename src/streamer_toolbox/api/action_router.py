@@ -50,8 +50,10 @@ def build_action_router(actions: ActionRegistry, auth: CallerAuth,
 
     @router.post("/action/{name}")
     async def run_action(name: str, request: Request, who: Caller = Depends(caller)) -> dict[str, Any]:
-        # same answer for "unknown" and "not allowed", so callers can't probe for action names
-        if name not in actions or not who.may_run(name):
+        # same answer for "unknown" and "not allowed", so callers can't probe for action names. A flow-only box
+        # (Run program, Write text file, Run Python, If, ...) is never run from here, whatever the allow list says:
+        # only flows run them (his answer of 10-30)
+        if name not in actions or not who.may_run(name) or actions.get(name).flow_only:
             raise HTTPException(status_code=404, detail=f"unknown action {name}")
         params = _json_params(await request.body())
         try:

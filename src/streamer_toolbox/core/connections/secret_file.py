@@ -7,18 +7,19 @@ class SecretFile:
     into the field on the connection's tab (SecretInput), which writes it here: he never opens the file
     (his rule, 2026-10-10: every token has an input field, no files to edit)."""
 
-    def __init__(self, path: Path, what: str, where: str = "") -> None:
+    def __init__(self, path: Path, what: str, where: str = "",
+                 field: str = "its field on the connection's tab (Connections)") -> None:
         self.path = path
         self._what = what    # "token", "API key", ...
         self._where = where  # where the streamer finds it, for the message when the file is empty
+        self._field = field  # where he types it in the toolbox
 
     def read(self) -> str:
         """The secret; ValueError with words the streamer can act on while the file is missing or empty."""
         secret = self.read_or_empty()
         if not secret:
             where = f" ({self._where})" if self._where else ""
-            raise ValueError(f"No {self._what} yet: type the {self._what}{where} into its field on the "
-                             "connection's tab (Connections)")
+            raise ValueError(f"No {self._what} yet: type the {self._what}{where} into {self._field}")
         return secret
 
     def read_or_empty(self) -> str:

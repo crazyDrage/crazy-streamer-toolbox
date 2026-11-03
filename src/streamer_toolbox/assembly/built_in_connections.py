@@ -6,6 +6,7 @@ from streamer_toolbox.connections.crowdcontrol_connection import CrowdControlCon
 from streamer_toolbox.connections.discord_connection import DiscordConnection
 from streamer_toolbox.connections.firebot_connection import FirebotConnection
 from streamer_toolbox.connections.heartrate.heart_rate import HeartRate
+from streamer_toolbox.connections.fansly_connection import FanslyConnection
 from streamer_toolbox.connections.hyperate_connection import HypeRateConnection
 from streamer_toolbox.connections.keyboard.pynput_key_listener import PynputKeyListener
 from streamer_toolbox.connections.keyboard_connection import KeyboardConnection
@@ -75,6 +76,7 @@ class BuiltInConnections:
             RumbleConnection(tables.get("rumble", {}), secret("rumble_address.txt"), events),
             YouTubeConnection(tables.get("youtube", {}),
                               OAuthTokenStore(secret("youtube_token.json")), events),
+            FanslyConnection(tables.get("fansly", {}), events),
             StreamSocketConnection(tables.get("streamsocket", {}), secret("streamsocket_secret.txt"),
                                    events, lambda: (twitch_tokens.load().user_id if twitch_tokens.load() else "")),
             VNyanConnection(tables.get("vnyan", {})),

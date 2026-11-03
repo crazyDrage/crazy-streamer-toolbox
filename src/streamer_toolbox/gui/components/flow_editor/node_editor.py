@@ -1,4 +1,7 @@
 import inspect
+import json
+from dataclasses import replace
+from datetime import datetime
 from collections.abc import Callable
 from typing import Any
 
@@ -9,22 +12,21 @@ from streamer_toolbox.core.actions.box_filter_store import BoxFilterStore
 from streamer_toolbox.core.testing.test_view import TestView
 from streamer_toolbox.core.actions.numbered_fields import count_field, numbered_fields
 from streamer_toolbox.core.actions.registered_action import RegisteredAction
-from streamer_toolbox.core.data.box_value import understand
+from streamer_toolbox.core.data.box_value import kind_of
 from streamer_toolbox.core.files.box_value_files import BoxValueFiles
-from streamer_toolbox.core.flows.box_wire import WIRE_IN, box_ref, box_source, field_of, is_wire_in
-from streamer_toolbox.core.flows.flow import END_ACTION
+from streamer_toolbox.core.flows.box_wire import WIRE_IN, is_wire_in
+from streamer_toolbox.core.flows.flow import END_LINE
 from streamer_toolbox.core.flows.flow_runner import FlowRunner
-from streamer_toolbox.core.flows.flow_wire import START
 from streamer_toolbox.core.variables.variable_store import VariableStore
 from streamer_toolbox.gui.components.flow_editor.action_picker import ActionPicker, SwitchedOff
 from streamer_toolbox.gui.components.flow_editor.box_dots import BoxDots, box_parameters
 from streamer_toolbox.gui.components.flow_editor.flow_draft import FlowDraft
+from streamer_toolbox.gui.components.flow_editor.move_buttons import move_buttons
 from streamer_toolbox.gui.components.flow_editor.node_draft import NodeDraft
-from streamer_toolbox.gui.components.flow_editor.param_input import LIVE, VAR, ParamInput
+from streamer_toolbox.gui.components.flow_editor.param_input import VAR, ParamInput
 from streamer_toolbox.gui.components.flow_editor.result_view import ResultView
-from streamer_toolbox.gui.components.flow_editor.value_lines_input import ValueLinesInput
+from streamer_toolbox.gui.components.flow_editor.value_lines_input import LINE_NAME, ValueLinesInput
 from streamer_toolbox.gui.components.flow_editor.value_editors import EDITORS
-from streamer_toolbox.gui.components.flow_editor.wire_by_name_dialog import WireByNameDialog
 from streamer_toolbox.gui.components.keep_typed import keep_typed
 
 
@@ -49,6 +51,9 @@ class NodeEditor:
         self._switched_off = switched_off
         self._test_view = test_view
         self.dots = BoxDots(actions, runner, draft)
+        draft.named_lines = lambda node: (self.dots.action(node.action).lines_named(node.params)
+                                          if self.dots.action(node.action) else [])
+        self._lines_now: dict[str, dict[str, str]] = {}  # lines_from: box id → {line: what it is now}
 
     def picker(self) -> ActionPicker:
         return ActionPicker(self._actions, f"flow.{self._draft.name}" if self._draft.name else "",
@@ -61,46 +66,11 @@ class NodeEditor:
             node.params.setdefault(action.value_lines, {"value": ""})
         if action and action.port_fields:
             node.params.setdefault(count_field(action.port_fields), 2)
-        if action and action.entry_fields and action.name != END_ACTION:  # an End box starts with one name
+        if action and action.entry_fields:
             node.params.setdefault(count_field(action.entry_fields), 2)
 
-    async def result_keys(self, node_id: str, field: str = "") -> list[str]:
-        """The keys of what ${box.<node_id>.<field>} gives: known ones, else from a sample (last run, Live
-        value). Empty if neither tells."""
-        known = self.dots.known_outputs(node_id, field)
-        if known:
-            return list(known)
-        try:
-            found, value = await self._sample(box_ref(node_id, field))
-        except Exception:  # service not connected, ...
-            return []
-        value = understand(value) if found else None
-        return list(value) if isinstance(value, dict) else []
-
-    async def _sample(self, value: Any) -> tuple[bool, Any]:
-        """What a field would get now: a Live value or variable is read; a wire gives the box's last result, or
-        reads it now if that box is a Live value (Get model position)."""
-        source = box_source(value)
-        if source and source[0] == START:  # what started the last run
-            found, started = self._runner.last_result(self._draft.name, START)
-            return (True, field_of(started, source[1], "Start")) if found else (False, None)
-        if source:
-            node = self._draft.node(source[0])
-            action = self.dots.action(node.action) if node else None
-            if node is None:
-                return False, None
-            if action and action.live:
-                found, result = True, await self._actions.run(node.action)
-            else:
-                found, result = self._runner.last_result(self._draft.name, node.id)
-            return (True, field_of(result, source[1], f"box {node.id}")) if found else (False, None)
-        live = LIVE.fullmatch(value) if isinstance(value, str) else None
-        if live:
-            return True, field_of(await self._actions.run(live.group(1)), live.group(2), live.group(1))
-        variable = VAR.fullmatch(value) if isinstance(value, str) else None
-        if variable:
-            return True, self._variables.lookup(variable.group(1) + variable.group(2))
-        return value not in ("", None, WIRE_IN), value
+    async def _variable_names(self) -> list[str]:
+        return self._variables.names()
 
     def build(self, node: NodeDraft) -> None:
         action = self.dots.action(node.action)
@@ -110,8 +80,10 @@ class NodeEditor:
                 ui.label(action.description if action else "Unknown action: its connection or plugin isn't "
                          "loaded").classes("text-xs " + ("opacity-70" if action else "text-negative"))
             ui.button("Change", icon="swap_horiz", on_click=lambda: self._change(node)).props("no-caps flat dense")
+        if node.frozen is not None:
+            self._frozen(node)
         parameters = box_parameters(action) if action is not None else {}
-        if parameters:
+        if parameters or (action is not None and action.named_lines):  # End has no fields of its own, only lines
             _section("Settings")
             live = {a.name: f"{a.category_title} · {a.title}" for a in self._actions.live()}
             sources = self.dots.wire_sources(node)
@@ -126,7 +98,7 @@ class NodeEditor:
                     lines = node.params.get(name)
                     ValueLinesInput(lines if isinstance(lines, dict) else {},
                                     lambda value, moved, n=name: self._set_lines(node, n, value, moved),
-                                    _hint(action, name, node)).build()
+                                    _hint(action, name, node), self._variables).build()
                     continue
                 if name in action.editors:  # a value the box keeps itself, edited in its own window
                     EDITORS[action.editors[name]](
@@ -137,7 +109,9 @@ class NodeEditor:
                 value = node.params.get(name, "")
                 if name in choosers and value in ("", None):  # a chooser shows the way that's in use
                     value = default
-                ParamInput(name, default, value, parameter.annotation, action.options.get(name),
+                options = action.options.get(name) or (self._variable_names if name in action.variable_fields
+                                                        else None)  # a field with a variable's name: pick one
+                ParamInput(name, default, value, parameter.annotation, options,
                            self._variables, [i.name for i in self._draft.inputs], live, self._actions.run, sources,
                            lambda value, rebuild, n=name: self._set_param(node, n, value, rebuild or n in choosers),
                            warnings.get(name, ""), action.labels.get(name, ""), _hint(action, name, node),
@@ -146,6 +120,8 @@ class NodeEditor:
             for prefix in (action.port_fields, action.entry_fields):
                 if prefix:
                     self._numbered(node, action, prefix, live, sources, warnings)
+            if action.named_lines:
+                self._named_lines(node, action, live, sources, warnings)
         _section("Result")
         names = sorted(set(self._variables.names()) | ({node.save_as} if node.save_as else set()), key=str.casefold)
         keep_typed(ui.select(names, value=node.save_as or None, label="save it in a variable (optional)",
@@ -162,12 +138,44 @@ class NodeEditor:
         with ui.row().classes("gap-2 pt-1"):
             test = ui.button("Test box", icon="play_arrow").props("no-caps outline dense")
             test.on_click(lambda: self._test(node, test))
-            if parameters:
-                ui.button("Wire by name", icon="cable", on_click=lambda: self._wire_by_name(node, action)) \
-                    .props("no-caps outline dense").tooltip("Wire this box's fields to outputs with the same name")
+            if node.frozen is None and action is not None and action.freezable:
+                freeze = ui.button("Freeze", icon="ac_unit").props("no-caps outline dense") \
+                    .tooltip("Runs it once and keeps the answer: from then on it gives that, without run wire or "
+                             "inputs, and doesn't run in the flow (Run again asks again). Kept in the flow's file")
+                freeze.on_click(lambda: self._freeze(node, freeze))
             if action and action.capture and action.shows(action.capture.partition(":")[2], node.params):
                 ui.button("Save current", icon="my_location", on_click=lambda: self._capture(node, action)) \
                     .props("no-caps outline dense").tooltip(self._capture_tip(action))
+
+    def _frozen(self, node: NodeDraft) -> None:
+        """A frozen box: when it ran, Run again and Unfreeze, on top of its panel."""
+        with ui.card().props("flat bordered").classes("w-full gap-1 p-2 bg-sky-500/10"):
+            ui.label(f"❄ Frozen {node.frozen.at}").classes("font-medium")
+            ui.label("It gives what it saved and doesn't run in the flow: no run wire, no inputs (they are kept for "
+                     "Unfreeze). Its settings below are what Run again uses.").classes("text-xs opacity-80")
+            with ui.row().classes("gap-2"):
+                again = ui.button("Run again", icon="refresh").props("no-caps unelevated dense")
+                again.on_click(lambda: self._freeze(node, again))
+                ui.button("Unfreeze", icon="water_drop", on_click=lambda: self._unfreeze(node)) \
+                    .props("no-caps outline dense").tooltip("A normal box again, with its wires")
+
+    async def _freeze(self, node: NodeDraft, button: ui.button) -> None:
+        """Freeze, or Run again: runs the box on its own (as Test box) and keeps what it gave."""
+        button.props("loading")
+        try:
+            result = await self._runner.run_node(self._draft.to_flow(), replace(node.to_node(), frozen=None))
+        except Exception as e:
+            ui.notify(f"Not frozen: {e}", type="negative", multi_line=True)
+            return
+        finally:
+            button.props(remove="loading")
+        at = datetime.now().strftime("%Y-%m-%d %H:%M")
+        self._on_change(rebuild=True, edit=lambda: self._draft.freeze(node.id, result, at))
+        ui.notify(f"{self.dots.title(node.action)} frozen: {'done' if result is None else result}. Save the flow to "
+                  "keep it", type="positive", multi_line=True)
+
+    def _unfreeze(self, node: NodeDraft) -> None:
+        self._on_change(rebuild=True, edit=lambda: self._draft.unfreeze(node.id))
 
     def _numbered(self, node: NodeDraft, action: RegisteredAction, prefix: str, live: dict[str, str],
                   sources: dict[str, str], warnings: dict[str, str]) -> None:
@@ -183,12 +191,93 @@ class NodeEditor:
                                lambda value, rebuild, n=name: self._set_param(node, n, value, rebuild),
                                warnings.get(name, ""), hint=action.hints.get(prefix, "") if number == 1 else "").build()
                 if len(names) > 1:
+                    move_buttons(number, len(names), lambda step, n=number: self._on_change(
+                        rebuild=True, edit=lambda: self._draft.move_numbered(node.id, prefix, n, step)))
                     ui.button(icon="close", on_click=lambda n=number: self._on_change(
                         rebuild=True, edit=lambda: self._draft.remove_numbered(node.id, prefix, n))) \
                         .props("flat round dense").tooltip(f"Take {name.replace('_', ' ')} away (and its dot)")
         ui.button(f"Add {prefix}", icon="add",
                   on_click=lambda: self._set_param(node, count_field(prefix), len(names) + 1, rebuild=True)) \
             .props("no-caps outline dense").classes("self-start")
+
+    def _named_lines(self, node: NodeDraft, action: RegisteredAction, live: dict[str, str], sources: dict[str, str],
+                     warnings: dict[str, str]) -> None:
+        """End's values: a name and a value each (typed or a wire), x to take one away and "+ Add value". Every line
+        is an orange dot on the box; in another flow it is a dot of this flow's box, named like the line."""
+        ui.separator().classes("opacity-40")
+        # End gives its values back; Build text puts them into its text as {name}; Set source settings sends them
+        ui.label("Values it gives back" if action.ends_flow else
+                 "Its lines (an empty one changes nothing)" if action.lines_from else
+                 "Its values ({name} in the text)").classes("text-sm font-semibold")
+        now = self._lines_now.get(node.id, {})
+        lines = action.lines_named(node.params)
+        for number, name in enumerate(lines, 1):
+            ui.separator().classes("opacity-40")
+            with ui.row().classes("items-center no-wrap w-full gap-1"):
+                ui.input("name", value=name).props("outlined dense").classes("flex-1 min-w-0") \
+                    .on("blur", lambda e, n=name: self._rename_line(node, n, e.sender.value))
+                if len(lines) > 1:
+                    move_buttons(number, len(lines), lambda step, n=name: self._on_change(
+                        rebuild=True, edit=lambda: _move_key(node.params, n, step, lines)))
+                ui.button(icon="close", on_click=lambda n=name: self._on_change(
+                    rebuild=True, edit=lambda: node.params.pop(n, None))) \
+                    .props("flat round dense").tooltip("Take this value away (and its dot)")
+            ParamInput(name, None, node.params.get(name, ""), Any, None, self._variables,
+                       [i.name for i in self._draft.inputs], live, self._actions.run, sources,
+                       lambda value, rebuild, n=name: self._set_param(node, n, value, rebuild),
+                       warnings.get(name, ""), label="value",
+                       hint=f"now: {now[name]}" if name in now else "").build()
+        with ui.row().classes("gap-2"):
+            ui.button("Add value", icon="add", on_click=lambda: self._add_line(node, action)) \
+                .props("no-caps outline dense")
+            if action.lines_from:
+                source, _, text = action.lines_from.partition(":")
+                ui.button(text or "Get the lines", icon="download",
+                          on_click=lambda: self._lines_from(node, action)).props("no-caps unelevated dense") \
+                    .tooltip(f"Asks {self.dots.title(source)} now and adds a line for each of its values this box "
+                             "doesn't have yet. Lines you filled stay")
+
+    async def _lines_from(self, node: NodeDraft, action: RegisteredAction) -> None:
+        """lines_from: runs that action with this box's matching fields; every key of its answer becomes an empty
+        line (his round 81: Set source settings gets a line per setting the source has). What each one is now
+        shows under it until the editor is left."""
+        source = action.lines_from.partition(":")[0]
+        wanted = box_parameters(self._actions.get(source))
+        try:
+            answer = await self._actions.run(source, **{k: v for k, v in node.params.items() if k in wanted})
+        except Exception as e:
+            ui.notify(f"{self.dots.title(source)}: {e}", type="negative", multi_line=True)
+            return
+        if not isinstance(answer, dict):
+            ui.notify(f"{self.dots.title(source)} gave no names: {answer!r}", type="warning")
+            return
+        own = set(box_parameters(action))
+        names = [str(k) for k in answer if LINE_NAME.fullmatch(str(k)) and str(k) not in own and k != END_LINE]
+        self._lines_now[node.id] = {str(k): _short(v) for k, v in answer.items()}
+        new = [name for name in names if name not in node.params]
+        ui.notify(f"{len(new)} lines added" if new else "It has every line already", type="positive")
+        self._on_change(rebuild=True, edit=lambda: node.params.update({name: "" for name in new}))
+
+    def _add_line(self, node: NodeDraft, action: RegisteredAction) -> None:
+        number = len(action.lines_named(node.params)) + 1
+        while f"value_{number}" in node.params:
+            number += 1
+        node.params[f"value_{number}"] = WIRE_IN  # most come from a box; "Value" in its field to type one
+        self._on_change(rebuild=True)
+
+    def _rename_line(self, node: NodeDraft, old: str, new: str) -> None:
+        """A line's new name; its value (and wire) goes along. The canvas is read back first (see _set_param)."""
+        new = (new or "").strip().replace(" ", "_")
+        if new == old:
+            return
+        if not LINE_NAME.fullmatch(new) or new == END_LINE:
+            ui.notify(f"A name takes letters, digits and _ only (and isn't {END_LINE})", type="warning")
+        elif new in node.params:
+            ui.notify(f"There is a value named {new} already", type="warning")
+        else:
+            self._on_change(rebuild=True, edit=lambda: _rename_key(node.params, old, new))
+            return
+        self._on_change(rebuild=True)  # the form shows the old name again
 
     async def _change(self, node: NodeDraft) -> None:
         name = await self.picker().pick("Change the action")
@@ -199,14 +288,6 @@ class NodeEditor:
         node.params = {k: v for k, v in node.params.items() if k in keep}
         self.prepare(node)
         self._on_change(rebuild=True)
-
-    def _wire_by_name(self, node: NodeDraft, action: RegisteredAction) -> None:
-        fields = list(box_parameters(action))
-
-        def apply(chosen: dict[str, str]) -> None:
-            self._on_change(rebuild=True, edit=lambda: node.params.update(chosen))  # see _set_param
-
-        WireByNameDialog(fields, self.dots.wire_sources(node), node.params, apply).open()
 
     def _set_param(self, node: NodeDraft, name: str, value: Any, rebuild: bool = False) -> None:
         action = self.dots.action(node.action)
@@ -246,9 +327,26 @@ class NodeEditor:
             known, value = self.dots.last_result(node.id)
             if known:
                 ResultView.show(value)
+                action = self.dots.action(node.action)
+                if action and isinstance(value, dict) and not (action.value_lines or action.keys_of):
+                    with ui.row().classes("gap-1"):
+                        ui.button("Dots from this result", icon="scatter_plot",
+                                  on_click=lambda: self._own_outputs(node, value)) \
+                            .props("no-caps outline dense") \
+                            .tooltip("An orange dot per key of this result, on this box only (kept in the flow)")
+                        if node.outputs:
+                            ui.button("No own dots", icon="remove_circle_outline",
+                                      on_click=lambda: self._own_outputs(node, {})).props("no-caps flat dense")
             else:
                 ui.label("Not run yet: Test box below (or Test run at the top) shows exactly what it gives.") \
                     .classes("text-xs opacity-70")
+
+    def _own_outputs(self, node: NodeDraft, result: dict[str, Any]) -> None:
+        """Dots from this result: the box's own data dots are the result's keys (his round 60: on this one box in
+        this flow, instead of a new box)."""
+        node.outputs = {str(k): kind_of(v) for k, v in result.items()}
+        self._on_change(rebuild=True)
+        self._last_result.refresh()
 
     async def _test(self, node: NodeDraft, button: ui.button) -> None:
         button.props("loading")
@@ -302,6 +400,32 @@ def _hint(action: RegisteredAction, name: str, node: NodeDraft) -> str:
         except Exception:  # a hint must never break the form
             return action.hints.get(name, "")
     return action.hints.get(name, "")
+
+
+def _short(value: Any) -> str:
+    """A value in one short line (what a setting is now, under its line)."""
+    text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
+    return text if len(text) <= 60 else text[:57] + "..."
+
+
+def _rename_key(params: dict[str, Any], old: str, new: str) -> None:
+    """Renames a key in place, keeping the order (a line stays where it was)."""
+    items = [(new if k == old else k, v) for k, v in params.items()]
+    params.clear()
+    params.update(items)
+
+
+def _move_key(params: dict[str, Any], name: str, step: int, among: list[str]) -> None:
+    """Moves one of the lines (among) up (step -1) or down (+1) by trading places with its neighbour; the other
+    keys stay where they are."""
+    index = among.index(name)
+    if not 0 <= index + step < len(among):
+        return
+    other = among[index + step]
+    items = [(other if k == name else name if k == other else k, params[other] if k == name else
+              params[name] if k == other else v) for k, v in params.items()]
+    params.clear()
+    params.update(items)
 
 
 def _section(title: str) -> None:

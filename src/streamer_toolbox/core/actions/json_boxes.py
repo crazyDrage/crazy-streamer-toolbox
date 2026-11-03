@@ -30,26 +30,36 @@ class JsonBoxes:
     "choice" with its own "choices". add_to gives every box to the registry as <category>.<name>; running it
     calls send(request, data) with the fields under the names the program wants."""
 
-    def __init__(self, folder: Path, kinds: ValueKinds | None = None) -> None:
+    def __init__(self, folder: Path | None, kinds: ValueKinds | None = None,
+                 read: Callable[[dict[str, Any], str], JsonBox] = JsonBox.from_dict) -> None:
+        """folder None: no files (boxes come one by one through add_one).
+        read(box, the file's group) makes a JsonBox of one box in a file (WebBoxes reads its own shape)."""
         self._kinds = kinds or ValueKinds()
         self.boxes: list[JsonBox] = []
-        for file in sorted(folder.glob("*.json")):
+        for file in sorted(folder.glob("*.json")) if folder else []:
             try:
                 content = json.loads(file.read_text(encoding="utf-8"))
-                boxes = [JsonBox.from_dict(box, content.get("group", "")) for box in content["boxes"]]
+                boxes = [read(box, content.get("group", "")) for box in content["boxes"]]
                 for box in boxes:
-                    self._check(box)
+                    self.check(box)
             except (ValueError, KeyError, TypeError, AttributeError) as e:
                 raise ValueError(f"{file.name}: {e}") from None
             self.boxes += boxes
 
     def add_to(self, actions: ActionRegistry, category: str, send: Send) -> None:
         for box in self.boxes:
-            actions.add(f"{category}.{box.name}", self._handler(box, send), box.help, box.label, group=box.group,
-                        flow_only=box.flow_only, labels={f.name: f.label for f in box.fields if f.label},
-                        hints={f.name: f.hint for f in box.fields if f.hint}, **self._extras(box))
+            self.add_one(actions, category, send, box)
 
-    def _check(self, box: JsonBox) -> None:
+    def add_one(self, actions: ActionRegistry, category: str, send: Send, box: JsonBox) -> None:
+        """One box as <category>.<name>. A name that is taken raises."""
+        name = f"{category}.{box.name}"
+        actions.add(name, self._handler(box, send), box.help, box.label, group=box.group,
+                    flow_only=box.flow_only, labels={f.name: f.label for f in box.fields if f.label},
+                    hints={f.name: f.hint for f in box.fields if f.hint},
+                    outputs={key: "any" for key in box.outputs}, **self._extras(box))
+
+    def check(self, box: JsonBox) -> None:
+        """Raises ValueError for a field whose kind isn't known or a choice without choices."""
         for field in box.fields:
             if field.kind == CHOICE:
                 if not field.choices:

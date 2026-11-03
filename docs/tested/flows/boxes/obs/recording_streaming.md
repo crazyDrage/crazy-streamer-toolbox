@@ -3,7 +3,7 @@
 | What | Name in the code | AI checked | Works | Understandable | Usable | Last change | Note |
 |---|---|---|---|---|---|---|---|
 | Add recording chapter | `obs.add_recording_chapter` | - | - | - | - | - |  |
-| Live / recording? | `obs.get_output_status` | - | - | - | - | - |  |
+| Live / recording? | `obs.get_output_status` | 2026-10-20 | - | - | - | - |  |
 | Recording | `obs.record` | - | - | - | - | - |  |
 | Replay buffer | `obs.replay_buffer` | - | - | - | - | - |  |
 | Send stream caption | `obs.send_stream_caption` | - | - | - | - | - |  |

@@ -1,6 +1,7 @@
 import unittest
 
 from streamer_toolbox.core.system.toolbox_restart import RESTART_EXIT_CODE, ToolboxRestart
+from streamer_toolbox.core.system.update_starter import UPDATE_EXIT_CODE
 
 
 class TestToolboxRestart(unittest.TestCase):
@@ -10,6 +11,8 @@ class TestToolboxRestart(unittest.TestCase):
         self.assertEqual(restart.exit_code, 0)
         restart.request()
         self.assertEqual((stopped, restart.exit_code), ([True], RESTART_EXIT_CODE))
+        restart.request(update=True)
+        self.assertEqual(restart.exit_code, UPDATE_EXIT_CODE)
 
     def test_without_a_launcher_it_refuses(self) -> None:
         restart = ToolboxRestart(lambda: None, available=False)

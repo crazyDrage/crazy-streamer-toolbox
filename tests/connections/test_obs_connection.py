@@ -2,6 +2,7 @@ import unittest
 
 import simpleobsws
 
+from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.config.obs_config import ObsConfig
 from streamer_toolbox.core.connections.connection_state import ConnectionState
 from streamer_toolbox.core.connections.not_connected_error import NotConnectedError
@@ -14,6 +15,7 @@ RESPONSES = {
     "GetProfileList": {"currentProfileName": "testing"},
     "GetSceneCollectionList": {"currentSceneCollectionName": "testing"},
     "GetSceneList": {"scenes": [{"sceneName": "toolbox_test"}]},
+    "GetCurrentProgramScene": {"currentProgramSceneName": "toolbox_test"},
 }
 
 
@@ -45,6 +47,16 @@ class TestObsConnection(unittest.IsolatedAsyncioTestCase):
         connection = self._connection(fake)
         await connection.switch_scene("Just_chatting")
         self.assertEqual(fake.requests[-1], "SetCurrentProgramScene")
+
+    async def test_the_scene_boxes_run_by_name(self) -> None:
+        fake = FakeConnectableObsClient(responses=RESPONSES)
+        connection = self._connection(fake)
+        actions = ActionRegistry()
+        connection.add_actions(actions)
+        await actions.run("obs.switch_scene", scene="Just_chatting")
+        self.assertEqual(fake.calls[-1], ("SetCurrentProgramScene", {"sceneName": "Just_chatting"}))
+        self.assertEqual(await actions.run("obs.get_current_scene"), "toolbox_test")
+        self.assertEqual(await actions.get("obs.switch_scene").options["scene"](), ["toolbox_test"])
 
     async def test_switched_off_refuses_calls(self) -> None:
         connection = self._connection(FakeConnectableObsClient(), enabled=False)

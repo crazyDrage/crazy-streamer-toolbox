@@ -3,6 +3,7 @@ from pathlib import Path
 from streamer_toolbox.devtools.box_gen.actions_class_writer import ActionsClassWriter
 from streamer_toolbox.devtools.box_gen.answer_class_writer import AnswerClassWriter
 from streamer_toolbox.devtools.box_gen.answer_shape import AnswerShape
+from streamer_toolbox.devtools.box_gen.box_class_writer import BoxClassWriter
 from streamer_toolbox.devtools.box_gen.fake_writer import FakeWriter
 from streamer_toolbox.devtools.box_gen.names import snake
 from streamer_toolbox.devtools.box_gen.service_spec import ServiceSpec
@@ -10,8 +11,9 @@ from streamer_toolbox.devtools.box_gen.test_writer import TestWriter
 
 
 class BoxGenerator:
-    """Writes a service's files from its spec: one dataclass file per answer shape and the actions class into
-    `src_dir`, a fake send and a test file into `tests_dir` (one class per file, like the rest of the repo).
+    """Writes a service's files from its spec: one dataclass file per answer shape, one Box class per box (and
+    the class they share) in boxes/ and the group class that adds them into `src_dir`, a fake send and a test file
+    into `tests_dir` (one class per file, like the rest of the repo).
     Never overwrites: a file that exists is left as it is and reported."""
 
     def __init__(self, src_dir: Path, tests_dir: Path, root: Path) -> None:
@@ -31,8 +33,16 @@ class BoxGenerator:
                 path = self._src / f"{snake(box.answer_class)}.py"
                 files[path] = AnswerClassWriter().write(shape, spec.service, box.name)
                 imports[box.answer_class] = self._module(path)
+        writer = BoxClassWriter()
+        base_path = self._src / "boxes" / f"{snake(writer.base_class(spec))}.py"
+        files[base_path] = writer.base(spec)
+        boxes: dict[str, str] = {}
+        for box in spec.boxes:
+            path = self._src / "boxes" / f"{snake(writer.class_of(box))}.py"
+            files[path] = writer.box(spec, box, self._module(base_path), imports)
+            boxes[writer.class_of(box)] = self._module(path)
         actions_path = self._src / f"{snake(spec.class_name)}.py"
-        files[actions_path] = ActionsClassWriter().write(spec, imports)
+        files[actions_path] = ActionsClassWriter().write(spec, boxes, self._module(base_path))
         fake_class = f"Fake{spec.class_name}Send"
         fake_path = self._tests / f"{snake(fake_class)}.py"
         files[fake_path] = FakeWriter().write(fake_class, spec.class_name)

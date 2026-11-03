@@ -4,6 +4,7 @@ from urllib.parse import quote
 from nicegui import app, ui
 
 from streamer_toolbox.core.app_name import APP_NAME
+from streamer_toolbox.gui.components.header_notice import HeaderNotice
 from streamer_toolbox.gui.components.look import Look
 from streamer_toolbox.gui.services.open_pages import OpenPages
 from streamer_toolbox.gui.services.ui_registry import UiRegistry
@@ -12,12 +13,12 @@ from streamer_toolbox.gui.services.ui_registry import UiRegistry
 AREAS = [
     ("Live", "/", "bolt"),
     ("Flows", "/flows", "account_tree"),
-    ("Triggers", "/triggers", "sensors"),
     ("Variables", "/variables", "data_object"),
     ("Overlay", "/overlays", "layers"),
     ("Tools", "/tools", "handyman"),
     ("Connections", "/connections", "hub"),
     ("Plugins", "/plugins", "extension"),
+    ("Learn", "/learn", "school"),
     ("Settings", "/settings", "tune"),
 ]
 PLUGINS = "/plugins"  # the area a plugin's own pages (/plugins/<id>...) are shown in
@@ -85,25 +86,52 @@ class AppShell:
     every tab and item an eye to hide it or bring it back; with it off the hidden ones are gone, on the
     phone's bottom tabs too. The page being shown is always there.
 
-    `left_out` holds the addresses a build doesn't have because they are not tested yet (TestGate): they are in
-    no menu, whatever "Show all" says, and opening one shows a line instead of the page. An area that is left
-    out keeps its row while something below it is still there."""
+    `notices` (key → HeaderNotice) are shown next to the app name on every page."""
 
     def __init__(self, ui_registry: UiRegistry, pages: OpenPages) -> None:
         self._ui = ui_registry
         self._pages = pages
         self.sub_items: dict[str, SubItems | Callable[[], SubItems]] = {PLUGINS: lambda: list(ui_registry.pages)}
         self.side_tools: dict[str, SideTool] = {}
-        self.left_out: set[str] = set()
+        self.no_overview: set[str] = set()  # areas whose side list has no Overview row (Live: only its pages)
+        self.notices: dict[str, HeaderNotice] = {}
+        self.info_bar: Callable[[], None] | None = None  # draws the bar at the bottom (InfoBar, his round 81)
+
+    @staticmethod
+    def _notice(notice: HeaderNotice) -> None:
+        def show() -> None:
+            with ui.dialog() as dialog, ui.card().classes("w-[28rem] max-w-full gap-3"):
+                ui.label(notice.text).classes("text-lg font-semibold")
+                ui.label(notice.about).classes("text-sm whitespace-pre-line")
+                with ui.row().classes("w-full justify-end"):
+                    ui.button("OK", on_click=dialog.close).props("no-caps unelevated")
+            dialog.open()
+
+        # on a phone the name line is full: the icon only, the press still tells it all
+        with ui.button(icon=notice.icon, on_click=notice.on_press or show) \
+                .props(f"dense no-caps size=sm unelevated color={notice.color} "
+                       f"text-color={'black' if notice.color == 'warning' else 'white'}") \
+                .classes("shrink-0 px-1").tooltip(f"{notice.text}: press for what it means"):
+            ui.label(notice.text).classes("ml-1 whitespace-nowrap max-sm:hidden")
 
     @staticmethod
     def theme() -> str:
         return app.storage.general.get("theme", "dark")
 
-    def page(self, title: str, path: str, builder: Callable[[], None]) -> None:
-        ui.page(path, title=f"{title} · {APP_NAME}")(lambda: self.frame(title, path, builder))
+    def page(self, title: str, path: str, builder: Callable[[], None], heading: bool = True) -> None:
+        """heading: the big title above the page (Live has none: its deck pages are the line on top)."""
+        ui.page(path, title=f"{title} · {APP_NAME}")(lambda: self.frame(title, path, builder, heading))
 
-    def frame(self, title: str, path: str, builder: Callable[[], None]) -> None:
+    def bare(self, title: str, path: str, builder: Callable[[], None]) -> None:
+        """A page without the frame: no header, no side list (the Live buttons on their own)."""
+        @ui.page(path, title=f"{title} · {APP_NAME}")
+        def page() -> None:
+            self._pages.attach(ui.context.client)
+            Look.apply(self.theme())
+            with ui.column().classes("w-full p-2 gap-2"):
+                builder()
+
+    def frame(self, title: str, path: str, builder: Callable[[], None], heading: bool = True) -> None:
         self._pages.attach(ui.context.client)
         Look.apply(self.theme())
 
@@ -139,13 +167,30 @@ class AppShell:
                     .classes("" if side else "lg:hidden").tooltip("Menu (slides the side list away and back)")
                 ui.icon("construction").classes("text-sm opacity-70")
                 ui.label(APP_NAME).classes("tb-name")
+                for notice in self.notices.values():
+                    self._notice(notice)
                 ui.space()
                 ui.label(title).classes("text-sm opacity-80 lg:hidden")
-                ui.button(icon="visibility", on_click=lambda: (app.storage.general.update(
-                    {SHOW_ALL_KEY: not app.storage.general.get(SHOW_ALL_KEY, False)}), redraw())) \
-                    .props("flat round dense color=white size=sm").classes("opacity-70") \
-                    .tooltip("Show all: every tab and item, each with an eye to hide it or bring it back. "
-                             "Press again and the hidden ones are gone")
+                # with words (his round 78: "Show everything"), so it says what a press does
+                eye = ui.button(on_click=lambda: (app.storage.general.update(
+                    {SHOW_ALL_KEY: not app.storage.general.get(SHOW_ALL_KEY, False)}), paint_eye(), redraw()))
+                eye.props("dense no-caps size=sm")
+                with eye:
+                    eye_tip = ui.tooltip()
+
+                def paint_eye() -> None:
+                    showing = bool(app.storage.general.get(SHOW_ALL_KEY, False))
+                    eye.set_text("Hide the hidden ones" if showing else "Show everything")
+                    eye.props(remove="flat unelevated color icon")
+                    eye.props(f"icon={'visibility_off' if showing else 'visibility'} "
+                              f"{'unelevated color=primary' if showing else 'flat color=white'}")
+                    eye.classes(remove="opacity-70")
+                    eye.classes("" if showing else "opacity-70")
+                    eye_tip.set_text("The hidden ones go away again (each keeps its eye)" if showing else
+                                     "Shows every hidden tab and item, everywhere, each with an eye to hide it "
+                                     "or bring it back")
+
+                paint_eye()
             with ui.row().classes("tb-top max-lg:hidden items-end gap-0 w-full"):
                 tabs()
             # phone and tablet: the tabs stay on top too (his wish of 2026-10-14), a line of their own
@@ -156,12 +201,12 @@ class AppShell:
             menu()
         ui.add_body_html(f"<script>{KEEP_MENU_SCROLL}{HEADER_HEIGHT}</script>")
 
-        with ui.column().classes("w-full max-w-7xl mx-auto p-4 gap-4"):
-            ui.label(title).classes("text-2xl font-semibold max-lg:hidden")
-            if not self.offers(here):
-                ui.label("This page is not in this build: it has not been tested yet.").classes("opacity-70")
-            else:
-                builder()
+        with ui.column().classes("tb-main w-full max-w-7xl mx-auto p-4 gap-4"):
+            if heading:
+                ui.label(title).classes("text-2xl font-semibold max-lg:hidden")
+            builder()
+        if self.info_bar is not None:
+            self.info_bar()
 
     @staticmethod
     def _here(path: str) -> str:
@@ -181,12 +226,12 @@ class AppShell:
         return max(above, key=len) if above else path
 
     def _shown(self, path: str) -> list[tuple[str, str, str]]:
-        """The areas that are tabs now: this copy has them, and he didn't hide them (the one being shown and,
-        with "Show all", the hidden ones are there too)."""
+        """The areas that are tabs now: the ones he didn't hide (the one being shown and, with "Show all", the
+        hidden ones are there too)."""
         hidden = _hidden()
         show_all = bool(app.storage.general.get(SHOW_ALL_KEY, False))
         return [page for page in AREAS
-                if self.in_menu(page[1]) and (show_all or page[1] == path or page[1] not in hidden)]
+                if show_all or page[1] == path or page[1] not in hidden]
 
     def _tabs(self, path: str, redraw: Callable[[], None]) -> None:
         """The main tabs in the header (a wide screen); path: the area being shown. redraw: after an eye was
@@ -215,7 +260,7 @@ class AppShell:
         with ui.list().classes("w-full pt-2"):
             if below:
                 area = next((a for a in AREAS if a[1] == path), None)
-                if area and self.offers(path):
+                if area and path not in self.no_overview:
                     self._nav_item("Overview", path, area[2], here == path)
                 for row, subs in _groups(below):
                     self._side_row(row, subs, here, hidden, show_all, redraw)
@@ -251,18 +296,10 @@ class AppShell:
             for sub in shown_subs:
                 self._nav_item(sub[0], sub[1], sub[2], active(sub[1]), sub=True, show_all=show_all, redraw=redraw)
 
-    def offers(self, address: str) -> bool:
-        """Whether this copy has the page at that address (with its ?show=... for a sub item)."""
-        return address not in self.left_out
-
-    def in_menu(self, path: str) -> bool:
-        """Whether the menu may list it: this copy has it, or it is an area with something left below it."""
-        return self.offers(path) or bool(self._below(path))
-
     def _below(self, path: str) -> SubItems:
-        """An area's sub items that this copy has."""
+        """An area's sub items."""
         given = self.sub_items.get(path, [])
-        return [item for item in (given() if callable(given) else given) if item[1] not in self.left_out]
+        return list(given() if callable(given) else given)
 
     @staticmethod
     def _nav_item(title: str, path: str, icon: str, active: bool, sub: bool = False, show_all: bool = False,

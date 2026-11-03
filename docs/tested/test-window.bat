@@ -1,7 +1,9 @@
 @echo off
-rem The test window: the checklist of what has to be tested (docs\tested), in a browser tab of its own.
-rem Keep it open next to the toolbox; it needs no running toolbox and stays open while that is restarted.
-rem A tick is written into docs\tested at once. Another port: test-window.bat 8860
+rem The test window: the checklist of what has to be tested (docs\tested), in a browser tab of its own,
+rem and next to it the test toolbox (see test-toolbox.bat): a second toolbox on temp\test_settings, port 8855,
+rem the same toolbox as start.bat. Both run in this console; one stops, both stop.
+rem The test window stays open while the toolbox is restarted. A tick is written into docs\tested at once.
+rem Another port for the test window: test-window.bat 8860
 setlocal
 cd /d "%~dp0..\.."
 
@@ -15,6 +17,10 @@ if not exist "%PY%" (
     exit /b 1
 )
 
+set "SETTINGS=%CD%\temp\test_settings"
 set "PYTHONPATH=%CD%\src"
-"%PY%" -m streamer_toolbox.devtools.tested window %*
+
+rem The test window starts the test toolbox itself and is tied to it: Ctrl+C, closing this console or closing
+rem the toolbox's window stops both. (Not start /b: that switches Ctrl+C off, and the toolbox stayed running.)
+"%PY%" -m streamer_toolbox.devtools.tested window --toolbox "%SETTINGS%" %*
 if errorlevel 1 pause

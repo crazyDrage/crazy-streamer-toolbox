@@ -14,6 +14,7 @@ from streamer_toolbox.connections.twitch.twitch_reward import TwitchReward
 from streamer_toolbox.connections.oauth.oauth_token import OAuthToken
 from streamer_toolbox.connections.oauth.oauth_token_store import OAuthTokenStore
 from streamer_toolbox.connections.twitch_connection import TwitchConnection
+from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.connections.connection_state import ConnectionState
 from streamer_toolbox.core.events.event_bus import EventBus
 from streamer_toolbox.core.flows.flow_trigger import REWARDS
@@ -297,6 +298,31 @@ class TestTwitchConnection(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([(p["id"], b["status"]) for p, b in self.twitch.redemptions],
                          [("red9", "CANCELED"), ("red10", "FULFILLED")])
         self.assertEqual((marker, self.twitch.markers), ("mk1", [{"user_id": "42", "description": "lizard moment"}]))
+
+    async def test_the_chat_reward_and_marker_boxes_reach_twitch(self) -> None:
+        """The Box classes run by name, as a flow runs them (the connection's methods are tested above)."""
+        self.save_token()
+        twitch = self.connection()
+        actions = ActionRegistry()
+        twitch.add_actions(actions)
+        await twitch.start()
+        await actions.run("twitch.send_chat", message="hello chat")
+        made = await actions.run("twitch.create_reward", title="Hydrate", cost=50, prompt="drink", needs_text=True)
+        await actions.run("twitch.set_reward_paused", reward=made, paused=True)
+        await actions.run("twitch.set_reward_enabled", reward="hydrate", enabled=False)
+        rewards = await actions.run("twitch.rewards")
+        await actions.run("twitch.finish_redeem", reward_id=made, redemption_id="red1", refund=True)
+        marker = await actions.run("twitch.create_marker", description="clip this")
+        await twitch.stop()
+        self.assertEqual([c["message"] for c in self.twitch.chat], ["hello chat"])
+        reward = next(r for r in self.twitch.rewards if r["id"] == made)
+        self.assertEqual((reward["title"], reward["cost"], reward["prompt"], reward["is_user_input_required"]),
+                         ("Hydrate", 50, "drink", True))
+        self.assertEqual(self.twitch.updates, [(made, {"is_paused": True}), (made, {"is_enabled": False})])
+        self.assertIn(("Hydrate", True), [(r["title"], r["by_toolbox"]) for r in rewards])
+        self.assertEqual([(p["reward_id"], p["id"], b["status"]) for p, b in self.twitch.redemptions],
+                         [(made, "red1", "CANCELED")])
+        self.assertEqual((marker, self.twitch.markers[-1]["description"]), ("mk1", "clip this"))
 
 
 if __name__ == "__main__":

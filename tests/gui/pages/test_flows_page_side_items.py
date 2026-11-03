@@ -12,8 +12,11 @@ class TestFlowsPageSideItems(unittest.TestCase):
     def test_folders_with_their_flows_below_them(self) -> None:
         library = Mock(spec=FlowLibrary)
         library.all.return_value = [Flow("b", "Bonk", folder="Fun"), Flow("a", "Alert"),
-                                    Flow("c", "Clap", folder="Fun"), Flow("d", "Mine sweep", folder="My games")]
-        library.folders.return_value = ["Fun", "My games"]
+                                    Flow("c", "Clap", folder="Fun"), Flow("d", "Mine sweep", folder="My games"),
+                                    Flow("e", "Secret", hidden=True), Flow("f", "Alert: Follow", folder="Alerts")]
+        library.folders.return_value = ["Alerts", "Fun", "My games"]
+        # his "hide in list": a hidden flow, and the flows of a hidden folder, are left out
+        library.hidden.side_effect = lambda flow: flow.hidden or flow.folder == "Alerts"
         page = FlowsPage(library, Mock(), Mock())
         self.assertEqual(page.side_items(), [
             ("Fun", "/flows?show=Fun", "folder"),

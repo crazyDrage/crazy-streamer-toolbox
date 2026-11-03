@@ -1,14 +1,18 @@
 import json
 import re
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from streamer_toolbox.core.widgets.widget import Widget, check_name
+from streamer_toolbox.core.widgets.widget_input import WidgetInput
 from streamer_toolbox.core.widgets.widget_safety import WidgetSafety
 
 PARTS = {"html": "widget.html", "css": "widget.css", "js": "widget.js"}
 FIELDS, VALUES, KEPT, FRAME = "fields.json", "values.json", "store.json", "frame.json"
+INPUTS = "inputs.json"  # what flows sent it (WidgetInput), his round 74; read once to become events
+EVENTS = "events.json"  # the event types it gets (Overlay → Events), his round 78
 SAFETY = "safety.json"  # what the widget's page may do (WidgetSafety)
 HELPERS = "helpers.json"  # the helper scripts kept on this PC: address as written → file in the media folder
 STREAMELEMENTS_MEDIA = "streamelements_media.json"  # StreamElements files kept here: "<host>/<path>" → file
@@ -19,6 +23,7 @@ MEDIA_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
 DATA = "data"  # the folder inside a widget's folder for everything it gathers while it runs
 EXAMPLE = Path(__file__).parent / "example"  # a small widget in StreamElements' format that comes with the toolbox
 EXAMPLE_NAME = "example_follow_box"
+STARTER = Path(__file__).parent / "starter"  # the code a new widget starts with (his round 72)
 
 
 class WidgetStore:
@@ -35,6 +40,7 @@ class WidgetStore:
 
     def __init__(self, folder: Path) -> None:
         self._folder = folder
+        self.on_change: Callable[[], None] = lambda: None  # a widget made, deleted, or its events changed
 
     def names(self) -> list[str]:
         if not self._folder.is_dir():
@@ -47,7 +53,8 @@ class WidgetStore:
             return None
         parts = {part: _text(folder / file) for part, file in PARTS.items()}
         return Widget(folder.name, fields=_object(folder / FIELDS), values=_object(folder / VALUES),
-                      frame=_object(folder / FRAME), **parts)
+                      frame=_object(folder / FRAME), inputs=_inputs(folder / INPUTS),
+                      events=_events(folder / EVENTS), **parts)
 
     def save(self, widget: Widget) -> None:
         folder = self._folder / check_name(widget.name)
@@ -58,6 +65,10 @@ class WidgetStore:
         _write(folder / VALUES, widget.values)
         if widget.frame or (folder / FRAME).is_file():
             _write(folder / FRAME, widget.frame)
+        if widget.events is not None:
+            (folder / EVENTS).write_text(json.dumps(list(widget.events), indent=2, ensure_ascii=False),
+                                         encoding="utf-8")
+        self.on_change()
 
     def add_example(self) -> str:
         """Makes the example widget (latest follower + chat lines; shows every part: fields, events, a button,
@@ -66,6 +77,13 @@ class WidgetStore:
             self.save(Widget(EXAMPLE_NAME, fields=_object(EXAMPLE / FIELDS),
                              **{part: _text(EXAMPLE / file) for part, file in PARTS.items()}))
         return EXAMPLE_NAME
+
+    @staticmethod
+    def starter() -> Widget:
+        """The code a new widget starts with (his round 72: "or we have no idea how it works"): each part short
+        and with comments; chat lines with their platform, and a follow. Not saved."""
+        return Widget("", fields=_object(STARTER / FIELDS),
+                      **{part: _text(STARTER / file) for part, file in PARTS.items()})
 
     def set_values(self, name: str, values: dict[str, Any]) -> None:
         folder = self._path(name)
@@ -78,6 +96,7 @@ class WidgetStore:
         folder = self._path(name)
         if folder is not None and folder.is_dir():
             shutil.rmtree(folder)
+            self.on_change()
 
     def kept(self, name: str, key: str) -> Any:
         """What the widget's code stored under that key with SE_API.store.set, None if nothing."""
@@ -217,6 +236,26 @@ def parse_fields(text: str) -> dict[str, dict[str, Any]]:
 
 def _text(path: Path) -> str:
     return path.read_text(encoding="utf-8") if path.is_file() else ""
+
+
+def _inputs(path: Path) -> tuple[WidgetInput, ...] | None:
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except ValueError:
+        return ()
+    return tuple(WidgetInput.from_dict(item) for item in data if isinstance(item, dict)) if isinstance(data, list)         else ()
+
+
+def _events(path: Path) -> tuple[str, ...] | None:
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except ValueError:
+        return ()
+    return tuple(dict.fromkeys(str(name) for name in data)) if isinstance(data, list) else ()
 
 
 def _object(path: Path) -> dict[str, Any]:

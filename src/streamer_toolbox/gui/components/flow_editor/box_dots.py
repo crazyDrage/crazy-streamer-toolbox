@@ -3,18 +3,21 @@ from typing import Any
 
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.actions.numbered_fields import count_field
+from streamer_toolbox.core.actions.output_names import names_in
 from streamer_toolbox.core.actions.registered_action import RegisteredAction
 from streamer_toolbox.core.data.box_value import kind_of, understand
 from streamer_toolbox.core.data.kind_check import KindCheck
 from streamer_toolbox.core.data.value_helpers import HELPER, HELPERS, helpers_for
 from streamer_toolbox.core.events.event_fields import EVENT_FIELDS
-from streamer_toolbox.core.flows.box_wire import WIRE_IN, box_ref, box_source, is_wire_in
+from streamer_toolbox.core.flows.box_wire import WIRE_IN, box_ref, box_source, field_of, is_wire_in
 from streamer_toolbox.core.flows.flow_runner import PLACEHOLDER, FlowRunner
-from streamer_toolbox.core.flows.flow_wire import DONE, START
-from streamer_toolbox.gui.components.flow_editor.drawflow_graph import BY_NAME
+from streamer_toolbox.core.flows.flow_trigger import ID_KEYS, FlowTrigger
+from streamer_toolbox.core.flows.flow_wire import DONE, INPUT, START
 from streamer_toolbox.gui.components.flow_editor.flow_draft import FlowDraft
 from streamer_toolbox.gui.components.flow_editor.node_draft import NodeDraft
 from streamer_toolbox.gui.components.flow_editor.param_input import LIVE, field_label
+from streamer_toolbox.gui.components.flow_editor.trigger_catalog import start_title
+from streamer_toolbox.gui.components.flow_editor.trigger_kinds import TRIGGER_KINDS
 from streamer_toolbox.gui.components.flow_editor.value_editors import EDITORS
 
 
@@ -34,9 +37,9 @@ class BoxDots:
         return self._actions.get(name) if name in self._actions else None
 
     def data_only(self, node: NodeDraft) -> bool:
-        """A box that only gives values: no run dots, no run wire (Value, Get variable)."""
+        """A box that only gives values: no run dots, no run wire (Value, Get variable; a frozen box)."""
         action = self.action(node.action)
-        return bool(action and action.data_only)
+        return node.frozen is not None or bool(action and action.data_only)
 
     def ports(self, name: str, params: dict[str, Any] | None = None) -> tuple[str, ...]:
         action = self.action(name)
@@ -57,15 +60,21 @@ class BoxDots:
         action = self.action(name)
         return action.entry_lines(params) if action else []
 
+    def starts(self, name: str, params: dict[str, Any]) -> list[str]:
+        """The extra run dots that can start the box (its lines, a Loop's switch): FlowOutline follows them."""
+        action = self.action(name)
+        return action.starts_at(params) if action else []
+
     def lines_of(self, node: NodeDraft) -> list[str]:
         return self.lines(node.action, node.params)
 
     def data_inputs(self, node: NodeDraft) -> list[str]:
-        """The orange dots on the left: "by name" (a box with fields; a result dropped there fills the fields
-        named like its keys), then every field of the box in the action's order, wired or not (his round 45:
+        """The orange dots on the left: every field of the box in the action's order, wired or not (his round 45:
         inputs are always shown). Left out while they have no wire: a field the chosen way doesn't use, the
         number of a Switch's cases, and a Value box's lines. A box with lines has a field per line (value_1, ...)
         in place of the one its action takes (value)."""
+        if node.frozen is not None:  # frozen: no inputs, only what it saved
+            return []
         wired = [k for k, v in node.params.items() if is_wire_in(v)]
         action = self.action(node.action)
         if action is None:
@@ -73,59 +82,107 @@ class BoxDots:
         leave = {action.value_lines, count_field(action.port_fields) if action.port_fields else ""}
         names = [k for k in self._fields(action, node)
                  if k in wired or (k not in leave and action.shows(k, node.params))]
-        by_name = [BY_NAME] if self.fields(node) else []
-        return by_name + names + [k for k in wired if k not in names]
-
-    def fields(self, node: NodeDraft) -> list[str]:
-        """The box's fields a wire can fill (none for a Value box: its lines are typed)."""
-        action = self.action(node.action)
-        if action is None or action.value_lines:
-            return []
-        return self._fields(action, node)
+        return names + [k for k in wired if k not in names]
 
     @staticmethod
     def _fields(action: RegisteredAction, node: NodeDraft) -> list[str]:
-        """The action's fields; a box with lines has its numbered ones in place of the one they stand for."""
+        """The action's fields; a box with lines has its numbered ones in place of the one they stand for, and End
+        its named values after its own."""
         names = list(box_parameters(action))
         if action.entry_fields in names:
             at = names.index(action.entry_fields)
             names[at:at + 1] = action.entry_lines(node.params)
-        return names
+        return names + action.lines_named(node.params)
 
     def data_outputs(self, node: NodeDraft) -> list[tuple[str, str]]:
         """(field, label) per orange dot on the right: a Value box's lines, else one "result" dot for a box whose
         action gives something back (field "" = the whole result), followed by a dot for each key the result
-        is known to have (Video info's width, height, ...)."""
+        is known to have (Video info's width, height, ...) and the box's own ones (own_outputs)."""
+        if node.frozen is not None:  # frozen: its saved answer, the keys with their values
+            value = node.frozen.value
+            if isinstance(value, dict):
+                return [("", "result"), *((str(k), f"{k} = {_short(v)}") for k, v in value.items())]
+            return [("", f"result = {_short(value)}")]
         action = self.action(node.action)
         if action is None:
             return []
         if action.value_lines:
             return [(name, f"{name} · {kind}" if kind else name) for name, kind in self._line_kinds(node).items()]
-        if not (_gives_result(action) or action.outputs):
+        if not (_gives_result(action) or action.outputs or node.outputs):
             return []
         return [("", "result"), *((name, f"{name} · {kind}" if kind else name)
-                                  for name, kind in action.outputs.items())]
+                                  for name, kind in (action.outputs | self.own_outputs(node)).items())]
 
-    def known_outputs(self, node_id: str, field: str = "") -> dict[str, str]:
-        """The keys (with kinds, "" if not known) that ${box.<node_id>.<field>} is known to have without running
-        anything: a result's declared outputs, a Value box's lines, the Start box's fields."""
-        if node_id == START:
-            return {} if field else {name: "" for name, _ in self.start_outputs()}
-        node = self._draft.node(node_id)
-        action = self.action(node.action) if node else None
-        if action is None or field:
+    def own_outputs(self, node: NodeDraft) -> dict[str, str]:
+        """The data dots of this one box ({key: kind}) beyond the ones its kind always has: the keys of what is
+        wired into its keys_of field (Object values: they follow the wire, and are kept on the box for when
+        nothing is known), the names typed into its output_names field (Run Python), else the ones picked from its
+        last result (Dots from this result)."""
+        action = self.action(node.action)
+        if action is None:
             return {}
-        if action.value_lines:
-            return self._line_kinds(node)
-        return dict(action.outputs)
+        if action.output_names:
+            names = names_in(node.params.get(action.output_names))
+            node.outputs = {name: node.outputs.get(name, "") for name in names}
+        if action.keys_of:
+            found = self._keys_of(node.params.get(action.keys_of))
+            if found is not None:
+                node.outputs = found
+        return {k: v for k, v in node.outputs.items() if k not in action.outputs}
 
-    def start_outputs(self) -> list[tuple[str, str]]:
-        """The Start box's orange dots: what its triggers give (user, message, ...), then the flow's inputs
-        (the canvas sets them apart by their "(input)")."""
-        inputs = {i.name: f"{i.name} (input)" for i in self._draft.inputs if i.name}
-        given = {field: field for trigger in self._draft.triggers
-                 for field in EVENT_FIELDS.get(trigger.kind, ()) if field not in inputs}
-        return list((given | inputs).items())
+    def _keys_of(self, value: Any) -> dict[str, str] | None:
+        """{key: kind} of the object a field holds or is wired to (a Value line, a box's last result); None when
+        that isn't known (nothing wired, never run)."""
+        source = box_source(value)
+        if source is None:
+            known = understand(value) if isinstance(value, str) and value != WIRE_IN else value
+        else:
+            box, field = source
+            other = self._draft.node(box)
+            action = self.action(other.action) if other else None
+            if action is not None and action.value_lines:
+                lines = other.params.get(action.value_lines)
+                line = lines.get(field) if isinstance(lines, dict) else None
+                known = understand(line) if isinstance(line, str) else line
+            else:
+                ran, result = self.last_result(box)
+                if not ran:
+                    return None
+                try:
+                    known = field_of(result, field, "it")
+                except KeyError:
+                    return None
+        return {str(k): kind_of(v) for k, v in known.items()} if isinstance(known, dict) else None
+
+    def start_boxes(self) -> list[str]:
+        """The boxes the flow has without adding them (his round 63): Manual Start, a Start per trigger, Input."""
+        return [START, *(t.id for t in self._draft.triggers), INPUT]
+
+    def start_outputs(self, node_id: str) -> list[tuple[str, str]]:
+        """The orange dots of a Start box (what its trigger gives: user, message, ...) or of the Input box (the
+        flow's inputs); Manual Start has none."""
+        if node_id == INPUT:
+            return [(i.name, i.name) for i in self._draft.inputs if i.name]
+        trigger = self._trigger(node_id)
+        return [(field, field) for field in EVENT_FIELDS.get(trigger.kind, ())] if trigger else []
+
+    def start_text(self, node_id: str) -> tuple[str, str]:
+        """A Start box's or the Input box's title and the line under it: "Start · Twitch · Redeem",
+        "Hydrate!"."""
+        if node_id == INPUT:
+            return "Input", "what a button, the API or another flow gives"
+        trigger = self._trigger(node_id)
+        if trigger is None:
+            return "Start · Manual", "button, SAMMI, Kit, API, another flow"
+        _, name, key, _ = TRIGGER_KINDS.get(trigger.kind, ("", trigger.kind, None, ""))
+        # the kind's own field (a command, a reward's name) by its value alone, every other filter with its name:
+        # a sub's "gift: false" was not shown at all, so a gifted sub seemed to be let through (his round 82)
+        own = str(trigger.match.get(key, "")).strip() if key else ""
+        others = [f"{k}: {v}" for k, v in trigger.match.items() if k != key and k not in ID_KEYS and str(v).strip()]
+        return start_title(trigger.kind, name), ", ".join(([own] if own else []) + others)
+
+    def _trigger(self, node_id: str) -> FlowTrigger | None:
+        return next((t for t in self._draft.triggers if t.id == node_id), None)
 
     def output_kind(self, node_id: str, field: str) -> str:
         """The kind of one orange output ("" if not known): a Value line, a declared output or a helper; for
@@ -140,7 +197,7 @@ class BoxDots:
         if action.value_lines:
             return self._line_kinds(node).get(field, "")
         if field:
-            return action.outputs.get(field, "")
+            return action.outputs.get(field) or node.outputs.get(field, "")
         if action.outputs:
             return "object"
         kind = KindCheck.of_annotation(inspect.signature(action.handler).return_annotation)
@@ -167,8 +224,10 @@ class BoxDots:
         """Every other box's data dots, for "Wire from a box": ${box.n3} → "3 · Get model position", each also with
         its helpers (${box.n3.@keys} → "3 · Get model position · @keys = its keys")."""
         sources = {}
-        for field, label in self.start_outputs():
-            sources |= _with_helpers(box_ref(START, field), f"Start · {label}", self._start_kind(field))
+        for start in self.start_boxes():
+            title = self.start_text(start)[0]
+            for field, label in self.start_outputs(start):
+                sources |= _with_helpers(box_ref(start, field), f"{title} · {label}", self._start_kind(start, field))
         for other in self._draft.nodes:
             if other.id != node.id:
                 title = f"{short_id(other.id)} · {self.title(other.action)}"
@@ -177,16 +236,16 @@ class BoxDots:
                                              self.output_kind(other.id, field))
         return sources
 
-    def _start_kind(self, field: str) -> str:
-        """A Start dot's kind: a flow input's from its default, else from what the last start really gave. What a
-        trigger gives (user, message, cost) is one plain value; an input without either isn't known."""
+    def _start_kind(self, node_id: str, field: str) -> str:
+        """A Start or Input dot's kind: an input's from its default, else from what the last start really gave.
+        What a trigger gives (user, message, cost) is one plain value; an input without either isn't known."""
         for flow_input in self._draft.inputs:
-            if flow_input.name == field and flow_input.default not in (None, ""):
+            if node_id == INPUT and flow_input.name == field and flow_input.default not in (None, ""):
                 return kind_of(understand(flow_input.default))  # typed by hand
-        known, started = self.last_result(START)
+        known, started = self.last_result(node_id)
         if known and isinstance(started, dict) and started.get(field) not in (None, ""):
             return kind_of(understand(started[field]))  # what a viewer typed: 5 is a number
-        return "" if any(i.name == field for i in self._draft.inputs) else "text"
+        return "" if node_id == INPUT else "text"
 
     def field_name(self, node: NodeDraft, name: str) -> str:
         """A field's name on its row of the box: the one the form shows ("Compare with" for right)."""
@@ -206,6 +265,8 @@ class BoxDots:
     def summary(self, node: NodeDraft, wired: bool = True, rows: bool = False) -> str:
         """The box's settings in one line; wired=False leaves out the fields a wire fills, rows=True the
         fields that have a row of their own on the box (the box view: every dot is a row)."""
+        if node.frozen is not None:
+            return f"❄ frozen {node.frozen.at}: gives what it saved, doesn't run in the flow"
         action = self.action(node.action)
         parts = [f"⚠ {k}: {w}" for k, w in self.wire_warnings(node).items()]
         own_rows = set(self.data_inputs(node)) if rows else set()
@@ -229,8 +290,9 @@ class BoxDots:
         if value == WIRE_IN:
             return "(not wired)"
         source = box_source(value)
-        if source and source[0] == START:
-            return f"⟵ Start · {source[1]}" if source[1] else "⟵ Start"
+        if source and source[0] in self.start_boxes():
+            title = self.start_text(source[0])[0]
+            return f"⟵ {title} · {source[1]}" if source[1] else f"⟵ {title}"
         if source:
             other = self._draft.node(source[0])
             name = self.title(other.action).split(" · ")[-1] if other else "?"
@@ -248,7 +310,11 @@ class BoxDots:
                 for name, line in lines.items()} if isinstance(lines, dict) else {}
 
     def last_result(self, node_id: str) -> tuple[bool, Any]:
-        """(True, what the box gave last time: Test box, Test run or a real run) or (False, None)."""
+        """(True, what the box gave last time: Test box, Test run or a real run; a frozen box what it saved) or
+        (False, None)."""
+        node = self._draft.node(node_id)
+        if node is not None and node.frozen is not None:
+            return True, node.frozen.value
         return self._runner.last_result(self._draft.name, node_id) if self._draft.name else (False, None)
 
 
@@ -275,3 +341,9 @@ def _gives_result(action: RegisteredAction) -> bool:
 def box_parameters(action: RegisteredAction) -> dict[str, inspect.Parameter]:
     return {p.name: p for p in inspect.signature(action.handler).parameters.values()
             if p.kind in (p.POSITIONAL_OR_KEYWORD, p.KEYWORD_ONLY)}
+
+
+def _short(value: Any) -> str:
+    """A saved value on a frozen box's dot: short (a long text or a list is cut)."""
+    text = str(value)
+    return text if len(text) <= 18 else text[:17] + "…"

@@ -32,7 +32,7 @@ def same(a: Any, b: Any) -> bool:
         return a == b
     x, y = _whole(a), _whole(b)
     if x is None or y is None:  # two whole numbers are compared exactly: long ids differ in their last digits
-        x, y = _number(a), _number(b)
+        x, y = to_number(a), to_number(b)
     if x is not None and y is not None:
         return x == y
     return str(a).casefold() == str(b).casefold()
@@ -48,7 +48,8 @@ def _whole(value: Any) -> int | None:
     return int(text) if text.removeprefix("-").removeprefix("+").isdecimal() and text.isascii() else None
 
 
-def _number(value: Any) -> float | None:
+def to_number(value: Any) -> float | None:
+    """The value as a number, None if it isn't one (yes / no isn't one either)."""
     if isinstance(value, bool):
         return None
     try:
@@ -93,7 +94,7 @@ def understand(value: Any) -> Any:
     whole = _whole(text)
     if whole is not None:
         return whole
-    number = _number(text)
+    number = to_number(text)
     if number is None or not math.isfinite(number):
         return value
     return int(number) if number == int(number) and "." not in text and "e" not in text.casefold() else number
@@ -102,7 +103,7 @@ def understand(value: Any) -> Any:
 def to_kind(value: Any, kind: str) -> Any:
     """A value as the given kind (see KINDS); fails if it can't be one."""
     if kind == "number":
-        whole, number = _whole(value), _number(value)
+        whole, number = _whole(value), to_number(value)
         if number is None:
             raise ValueError(f"{value!r} is not a number")
         return whole if whole is not None else int(number) if number.is_integer() else number

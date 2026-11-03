@@ -26,12 +26,13 @@ class OwnBoxes:
     the ones for flows, alerts, widgets, tips and points are added where those are made, in assemble().)"""
 
     def __init__(self, variables: VariableStore, probe: Mp4HeaderProbe, messages: MessageService,
-                 confirm: ConfirmService, sound_folder: str | None) -> None:
+                 confirm: ConfirmService, sound_folder: str | None, boxes: Path) -> None:
         self._variables = variables
         self._probe = probe
         self._messages = messages
         self._confirm = confirm
         self._sound_folder = sound_folder
+        self._boxes = boxes  # what a box saves for itself: boxes/<program>/<box>/
 
     def add_to(self, actions: ActionRegistry) -> None:
         FileActions().add_to(actions)
@@ -40,7 +41,7 @@ class OwnBoxes:
         ObjectActions().add_to(actions)
         TextActions().add_to(actions)
         HttpActions().add_to(actions)
-        ProgramActions().add_to(actions)
+        ProgramActions(self._boxes / "python").add_to(actions)
         ViewerActions(self._variables).add_to(actions)
         TimeActions().add_to(actions)
         PopupActions(self._messages, self._confirm).add_to(actions)

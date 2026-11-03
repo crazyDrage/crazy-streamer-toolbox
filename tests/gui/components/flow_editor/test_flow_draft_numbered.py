@@ -30,10 +30,6 @@ class TestFlowDraftNumbered(unittest.TestCase):
         flow = self._draft().to_flow()
         self.assertEqual(flow.node("sw").params, {"value": "x", "cases": 3, "case_1": "a", "case_3": "c"})
 
-
-if __name__ == "__main__":
-    unittest.main()
-
     def test_wires_follow_a_renamed_value_line_and_wait_when_it_is_taken_away(self) -> None:
         draft = FlowDraft("f", "F", nodes=[
             NodeDraft("v", "logic.value", {"values": {"power": 10, "model": "Hex"}}),
@@ -50,3 +46,33 @@ if __name__ == "__main__":
                           wires=[FlowWire("start", "out", "g"), FlowWire("g", "done", "a"), FlowWire("g", "done", "b")])
         draft.take_off_run_wires("g")
         self.assertEqual(draft.wires, [FlowWire("start", "out", "a"), FlowWire("start", "out", "b")])
+
+    def test_a_case_moves_down_with_its_wire_and_up_again(self) -> None:
+        draft = self._draft()
+        draft.move_numbered("sw", "case", 1, +1)
+        self.assertEqual({k: v for k, v in draft.node("sw").params.items() if k.startswith("case_")},
+                         {"case_2": "a", "case_3": "c"})  # case_2 was empty: case_1 is now
+        self.assertEqual([(w.port, w.target) for w in draft.wires if w.source == "sw"],
+                         [("case_2", "n1"), ("case_1", "n2"), ("case_3", "n3"), ("else", "n4")])
+        draft.move_numbered("sw", "case", 2, -1)
+        self.assertEqual(draft.wires, self._draft().wires)
+        self.assertEqual({k: v for k, v in draft.node("sw").params.items() if k.startswith("case_")},
+                         {"case_1": "a", "case_3": "c"})
+
+    def test_a_line_moves_with_its_run_dot_and_its_data_wire(self) -> None:
+        choose = NodeDraft("c", "logic.choose", {"value_1": "${box.n1}", "value_2": "two", "values": 2})
+        draft = FlowDraft("f", "F", nodes=[choose, NodeDraft("n1", "a.x"), NodeDraft("n2", "a.y")],
+                          wires=[FlowWire("n1", "done", "c", "value_1"), FlowWire("n2", "done", "c", "value_2")])
+        draft.move_numbered("c", "value", 2, -1)
+        self.assertEqual((choose.params["value_1"], choose.params["value_2"]), ("two", "${box.n1}"))
+        self.assertEqual(draft.wires, [FlowWire("n1", "done", "c", "value_2"), FlowWire("n2", "done", "c", "value_1")])
+
+    def test_the_first_cant_move_up_nor_the_last_down(self) -> None:
+        draft = self._draft()
+        draft.move_numbered("sw", "case", 1, -1)
+        draft.move_numbered("sw", "case", 3, +1)
+        self.assertEqual(draft.wires, self._draft().wires)
+
+
+if __name__ == "__main__":
+    unittest.main()

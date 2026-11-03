@@ -1,9 +1,11 @@
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Any
 
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.connections.connection_status import ConnectionStatus
 from streamer_toolbox.core.connections.setting_field import SettingField
+from streamer_toolbox.core.interfaces.box import Box
 
 
 class Connection(ABC):
@@ -51,8 +53,19 @@ class Connection(ABC):
     async def keep_alive(self) -> None:
         """Called every few seconds while switched on: connect again if the service came (back) up. Never raises."""
 
+    def boxes(self) -> list[Box]:
+        """Its boxes, one Box class each (they fail with a clear error while it's not connected). Their names
+        get the connection's id in front ("set_color" → "example.set_color")."""
+        return []
+
     def add_actions(self, actions: ActionRegistry) -> None:
-        """Register the actions this service offers (they fail with a clear error while it's not connected)."""
+        """The older way to give its boxes: register them on the registry yourself (the built-in connections
+        still do). New code gives them through boxes()."""
+
+    def default_flows(self) -> Path | None:
+        """A file of ready-made flows for it (the format of Flows → Export folder, `*.flows.toml`): its tab's
+        "Add default flows" puts them into the folder the file names, switched off. None: it has none."""
+        return None
 
     def add_gui_settings(self) -> None:
         """Extra NiceGUI content under the standard fields on its tab (e.g. OBS fit targets, the SAMMI deck)."""

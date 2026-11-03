@@ -12,6 +12,7 @@ from streamer_toolbox.connections.oauth.oauth_token import OAuthToken
 from streamer_toolbox.connections.oauth.oauth_token_store import OAuthTokenStore
 from streamer_toolbox.connections.youtube.youtube_events import youtube_events
 from streamer_toolbox.connections.youtube_connection import YouTubeConnection
+from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.connections.connection_state import ConnectionState
 from streamer_toolbox.core.connections.not_connected_error import NotConnectedError
 from streamer_toolbox.core.events.event_bus import EventBus
@@ -230,7 +231,9 @@ class TestYouTubeConnection(unittest.IsolatedAsyncioTestCase):
             await connection.send_chat("hi")
         self.youtube.broadcast = BROADCAST
         await until(lambda: ("Chat", "listening") in connection.status.facts)
-        await connection.send_chat("hello chat")
+        actions = ActionRegistry()
+        connection.add_actions(actions)
+        await actions.run("youtube.send_chat", message="hello chat")
         self.assertEqual(self.youtube.sent, [{"snippet": {
             "liveChatId": "chat1", "type": "textMessageEvent", "textMessageDetails": {"messageText": "hello chat"}}}])
         self.assertIn(("May write", "yes"), connection.status.facts)

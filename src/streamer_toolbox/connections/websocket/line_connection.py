@@ -21,7 +21,7 @@ class LineConnection(ConnectionBase):
 
     def __init__(self, defaults: dict[str, Any], settings: dict[str, Any],
                  connect: Callable[..., Any] = websockets.connect, retry_delay: float = 5.0,
-                 beat: tuple[float, dict[str, Any]] | None = None) -> None:
+                 beat: tuple[float, dict[str, Any] | str] | None = None) -> None:
         super().__init__(defaults, settings)
         self._connect = connect
         self._retry_delay = retry_delay

@@ -37,21 +37,18 @@ The real program was not asked; that is what **Works** is for. A box that talks 
 when it was tried on the real program (the example lamp's pretend lamp is its program).
 
 A build of the toolbox carries everything, tested or not. What of it is shown is chosen in Settings → What
-you see, which starts on Normal with Works ticked: only the boxes, triggers and tools with the check Works. (A build made
-with `devtools.package tested_only` leaves out what is not tested here.)
+you see, which starts on Normal with Works ticked: only the boxes, triggers and tools with the check Works.
 
 Tick the checks in the **test window**, a small window of its own next to the toolbox (it stays open while
 the toolbox is restarted, and writes the row's file at once):
 
     test-window.bat          (Linux: ./test-window.sh)      both are in this folder
 
-To try the boxes without building a flow for each, start the **test toolbox** next to it: a second toolbox on
-its own settings folder (`temp/test_settings`) and port 8855, with a flow for every box (Start and that box).
-Triggers get none: you set them up in a flow of your own.
-The flows are numbered in the order of this record ("012 Mute"), and the test window shows the
-same number on the row.
-What you set in a test flow stays when the flows are written again, and a test flow you delete stays deleted
-(`temp/test_settings/test_flows.json` lists the written ones: delete that file to get them all back).
+The same script starts the **test toolbox** next to it: the same toolbox as start.bat, on its own settings
+folder (`temp/test_settings`) and port 8855, so it never touches your own settings. It adds nothing to that
+folder: move the folder away to start clean.
+
+Both run in the script's console: closing it closes both. To start only the test toolbox:
 
     test-toolbox.bat         (Linux: ./test-toolbox.sh)
 
@@ -62,6 +59,10 @@ The files and folders are made by a script of their own, which also adds what is
 anew and renews the table below (ticks, days and notes stay):
 
     $env:PYTHONPATH = "src"; .venv\\Scripts\\python.exe -m streamer_toolbox.devtools.tested
+
+A row for a part of a page (a panel, a warning, a setting) can be added by hand to a tab's `page.md`. Its
+"Name in the code" must not start with `/` (that is a page's address) and must differ from every other row's
+name in that file. The script keeps such rows as they are.
 """
 
 
@@ -122,8 +123,19 @@ class TestList:
         return str(self._entries.get(key, {}).get("title", ""))
 
     def is_gone(self, key: str) -> bool:
-        """True for a row whose thing the toolbox no longer has (it is kept as proof, and counts nowhere)."""
+        """True for a row whose thing the toolbox no longer has (it is kept as proof, and counts nowhere).
+        A row written by hand is never gone: the toolbox's own list doesn't know it."""
+        if self.by_hand(key):
+            return False
         return key not in self._items if self._items else bool(self._entries.get(key, {}).get("gone"))
+
+    @staticmethod
+    def by_hand(key: str) -> bool:
+        """A row written by hand into a tab's page.md for something that is no page of the menu (a part of a
+        page, e.g. `HeaderNotice` or `UpdatePanel which versions`): its name in the code doesn't start with
+        "/" as a page's address does. It stays where it was written, as it is."""
+        kind, _, name = key.partition(":")
+        return kind == PAGE and not name.startswith("/")
 
     def files(self) -> dict[str, list[str]]:
         """The record's files in the menu's order ("flows/boxes/obs/scenes" → its rows' keys)."""
@@ -135,8 +147,7 @@ class TestList:
 
     def numbers(self, kind: str = BOX) -> dict[str, int]:
         """A running number for every box (or trigger) that is still in the toolbox, in the record's order
-        ("box:obs.mute" → 12): what its row in the test window and its flow in the test settings (TestFlows)
-        both show. Boxes and triggers are each counted from 1."""
+        ("box:obs.mute" → 12): what its row in the test window shows. Boxes and triggers are each counted from 1."""
         keys = [key for keys in self.files().values() for key in keys
                 if key.startswith(f"{kind}:") and not self.is_gone(key)]
         return {key: number for number, key in enumerate(keys, 1)}

@@ -1,0 +1,10 @@
+/* CSS: how it looks. {{textColor}} and {{fontSize}} are settings from the FIELDS tab. */
+.box { color: {{textColor}}; font-size: {{fontSize}}px; font-family: sans-serif; padding: 20px;
+  text-shadow: 0 0 4px #000; }
+.title { font-weight: 800; }
+.line { margin-top: 6px; }
+.name { font-weight: 700; }
+/* event.service says the platform: the JS puts it on the line as a class, e.g. "line twitch" */
+.platform { font-size: 0.7em; padding: 1px 6px; border-radius: 4px; margin-right: 6px; background: #555; }
+.twitch .platform { background: #9146ff; }
+.youtube .platform { background: #ff0000; }

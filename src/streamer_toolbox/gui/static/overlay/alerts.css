@@ -100,6 +100,13 @@ html, body {
   color: var(--alert-accent);
 }
 
+/* a piece with a most number of lines: the rest is cut with "…" */
+.alert .part .clamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 .alert .part-message {
   font-size: calc(var(--alert-size) * 0.6);
   font-weight: 600;
@@ -122,6 +129,9 @@ html, body {
 /* the look editor's frame */
 body.edit .alert { cursor: grab; touch-action: none; }
 body.edit .spot.moving .alert { cursor: grabbing; }
+/* clicked: the arrow keys move it */
+body.edit .alert.marked { outline: 3px solid var(--alert-accent); outline-offset: 6px; }
+body.edit .part.draggable.marked { outline-style: solid; }
 
 body.edit .part.draggable {
   cursor: move;
@@ -152,9 +162,32 @@ body.edit .media .resize.upper {
   cursor: nesw-resize;
 }
 
-@keyframes alert-in-fade { from { opacity: 0; } }
-@keyframes alert-in-slide_down { from { opacity: 0; transform: translateY(-80px); } }
-@keyframes alert-in-slide_up { from { opacity: 0; transform: translateY(80px); } }
+/* the side of a piece on the picture that is dragged to set how wide it may be: on its dashed outline */
+body.edit .part.draggable .widen {
+  position: absolute;
+  right: -20px;
+  top: 50%;
+  width: 8px;
+  height: 44px;
+  transform: translate(0, -50%);
+  border-radius: 4px;
+  background: var(--alert-accent);
+  border: 2px solid #fff;
+  box-shadow: 0 0 6px #000;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+body.edit .part.draggable .widen.left { right: auto; left: -20px; }
+
+/* the fade in is the fade out played backwards (ease turned around): with plain ease it was at 77 % after a
+   third of its time and looked much shorter than the fade out, which lingers near nothing (his round 74) */
+@keyframes alert-in-fade { from { opacity: 0; animation-timing-function: cubic-bezier(0.75, 0, 0.75, 0.9); } }
+/* a slide starts (or ends) a whole screen height away: outside the frame wherever the alert sits (his round 72:
+   not a fade that moves a little) */
+/* --vh, not vh: in the editor's shrunk preview vh isn't the canvas's (half the picture stayed in sight, round 74) */
+@keyframes alert-in-slide_down { from { transform: translateY(calc(var(--vh) * -100)); } }
+@keyframes alert-in-slide_up { from { transform: translateY(calc(var(--vh) * 100)); } }
 @keyframes alert-in-zoom { from { opacity: 0; transform: scale(0.5); } }
 @keyframes alert-in-pop {
   0% { opacity: 0; transform: scale(0.5); }
@@ -162,6 +195,6 @@ body.edit .media .resize.upper {
   100% { transform: scale(1); }
 }
 @keyframes alert-out-fade { to { opacity: 0; } }
-@keyframes alert-out-slide_up { to { opacity: 0; transform: translateY(-80px); } }
-@keyframes alert-out-slide_down { to { opacity: 0; transform: translateY(80px); } }
+@keyframes alert-out-slide_up { to { transform: translateY(calc(var(--vh) * -100)); } }
+@keyframes alert-out-slide_down { to { transform: translateY(calc(var(--vh) * 100)); } }
 @keyframes alert-out-zoom { to { opacity: 0; transform: scale(0.5); } }

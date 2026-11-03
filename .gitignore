@@ -12,3 +12,6 @@ __pycache__/
 /.nicegui/
 # the GUI's own remembered state (theme, open menus), per PC; it changes with every use
 .nicegui/
+
+# Claude Code: personal settings on this PC (the test toolbox rule, 2026-10-20)
+.claude/settings.local.json

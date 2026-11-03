@@ -6,6 +6,7 @@ from tests.fakes.fake_connectable_obs_client import FakeConnectableObsClient
 
 RESPONSES = {
     "GetSceneItemId": {"sceneItemId": 7},
+    "GetSceneItemEnabled": {"sceneItemEnabled": False},
     "GetInputVolume": {"inputVolumeMul": 0.8, "inputVolumeDb": -1.9},
     "GetSceneList": {"scenes": [{"sceneName": "Just_chatting"}, {"sceneName": "desktop"}]},
     "GetSceneItemList": {"sceneItems": [{"sourceName": "vtube_model"}, {"sourceName": "ghost_vtube_model"}]},
@@ -29,6 +30,16 @@ class TestObsSourceActions(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await options["scene"](), ["desktop", "Just_chatting"])
         self.assertEqual(await options["source"](), ["ghost_vtube_model", "vtube_model"])
         self.assertEqual(await actions.get("obs.set_volume").options["source"](), ["Desktop Audio", "Main mic"])
+
+    async def test_is_source_shown(self) -> None:
+        fake = FakeConnectableObsClient(responses=RESPONSES)
+        actions = ActionRegistry()
+        ObsSourceActions(fake.call).add_to(actions)
+        self.assertIs(await actions.run("obs.get_source_visible", scene="desktop", source="vtube_model"), False)
+        self.assertEqual(fake.calls, [("GetSceneItemId", {"sceneName": "desktop", "sourceName": "vtube_model"}),
+                                      ("GetSceneItemEnabled", {"sceneName": "desktop", "sceneItemId": 7})])
+        self.assertEqual(await actions.get("obs.get_source_visible").options["source"](),
+                         ["ghost_vtube_model", "vtube_model"])
 
 
 if __name__ == "__main__":

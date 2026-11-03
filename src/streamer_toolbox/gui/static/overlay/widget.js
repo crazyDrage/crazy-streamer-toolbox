@@ -48,18 +48,65 @@
     responses: {sendMessage: () => Promise.resolve()},
   };
 
+  // The toolbox says "alive" every 15 s (api/overlay_line.py). A line that drops without a word leaves the
+  // socket "open" forever, so after 40 s of nothing the page drops it itself and connects again.
+  // ?ack=1: the page answers every message ({type: "got", n}), so the toolbox knows what didn't arrive.
+  // The page keeps the toolbox's run and the last message id it got; coming back it says them
+  // (?run=..&after=..) and the toolbox sends what it missed first (core/overlay/sent_messages.py).
+  let socket = null;
+  let heard = Date.now();
+  // kept in the browser too, so a page that loads again (OBS refreshed the source) goes on where it was
+  const KEPT = "toolbox-line:" + location.pathname + (new URLSearchParams(location.search).has("preview") ? ":preview" : "");
+  let run = null;
+  let lastId = 0;
+  try {
+    const kept = JSON.parse(localStorage.getItem(KEPT)) || {};
+    run = kept.run || null;
+    lastId = Number(kept.lastId) || 0;
+  } catch (e) {}
+  const keep = () => { try { localStorage.setItem(KEPT, JSON.stringify({run, lastId})); } catch (e) {} };
+  const address = () => {
+    const query = new URLSearchParams(location.search);
+    query.set("ack", "1");
+    if (run !== null) { query.set("run", run); query.set("after", lastId); }
+    return "?" + query;
+  };
+  // the first message on every line: a new page starts at the newest id; after a restart (another run) the
+  // toolbox sends everything it kept, so the count starts again
+  const hello = told => {
+    if (told.run !== run) lastId = run === null ? told.last : 0;
+    run = told.run;
+    keep();
+  };
+
   function connect() {
     const scheme = location.protocol === "https:" ? "wss://" : "ws://";
     // ?preview=1 (the toolbox's own preview) goes along, so it isn't counted as a Browser source in OBS
-    const socket = new WebSocket(scheme + location.host + base + "/ws" + location.search);
-    socket.onmessage = message => {
+    const mine = socket = new WebSocket(scheme + location.host + base + "/ws" + address());
+    heard = Date.now();
+    mine.onopen = () => { heard = Date.now(); };
+    mine.onmessage = message => {
+      heard = Date.now();
       const told = JSON.parse(message.data);
-      if (told.type === "event") fire("onEventReceived", {listener: told.listener, event: told.event});
+      if (told.n !== undefined) mine.send(JSON.stringify({type: "got", n: told.n}));
+      if (told.id !== undefined) { lastId = Math.max(lastId, told.id); keep(); }
+      if (told.type === "hello") hello(told);
+      else if (told.type === "event") fire("onEventReceived", {listener: told.listener, event: told.event});
       else if (told.type === "session") fire("onSessionUpdate", {session: told.session});
       else if (told.type === "reload") location.reload();
     };
-    socket.onclose = () => setTimeout(connect, 2000);
+    mine.onclose = () => { if (socket === mine) { socket = null; setTimeout(connect, 2000); } };
   }
+
+  setInterval(() => {
+    if (socket && Date.now() - heard > 40000) {
+      const dead = socket;
+      socket = null;
+      dead.onclose = dead.onmessage = null;
+      try { dead.close(); } catch (e) {}
+      connect();
+    }
+  }, 5000);
 
   // StreamElements fires onWidgetLoad once everything the widget loads is there. Helper libraries that widgets
   // pull in with <script defer> (se-tools, ...) listen for it, so it must not go out before the page's load.

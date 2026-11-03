@@ -15,7 +15,8 @@ class PluginManifest:
 
         plugins/<id>/
           plugin.json   {"id", "name", "version", "api_version"; optional "description", "author",
-                         "main" (default "main.py"), "class" (default: the one ToolboxPlugin in main)}
+                         "main" (default "main.py"), "class" (default: the one ToolboxPlugin in main),
+                         "types" (plugin_types ids, like a listing's: ["bot", "game"])}
           main.py       the entry point: its ToolboxPlugin's register(ctx) adds everything the plugin has
           lib/          the plugin's other Python classes (main.py: from .lib.thing import Thing)
           resources/    pictures, default settings, JS, ... (ctx.resources, ctx.resource_url)
@@ -30,6 +31,7 @@ class PluginManifest:
     class_name: str = ""
     description: str = ""
     author: str = ""
+    types: tuple[str, ...] = ()
 
     @property
     def resources(self) -> Path:
@@ -54,5 +56,10 @@ class PluginManifest:
         class_name = str(data.get("class", ""))
         if class_name and not CLASS_PATTERN.match(class_name):
             raise ValueError(f"{path}: class must be a Python class name (got {class_name!r})")
+        types = data.get("types", [])
+        types = [types] if isinstance(types, str) else types
+        if not isinstance(types, list) or not all(isinstance(t, str) for t in types):
+            raise ValueError(f'{path}: types must be a list of words, like ["bot", "game"] (got {types!r})')
         return cls(data["id"], str(data["name"]), str(data["version"]), int(data["api_version"]), path.parent,
-                   main, class_name, str(data.get("description", "")), str(data.get("author", "")))
+                   main, class_name, str(data.get("description", "")), str(data.get("author", "")),
+                   tuple(dict.fromkeys(t.strip().lower() for t in types if t.strip())))

@@ -68,6 +68,25 @@ jobs:
         shell: bash
         # no grep -q: it would stop reading at the match and unzip dies of SIGPIPE (exit 141 under pipefail)
         run: unzip -l build/${{ matrix.file }} | grep "crazy-streamer-toolbox-windows/crazy-streamer-toolbox.exe"
+      # the three ways to start (his 2026-11-03), and tkinter for Start settings (the embeddable Python has none:
+      # the packager copies it from setup-python's)
+      - name: The Windows download has its three start files and tkinter
+        if: matrix.target == 'windows'
+        shell: bash
+        run: |
+          unzip -l build/${{ matrix.file }} > listing.txt
+          for name in "Start streamer-toolbox.bat" "Start without a window.bat" "Start settings.bat" \
+                      "python/_tkinter.pyd" "python/tkinter/__init__.py" "python/tcl/"; do
+            grep -F "crazy-streamer-toolbox-windows/$name" listing.txt > /dev/null || { echo "missing: $name"; exit 1; }
+          done
+      - name: The Linux download has its three start files and tkinter
+        if: matrix.target == 'linux'
+        run: |
+          tar -tzf build/${{ matrix.file }} > listing.txt
+          for name in start-linux.sh start-linux-headless.sh start-linux-settings.sh; do
+            grep -F "crazy-streamer-toolbox-linux/$name" listing.txt > /dev/null || { echo "missing: $name"; exit 1; }
+          done
+          grep -E "/tkinter/__init__.py$" listing.txt > /dev/null || { echo "missing: tkinter"; exit 1; }
       - uses: actions/upload-artifact@v4
         with:
           name: crazy-streamer-toolbox-${{ matrix.target }}
@@ -101,6 +120,11 @@ jobs:
             echo 'Still in testing: Settings > What you see starts on "Tested".' > notes.md
           fi
           cat notes.md
+      # A test version's tag has a "-" (v0.5.0-dev.1, -alpha.1, -beta.1, -rc.1): a pre-release on GitHub. It is
+      # never "latest", so the README's links and the toolboxes on normal versions never get it
+      - name: A tag with a "-" is a pre-release
+        run: |
+          case "$GITHUB_REF_NAME" in *-*) echo "PRERELEASE=--prerelease" >> "$GITHUB_ENV" ;; esac
       - run: >
           gh release create "$GITHUB_REF_NAME"
           downloads/crazy-streamer-toolbox-windows.zip
@@ -108,5 +132,6 @@ jobs:
           --repo "$GITHUB_REPOSITORY"
           --title "crazy-streamer-toolbox $GITHUB_REF_NAME"
           --notes-file notes.md
+          $PRERELEASE
         env:
           GH_TOKEN: ${{ github.token }}

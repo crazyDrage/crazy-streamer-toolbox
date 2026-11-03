@@ -6,11 +6,12 @@ from nicegui import ui
 from streamer_toolbox.connections.vtube_studio.vts_animation import VtsAnimation
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.files.box_value_files import BoxValueFiles
+from streamer_toolbox.core.interfaces.field_editor import FieldEditor
 from streamer_toolbox.gui.components.flow_editor.animation_dialog import AnimationDialog
 from streamer_toolbox.gui.components.flow_editor.animation_map import AnimationMap
 
 
-class AnimationInput:
+class AnimationInput(FieldEditor):
     """A box's model animation field: what it holds in one line, a small map of the path, and Edit (its window).
     The animation is kept in the box itself (the flow file); the window can also save it to a file / load one."""
 

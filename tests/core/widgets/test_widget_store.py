@@ -71,6 +71,15 @@ class TestWidgetStore(unittest.TestCase):
         self.assertEqual(self.store.add_example(), name)  # there already: his changes stay
         self.assertEqual(self.store.get(name).field_data()["title"], "Mine")
 
+    def test_a_new_widget_starts_with_code_to_read(self) -> None:
+        starter = WidgetStore.starter()
+        self.assertIn("{{title}}", starter.html)
+        self.assertIn("{{textColor}}", starter.css)
+        self.assertIn("event.service", starter.js)
+        self.assertEqual(starter.field_data(), {"title": "My widget", "textColor": "#ffffff", "fontSize": 32,
+                                                "maxLines": 8})
+        self.assertEqual(self.store.names(), [])  # nothing saved until he saves it
+
     def test_a_name_cant_lead_out_of_the_widgets_folder(self) -> None:
         outside = Path(self._dir.name) / "keep.txt"
         outside.write_text("mine")

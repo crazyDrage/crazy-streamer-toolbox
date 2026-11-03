@@ -1,0 +1,23 @@
+toolbox_flows = 1
+folder = "Examples"
+
+[[flows]]
+name = "example_sound_on_redeem"
+label = "A sound on a redeem"
+description = "A channel point reward plays a sound (Learn → A sound on a redeem). Pick your reward and your sound."
+wires = [
+    {from = "redeem", port = "out", to = "sound"},
+]
+
+[[flows.triggers]]
+kind = "twitch.redeem"
+id = "redeem"
+reward = "Play a sound"
+box = [320, 40]
+
+[[flows.nodes]]
+id = "sound"
+action = "sound.play"
+note = "pick your sound file"
+box = [620, 40]
+params = {file = "", volume = 1.0}

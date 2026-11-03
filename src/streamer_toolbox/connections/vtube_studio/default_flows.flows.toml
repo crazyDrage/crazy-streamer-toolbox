@@ -1,0 +1,168 @@
+# VTube Studio's default flows: its tab's "Add default flows" puts them, switched off, into the folder
+# "VTube Studio - default" (DefaultFlows). The same format as Flows → Export folder. Made from his own "model_pos" flows
+# (10-30): one flow that saves or moves back, and one small flow per spot that calls it.
+toolbox_flows = 1
+folder = "VTube Studio - default"
+
+[[flows]]
+name = "vts_model_position"
+label = "VTube Studio - default - model position: save/load"
+description = "Saves where the model is now into a variable (do_save = true), or moves it back there in `time` seconds (do_save = false). Only for the model named in model_name: when another one is loaded, saving does nothing and moving loads that model first. Called by the spot flows (VTube Studio - default - model position: desktop, ...); make another spot by copying one of those. Switch this one on together with the spots: a switched-off flow doesn't run, also not from another flow."
+start_box = [21, 20]
+input_box = [20, 204]
+wires = [
+    {from = "start", port = "out", to = "n3"},
+    {from = "n1", port = "done", to = "n5"},
+    {from = "n2", port = "done", to = "end"},
+    {from = "n3", port = "then", to = "n10"},
+    {from = "n3", port = "else", to = "n12"},
+    {from = "n5", port = "done", to = "end"},
+    {from = "n9", port = "then", to = "n1"},
+    {from = "n9", port = "else", to = "end"},
+    {from = "n10", port = "done", to = "n9"},
+    {from = "n11", port = "then", to = "n2"},
+    {from = "n11", port = "else", to = "n13"},
+    {from = "n12", port = "done", to = "n11"},
+    {from = "n13", port = "done", to = "n2"},
+]
+
+[[flows.inputs]]
+name = "do_save"
+default = "False"
+
+[[flows.inputs]]
+name = "time"
+default = "1.0"
+
+[[flows.inputs]]
+name = "model_pos_value_name"
+default = "VTS_model_pos"
+
+[[flows.inputs]]
+name = "model_name"
+
+[[flows.nodes]]
+id = "end"
+action = "logic.end"
+box = [2140, 351]
+params = {}
+
+[[flows.nodes]]
+id = "n1"
+action = "vts.get_model_position"
+box = [1540, 85]
+params = {}
+
+[[flows.nodes]]
+id = "n2"
+action = "vts.move_model"
+box = [1922, 542]
+params = {x = "${box.n8.x}", y = "${box.n8.y}", rotation = "${box.n8.rotation}", size = "${box.n8.size}", seconds = "${box.input.time}"}
+
+[[flows.nodes]]
+id = "n3"
+action = "logic.if"
+note = "then = save where it is now; else = move it back"
+box = [569, 141]
+params = {left = "${box.n4}", op = "==", right = "true"}
+
+[[flows.nodes]]
+id = "n4"
+action = "text.case"
+box = [260, 139]
+params = {to = "lower", text = "${box.input.do_save}"}
+
+[[flows.nodes]]
+id = "n5"
+action = "var.set"
+box = [1873, 24]
+params = {value = "${box.n1}", name = "${box.input.model_pos_value_name}"}
+
+[[flows.nodes]]
+id = "n7"
+action = "var.get"
+box = [1244, 699]
+params = {name = "${box.input.model_pos_value_name}"}
+
+[[flows.nodes]]
+id = "n8"
+action = "object.values"
+box = [1532, 704]
+params = {object = "${box.n7}"}
+outputs = {x = "number", y = "number", rotation = "number", size = "number", model = "text"}
+
+[[flows.nodes]]
+id = "n9"
+action = "logic.if"
+note = "saves only when the right model is loaded"
+box = [1263, 94]
+params = {left = "${box.n10}", op = "==", right = "${box.input.model_name}"}
+
+[[flows.nodes]]
+id = "n10"
+action = "vts.get_model"
+box = [882, 109]
+params = {}
+
+[[flows.nodes]]
+id = "n11"
+action = "logic.if"
+note = "the right model loaded? else = load it first"
+box = [1249, 366]
+params = {left = "${box.n12}", op = "==", right = "${box.input.model_name}"}
+
+[[flows.nodes]]
+id = "n12"
+action = "vts.get_model"
+box = [878, 261]
+params = {}
+
+[[flows.nodes]]
+id = "n13"
+action = "vts.load_model"
+box = [1537, 526]
+params = {model = "${box.input.model_name}"}
+
+[[flows]]
+name = "vts_model_position_desktop"
+label = "VTube Studio - default - model position: desktop"
+description = "One spot for the model, \"desktop\": run it with do_save = true to save where the model is now, with do_save = false to move it back (a button, SAMMI, another flow). Switch it on together with VTube Studio - default - model position: save/load, which does the work. As it comes, the spot is for whichever model is loaded. To tie it to one model (it gets loaded first when another one is): load that model, then freeze the Get loaded model box. Another spot: copy this flow and change pos_value_name (letters, digits and _)."
+start_box = [24, 169]
+input_box = [20, 20]
+wires = [
+    {from = "start", port = "out", to = "n1"},
+    {from = "n1", port = "done", to = "end"},
+]
+
+[[flows.inputs]]
+name = "do_save"
+default = "False"
+
+[[flows.inputs]]
+name = "time"
+default = "1.0"
+
+[[flows.nodes]]
+id = "end"
+action = "logic.end"
+box = [1073, 129]
+params = {}
+
+[[flows.nodes]]
+id = "n1"
+action = "flow.vts_model_position"
+box = [760, 106]
+params = {do_save = "${box.input.do_save}", time = "${box.input.time}", model_pos_value_name = "${box.n4.pos_value_name}", model_name = "${box.n3}"}
+
+[[flows.nodes]]
+id = "n3"
+action = "vts.get_model"
+note = "freeze it to tie this spot to one model"
+box = [37, 481]
+params = {}
+
+[[flows.nodes]]
+id = "n4"
+action = "logic.value"
+box = [32, 272]
+params = {values = {pos_value_name = "VTS_pos_desktop"}}

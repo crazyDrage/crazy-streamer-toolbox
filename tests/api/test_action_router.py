@@ -28,6 +28,7 @@ class TestActionRouter(unittest.TestCase):
         registry.add("hello.greet", greet, "say hello")
         registry.add("obs.switch_scene", broken, "switch")
         registry.add("obs.fit_raid_clip", fit, "fit")
+        registry.add("system.run", greet, "starts a program", flow_only=True)
         app = FastAPI()
         self.runs: list[tuple] = []
         app.include_router(build_action_router(registry, CallerAuth(CALLERS),
@@ -80,6 +81,11 @@ class TestActionRouter(unittest.TestCase):
         r = self.lan.post("/action/obs.fit_raid_clip", headers={"X-Toolbox-Token": KIT_TOKEN},
                           json={"video_path": "a.mp4"})
         self.assertEqual(r.status_code, 404)
+
+    def test_a_flow_only_box_looks_unknown_even_to_a_caller_allowed_everything(self) -> None:
+        r = self.local.post("/action/system.run", json={"name": "x"})
+        self.assertEqual(r.status_code, 404)
+        self.assertEqual(self.runs, [])
 
     def test_list_shows_only_allowed_actions_with_params(self) -> None:
         r = self.lan.get("/actions", headers={"X-Toolbox-Token": KIT_TOKEN})

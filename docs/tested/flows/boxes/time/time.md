@@ -3,4 +3,5 @@
 | What | Name in the code | AI checked | Works | Understandable | Usable | Last change | Note |
 |---|---|---|---|---|---|---|---|
 | Date and time | `time.now` | 2026-10-08 | - | - | - | - |  |
+| Seconds as text | `time.duration` | - | - | - | - | - |  |
 | Seconds since | `time.since` | 2026-10-08 | - | - | - | - |  |

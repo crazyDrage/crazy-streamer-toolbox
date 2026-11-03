@@ -4,9 +4,9 @@ from streamer_toolbox.core.events.event_bus import EventBus
 
 # a platform's event → the event that means the same on every platform
 SAME = {
-    "twitch.chat": "chat", "youtube.chat": "chat", "rumble.chat": "chat",
+    "twitch.chat": "chat", "youtube.chat": "chat", "rumble.chat": "chat", "fansly.chat": "chat",
     "twitch.follow": "follow", "rumble.follow": "follow",
-    "twitch.sub": "sub", "rumble.sub": "sub", "youtube.member": "sub",
+    "twitch.sub": "sub", "rumble.sub": "sub", "youtube.member": "sub", "fansly.sub": "sub",
     "twitch.resub": "resub", "youtube.member_milestone": "resub",
     "twitch.gift": "gift", "rumble.gift": "gift", "youtube.gift_members": "gift",
     "twitch.cheer": "cheer",

@@ -6,9 +6,8 @@ from streamer_toolbox.connections.twitch.twitch_reward import TwitchReward
 from streamer_toolbox.core.flows.flow import Flow
 from streamer_toolbox.core.flows.flow_library import FlowLibrary
 from streamer_toolbox.core.flows.flow_trigger import FlowTrigger
+from streamer_toolbox.core.flows.start_boxes import new_flow, with_trigger
 from streamer_toolbox.core.interfaces.reward_manager import RewardManager
-from streamer_toolbox.core.triggers.custom_trigger_store import CustomTriggerStore
-from streamer_toolbox.gui.components.folder_field import FolderField
 from streamer_toolbox.gui.components.twitch_tool.reward_dialog import RewardDialog
 
 REDEEM = "twitch.redeem"
@@ -23,13 +22,12 @@ class RedeemsTab:
     refunded (Twitch's rule); dashboard rewards can only start flows. Make a flow: a new flow with a redeem trigger
     on this reward (kept by its ID, so renaming the reward on Twitch doesn't break it).
 
-    Connect: straight to a flow (a new one, or added to one that exists) or through a custom trigger (the reward
-    becomes one of its sources; every flow listening to the trigger starts). Sort and search on top."""
+    Connect: a new flow, or a redeem trigger (its own Start box) added to one that exists. Sort and search on
+    top."""
 
-    def __init__(self, rewards: RewardManager, flows: FlowLibrary, triggers: CustomTriggerStore) -> None:
+    def __init__(self, rewards: RewardManager, flows: FlowLibrary) -> None:
         self._rewards = rewards
         self._flows = flows
-        self._triggers = triggers
         self._list: list[TwitchReward] | None = None
         self._error = ""
         self._search = ""
@@ -99,7 +97,6 @@ class RedeemsTab:
                     with ui.menu():
                         ui.menu_item("Make a new flow for it", on_click=lambda: self._make_flow(reward))
                         ui.menu_item("Add it to a flow that exists", on_click=lambda: self._add_to_flow(reward))
-                        ui.menu_item("Fire a custom trigger", on_click=lambda: self._to_trigger(reward))
                 if reward.by_toolbox:
                     # the word first, then its switch (left-label): he read "paused ○ on ○" the wrong way round
                     ui.switch("paused", value=reward.paused,
@@ -119,22 +116,15 @@ class RedeemsTab:
     def _flows_of(self, reward: TwitchReward) -> list[Flow]:
         return [f for f in self._flows.all() if any(t.matches(REDEEM, self._event(reward)) for t in f.triggers)]
 
-    def _triggers_of(self, reward: TwitchReward) -> list[str]:
-        return [t.name for t in self._triggers.all() if t.fired_by(REDEEM, self._event(reward))]
-
     def _connections(self, reward: TwitchReward) -> None:
-        """What a redeem of it starts: flows (straight) and custom triggers (and through them, their flows)."""
-        flows, triggers = self._flows_of(reward), self._triggers_of(reward)
-        if flows or triggers:
+        """The flows a redeem of it starts."""
+        flows = self._flows_of(reward)
+        if flows:
             with ui.row().classes("gap-1 pt-1"):
                 for flow in flows:
                     ui.chip(flow.label, icon="account_tree",
                             on_click=lambda f=flow: ui.navigate.to(f"/flows/edit?flow={f.name}")) \
                         .props("dense outline clickable").tooltip("Starts this flow: open it")
-                for name in triggers:
-                    ui.chip(name, icon="sensors", on_click=lambda: ui.navigate.to("/triggers")) \
-                        .props("dense outline clickable color=warning") \
-                        .tooltip("Fires this custom trigger: see it on the Triggers page")
 
     def _find(self, words: str | None) -> None:
         self._search = (words or "").strip()
@@ -152,7 +142,7 @@ class RedeemsTab:
         if how == "cost_high":
             return sorted(by_name, key=lambda r: -r.cost)
         if how == "connected":
-            return sorted(by_name, key=lambda r: not (self._flows_of(r) or self._triggers_of(r)))
+            return sorted(by_name, key=lambda r: not self._flows_of(r))
         if how == "state":
             return sorted(by_name, key=lambda r: (not r.enabled, r.paused))
         return by_name
@@ -171,27 +161,9 @@ class RedeemsTab:
         if flow is None:
             return
         trigger = FlowTrigger(REDEEM, self._event(reward))
-        if trigger not in flow.triggers:
-            self._flows.save(replace(flow, triggers=(*flow.triggers, trigger)))
+        if not any(t.kind == trigger.kind and t.match == trigger.match for t in flow.triggers):
+            self._flows.save(with_trigger(flow, trigger))  # its own Start box, wired like the Manual one
         ui.notify(f"{flow.label} starts on {reward.title} now", type="positive")
-        self._rows.refresh()
-
-    async def _to_trigger(self, reward: TwitchReward) -> None:
-        field = FolderField(self._triggers.names(), "", "Custom trigger (pick or type a new one)")
-        with ui.dialog() as dialog, ui.card().classes("w-96 max-w-full gap-3"):
-            ui.label(f"Fire a custom trigger when someone redeems {reward.title}").classes("font-semibold")
-            field.build().classes("w-full")
-            ui.label("Every flow listening to that trigger starts (Triggers page). A new name makes a new trigger.") \
-                .classes("text-xs opacity-60")
-            with ui.row().classes("w-full justify-end"):
-                ui.button("Cancel", on_click=lambda: dialog.submit(None)).props("flat no-caps")
-                ui.button("Connect", on_click=lambda: dialog.submit(field.value)).props("unelevated no-caps")
-        name = await dialog
-        dialog.delete()
-        if not name:
-            return
-        self._triggers.add_source(name, FlowTrigger(REDEEM, self._event(reward)))
-        ui.notify(f"{reward.title} fires the custom trigger {name}", type="positive")
         self._rows.refresh()
 
     async def _edit(self, reward: TwitchReward | None) -> None:
@@ -228,8 +200,8 @@ class RedeemsTab:
     def _make_flow(self, reward: TwitchReward) -> None:
         name = self._flows.free_name(reward.title)
         trigger = FlowTrigger(REDEEM, {"reward": reward.title, "reward_id": reward.id})
-        self._flows.save(Flow(name, reward.title, triggers=(trigger,), folder=FOLDER,
-                              description=f"Starts when someone redeems {reward.title}"))
+        self._flows.save(new_flow(name, reward.title, triggers=(trigger,), folder=FOLDER,
+                                  description=f"Starts when someone redeems {reward.title}"))
         ui.notify("New flow in the folder Redeems. If SAMMI also reacts to this reward, it runs twice: take it out "
                   "in SAMMI when the flow is ready.", type="info", multi_line=True, timeout=8000)
         ui.navigate.to(f"/flows/edit?flow={name}")

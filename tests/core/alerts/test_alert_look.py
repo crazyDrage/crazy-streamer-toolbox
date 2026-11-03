@@ -19,8 +19,10 @@ class TestAlertLook(unittest.TestCase):
         self.assertEqual(AlertLook.from_dict(saved), look.checked())
 
     def test_an_alert_dragged_to_its_own_spot(self) -> None:
-        look = AlertLook(place="free", screen_x=82.5, screen_y=140).checked()
-        self.assertEqual(look.to_dict(), {"place": "free", "screen_x": 82.5, "screen_y": 100.0})
+        look = AlertLook(place="free", screen_x=82.5, screen_y=140).checked()  # out of the frame: may be
+        self.assertEqual(look.to_dict(), {"place": "free", "screen_x": 82.5, "screen_y": 140.0})
+        look = AlertLook(place="free", screen_x=-500, screen_y=900).checked()
+        self.assertEqual((look.screen_x, look.screen_y), (-100.0, 200.0))
         self.assertEqual(AlertLook.from_dict(look.to_dict()), look)
 
     def test_wrong_values_fall_back_and_numbers_stay_in_range(self) -> None:
@@ -36,11 +38,11 @@ class TestAlertLook(unittest.TestCase):
             path = Path(folder) / "alerts.json"
             store = AlertStore(path)
             look = AlertLook(text_place="above", animation_in="slide_up")
-            store.save(replace(store.get("twitch.follow"), look=look))
+            store.save(replace(store.get("follow"), look=look))
             again = AlertStore(path)
-            self.assertEqual(again.get("twitch.follow").look, look)
-            self.assertEqual(again.get("twitch.raid").look, AlertLook())
-            self.assertEqual(again.get("twitch.follow").alert_for({"user": "Dragon"}).look, look)
+            self.assertEqual(again.get("follow").look, look)
+            self.assertEqual(again.get("raid").look, AlertLook())
+            self.assertEqual(again.get("follow").alert_for({"user": "Dragon"}).look, look)
 
 
 if __name__ == "__main__":

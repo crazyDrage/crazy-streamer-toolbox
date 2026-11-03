@@ -19,8 +19,13 @@ to a server of ours: there is none.
    - The toolbox opens in its own window. Closing that window stops the toolbox.
    - No `.exe` in your archive? **Start streamer-toolbox.bat** does the same, with a black console window
      next to it.
-   - **Start in the browser.bat** opens it as a browser tab instead and keeps running when the tab is closed
-     (close the black console window to stop it).
+   - **Start settings.bat**: a small window to start it with. Pick how it opens (own window, own window
+     with less memory, browser tab, no window), start, restart or stop it, and back up your settings: once a
+     day when it starts, with "Back up now", and it asks "Back up now?" when you close it. It keeps 10 daily
+     and 10 monthly backups (you can change both) in the `backups` folder of your settings. It has an icon
+     next to the clock; tick "Start like this next time without asking" and it starts right into it.
+   - **Start without a window.bat**: no window at all. Open `http://127.0.0.1:8850` in any browser or on your
+     phone; close the black console window to stop it.
 3. The first time, Windows may show "Windows protected your PC": *More info* → *Run anyway*. The program is
    not signed yet; that is all the warning means.
 
@@ -34,7 +39,8 @@ To remove the toolbox, delete its folder.
 
 **The Linux download** (`crazy-streamer-toolbox-linux.tar.gz`) has its own Python and every library, like
 the Windows one: unpack it (`tar -xzf ...`) and run `./start-linux.sh` in its folder
-(`./start-linux-browser.sh` for a browser tab). Nothing is installed and no internet is needed.
+(`./start-linux-settings.sh` for the small start window, `./start-linux-headless.sh` without a window).
+Nothing is installed and no internet is needed.
 **This is new: it was started on Linux without a screen (the pages answer), but not yet used on a real
 Linux desktop.**
 
@@ -43,7 +49,8 @@ Linux too, but uses your PC's Python:
 
 1. You need `python3`, version 3.12 or newer, with `venv`, and a C compiler (one library for the keyboard
    triggers is built on your PC). On Debian / Ubuntu: `sudo apt install python3-venv python3-dev gcc`.
-2. Unpack the archive, then run `./start-linux.sh` in its folder (`./start-linux-browser.sh` for a browser tab).
+2. Unpack the archive, then run `./start-linux.sh` in its folder (`./start-linux-settings.sh` for the small
+   start window; it needs tkinter: `sudo apt install python3-tk`).
 3. The first start gets the libraries from the internet into a `.venv` folder inside the toolbox's folder.
    Nothing is installed outside it.
 
@@ -79,12 +86,12 @@ all** at the bottom of the menu gives every item an eye: click it to hide what y
 |---|---|
 | **Live** | Your button deck: buttons that run a flow, on pages. The pencil switches to edit mode: drag a button to where you want it, drag its corner to change its size, click it to change what it runs, its colour, text colour, icon or picture. Each page has its own number of columns and rows and its own background colour. |
 | **Flows** | What the toolbox does: boxes connected by wires, started by a trigger (a redeem, a follow, a key, a timer, a button). |
-| **Triggers** | Your own named triggers that several flows can listen to. |
 | **Variables** | Values the flows remember (counters, texts, lists). |
 | **Overlay** | What shows on stream through a Browser source in OBS: **Alerts** and **Widgets**. |
 | **Tools** | Extra tools: your Twitch channel point rewards, **Points** (your own currency), and one per plugin (SAMMI decks as buttons). |
 | **Connections** | One entry per program or service. Fill it in, press **Connect**. |
 | **Plugins** | Which plugins are loaded. |
+| **Learn** | How the toolbox works, step by step, and examples: **Add to my flows** copies one into the folder Examples (switched off). |
 | **Settings** | Theme, restart, opening the toolbox from other devices. |
 
 ## First steps
@@ -128,9 +135,9 @@ after you pressed Connect (or switched it on) on its tab. From then on it connec
   commands and alerts and set the lights; the trigger "Lumia event" starts flows.
 - **Voicemod**: ask Voicemod for an API key (the tab has the link) and put it into
   `config/secrets/voicemod_key.txt`. Boxes switch the voice, play a soundboard sound, flip its switches.
-- **Pulsoid**, **HypeRate** (heart rate): put the token / key into `config/secrets/pulsoid_token.txt` /
-  `config/secrets/hyperate_key.txt` (HypeRate also wants your id on the tab). The trigger "Heart rate changed"
-  starts flows, and "Get heart rate" reads it.
+- **Pulsoid**, **HypeRate** (heart rate): put the token / key into the field on its tab (HypeRate also wants
+  your id there). The trigger "Heart rate changed" starts flows: at any change, at every change higher than /
+  lower than / equal to a number, or once when it rises above / falls below one. "Get heart rate" reads it.
 - **Discord**: make a webhook for a channel (channel settings → Integrations → Webhooks) and put its
   address into `config/secrets/discord_webhook.txt`. "Post to Discord" writes there; names in the text only ping
   when the box says so.
@@ -141,25 +148,86 @@ after you pressed Connect (or switched it on) on its tab. From then on it connec
   viewer asks for in your game starts flows with the trigger "Crowd Control effect".
 - **Rumble**: put your Live Stream API address into `config/secrets/rumble_address.txt` (the tab has the link to
   Rumble's page). Chat, follows, subs, gifted subs and rants then start flows; Rumble can only be read.
+- **Fansly**: paste your chat's address on the tab (Fansly → Streaming → the 3 dots next to the chat → Copy
+  Chat Url). No login: the toolbox reads the chatroom like a viewer. Chat messages, tips (also as the Tip
+  trigger) and new subs then start flows; nothing is sent to Fansly. Fansly has no official API, so this uses
+  their website's chat connection and can stop working when Fansly changes it.
   The toolbox only listens to their events (tips and co.).
 
 Boxes of a program that is switched off are hidden when you add a box to a flow.
 
 ### 2. Make a flow
 
-**Flows → New flow.** A flow starts at its Start box. **Add box** lists everything the connected programs
-can do (switch a scene, play a sound, move the model, write in chat, wait, if / else, loops, variables, ...).
-Drag from a box's output to the next box's input. A value of one box can be wired into a field of another.
+**Flows → New flow.** A new flow has a Start box wired to an End box; your boxes go in between. **Add box**
+lists everything the connected programs can do (switch a scene, play a sound, move the model, write in chat,
+wait, if / else, loops, variables, ...). Drag from a box's output to the next box's input. A value of one box
+can be wired into a field of another.
 
-Pick what starts it in the Start box (a channel point reward, a follow, a key, a timer, a custom trigger), or
-leave it without a trigger and put it on a button on the **Live** page. **Test run** tries it at once.
+**Ready-made flows:** Connections → Twitch (YouTube, ...) → **Add default flows** puts a few into a folder
+of their own ("Twitch - default", each flow named "Twitch - default - thank a follow", ...); a window lets you pick which ones, switched off; **Learn** has examples to copy. Change the words, then switch them on.
+
+**Start** is the flow's button (Live page, SAMMI, Kit, the API, another flow). **Add trigger** gives it one more
+way to start (a channel point reward, a follow, a key, a timer, ...): each trigger is a Start box of its own,
+wired like Start, and its orange dots are what happened (who redeemed, what they typed). A box reading those dots
+gets nothing when another Start box started the run. The **Input** box holds the values a button or another
+flow gives the flow. **Test run** tries it at once, from the Start box you pick.
+
+Many flows? A flow's ⋮ menu (or its switch in the editor) and a folder's buttons have **Hide in list**: it is
+left out of the Flows page and its side list, and still runs. **Hidden (n)** at the top lists them again; a
+search always finds them. The folder **Alerts** (the flows that play your alerts) starts hidden.
+A folder's **Switch folder off** stops all its flows at once (buttons, triggers, SAMMI, the API, other flows);
+each flow keeps its own switch for when the folder is on again.
+
+#### Run wires and value wires
+
+A flow has two kinds of wires:
+
+| | Run wire (round dots, solid line: teal; after an If green / red) | Value wire (square dots, orange dotted line) |
+|---|---|---|
+| What it says | "when this box is done, do that box next" | "this field takes that box's value" |
+| Decides | **when** a box runs, and in which order | **what** a field gets |
+
+What a box gives when a field reads it:
+
+- **The box has a run wire into it**: it runs once, when the run wire reaches it. Every field that reads it
+  gets that same value. A field that reads it **before** the run wire reached it gets an error ("box n3 hasn't
+  run yet"): wire it to run earlier. Test run is kinder: there it gets the value the box gave last time.
+- **The box has no run wire into it**: it runs **at the moment** a field reads it, once **for each** field that
+  reads it. Its own outputs (then / else, done) don't go on to other boxes.
+- **Boxes without run dots** (Value, Calculate, Get variable, Build text, Replace in text, ...): always the
+  second way. They only work out a value, so reading them late or twice changes nothing.
+
+**You ran a box, then took its run wire away:** nothing is kept from that run. From the next run on, the box
+runs whenever a field reads it (the second way). For a box that asks a program (OBS, VTube Studio, ...) that
+means it asks at that moment, once per field: "Get current scene → Switch scene → switch back" would read the
+scene after the switch. Keep the run wire on a box whose value must be from one moment, or that does
+something (plays a sound, moves the model): without a run wire it only runs when a field needs its value.
+
+**The last value you see on a box** (its panel, its dots) is only a preview: kept in memory until the toolbox
+stops, never used by a real run. A run reads the box again (with a run wire: when the wire reaches it; without:
+when a field reads it). To keep a value, e.g. the model's position to put it back later, use "Save it in a
+variable" on the box (or Set variable): a variable is kept in a file, also over a restart.
+
+**Freeze a box** (its panel → Freeze): it runs once and keeps that answer, in the flow's file. From then on it
+gives that answer and doesn't run in the flow: no run wire, no inputs (they're kept, hidden), its dots show the
+saved values. **Run again** asks again and keeps the new answer; **Unfreeze** makes it a normal box with its
+wires again. Good for something you look up once: your model's position, a scene's size, a list of items.
+Deleting the box deletes its saved values. Boxes that give no answer (Move model, Play sound) or steer the flow
+(If, Loop) can't be frozen.
 
 ### 3. Alerts
 
 **Overlay → Alerts.** Press **Add it to OBS** once (or add a Browser source by hand with the address shown).
-Each kind of alert (follow, sub, resub, gift subs, cheer, raid, tip) has a switch, a **Test** button and
-**Settings**: text, picture / gif / video, sound, how long, where on the screen, how it comes in. In the
-preview you drag the alert, drag the corner handle to resize the picture, and drag words onto the picture.
+The list starts with Follow, Sub, Resub, Gift subs, Cheer, Raid and Tip. **New alert** adds your own (a name,
+and the event it plays on). Each alert has a switch, a **Test** button and **Settings**: its name, its
+**event** (its values are what it gets each time: the viewer's name, an amount, their message, a picture or a
+sound; `{name}` in its words; an example for each), text, picture / gif / video, sound, how long, where on the screen, how it comes in. In the preview you
+drag the alert, drag the corner handle to resize the picture, and drag words onto the picture.
+
+An alert plays on an **event** (Overlay → Events: follow, sub, cheer, ... or one you make). The event's flow in
+the folder **Events** ("Event: follow", ...) sends it on every follow, sub, ... to every alert and widget that
+uses it; change it like any flow. A gifted sub plays no Sub alert: the gifter gets one ("Kit gifted 5 subs!").
+A sound value makes a soundboard: one alert, a different sound from each button or redeem.
 
 ### 4. Widgets
 
@@ -172,7 +240,14 @@ Everything you set up is in the `config` folder inside the toolbox's folder: `to
 `flows/`, `alerts.json`, `widgets/`, your logins and tokens. Plain files.
 
 - **Backup**: copy the `config` folder.
-- **Move to a new version**: unpack the new archive and copy your old `config` folder into it.
+- **Move to a new version**: when one is out, a button "Update x.y.z" shows next to the toolbox's name. Press
+  it, read what's new, then **Download and install**: the toolbox stops, puts the new version in and starts
+  again by itself. Your `config` folder stays as it is. Settings → General: "Look for updates once a day" and
+  "Look now". By hand still works: unpack the new archive and copy your old `config` folder into it.
+- **Before every update** a copy of your settings goes into `config/backups/` (a zip, named with the version
+  and the date). To go back: unpack it over the `config` folder.
+- **Test versions** (`0.5.0-dev.1`, `-alpha.1`, `-beta.1`, `-rc.1`, before `0.5.0`): only offered when you pick
+  them in Settings → General → "Which versions". They can break things.
 - **Never share the `config` folder**: it holds your tokens.
 
 ## Other devices (phone, tablet)
@@ -206,7 +281,9 @@ something from its code, keep the `NOTICE` file with it, so people can see where
 
 ## When something doesn't work
 
-- **The window doesn't open**: start **Start in the browser.bat** and read what the black console window says.
+- **The window doesn't open**: start **Start without a window.bat**, open `http://127.0.0.1:8850` in your
+  browser and read what the black console window says. With **Start settings.bat**: the file
+  `config/cache/starter.log` says it.
 - **"Address already in use"**: the toolbox is already running, or another program uses port 8850. Start with
   `--port 8851`.
 - **A connection stays red**: its tab under Connections says why (wrong password, program not running, API
@@ -220,7 +297,11 @@ something from its code, keep the `NOTICE` file with it, so people can see where
 Next to each platform's own triggers ("Follow" = Twitch, "Rumble follow", ...) there are the ones marked
 **(any platform)**: chat message, follow, sub, resub, gift subs, cheer, raid, redeem, stream online / offline.
 They start for every platform you connected; the Start box's `platform` says which one it was. Alerts and
-widgets work this way by themselves: a Rumble follow shows your Follow alert.
+widgets work this way too: a Rumble follow plays your Follow alert (its flow starts on "Follow (any
+platform)").
+
+One flow for several events (a Twitch redeem and a Rumble chat command): give it a trigger for each. Each
+one is its own Start box; wire them into the same boxes.
 
 ## Sub, Resub and Gift subs: which one starts when
 
@@ -232,7 +313,7 @@ widgets work this way by themselves: a Rumble follow shows your Follow alert.
 
 When a viewer gifts 5 subs, **Gift subs** starts once (the giver, `amount` = 5) and **Sub** starts five times
 (one per receiver, each with `gift` = yes). A flow on Sub that should only run for people who paid themselves
-checks `gift` with an If box; the Sub alert already leaves gifted ones out.
+checks `gift` with an If box; the "Alert: Sub" flow's trigger already leaves gifted ones out (gift = false).
 
 Hard to make happen for a test? The last real one of every trigger is kept as a file in
 `cache\last_triggers\` in your settings folder, and a flow's **Test run** starts with its values.

@@ -32,6 +32,29 @@ class TestObsInputActions(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(ValueError, "must be an object"):
             await self.actions.run("obs.set_source_settings", source="x", settings="text=hi")
 
+    async def test_settings_lines_change_only_the_filled_ones(self) -> None:
+        await self.actions.run("obs.set_source_settings", source="so-event", url="https://clips.twitch.tv/a.mp4",
+                               width="", height=None)
+        self.assertEqual(self.fake.calls[-1], ("SetInputSettings", {
+            "inputName": "so-event", "inputSettings": {"url": "https://clips.twitch.tv/a.mp4"}, "overlay": True}))
+        await self.actions.run("obs.set_source_settings", source="so-event", settings='{"css": ""}', width=640)
+        self.assertEqual(self.fake.calls[-1][1]["inputSettings"], {"css": "", "width": 640})
+        with self.assertRaisesRegex(ValueError, "Nothing to change"):
+            await self.actions.run("obs.set_source_settings", source="so-event", url="")
+        action = self.actions.get("obs.set_source_settings")
+        self.assertTrue(action.named_lines)
+        self.assertEqual(action.lines_from, "obs.get_source_settings:Get settings")
+
+    async def test_settings_with_the_kinds_defaults(self) -> None:
+        fake = FakeConnectableObsClient(responses={
+            "GetInputSettings": {"inputKind": "browser_source", "inputSettings": {"url": "https://a.b"}},
+            "GetInputDefaultSettings": {"defaultInputSettings": {"url": "", "width": 800, "height": 600}}})
+        actions = ActionRegistry()
+        ObsInputActions(fake.call).add_to(actions)
+        settings = await actions.run("obs.get_source_settings", source="so-event")
+        self.assertEqual(settings, {"url": "https://a.b", "width": 800, "height": 600})
+        self.assertEqual(fake.calls[-1], ("GetInputDefaultSettings", {"inputKind": "browser_source"}))
+
     async def test_settings_take_create_sources_result_but_not_its_item_id(self) -> None:
         await self.actions.run("obs.get_source_settings", source={"source": "meme", "scene": "s", "item_id": 9})
         self.assertEqual(self.fake.calls[-1], ("GetInputSettings", {"inputName": "meme"}))

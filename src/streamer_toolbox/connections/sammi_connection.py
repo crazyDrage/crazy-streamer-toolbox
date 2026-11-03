@@ -3,6 +3,17 @@ from typing import Any, Callable
 import httpx
 from nicegui import ui
 
+from streamer_toolbox.connections.sammi.boxes.change_sammi_button import ChangeSammiButton
+from streamer_toolbox.connections.sammi.boxes.deck_on_off import DeckOnOff
+from streamer_toolbox.connections.sammi.boxes.get_decks import GetDecks
+from streamer_toolbox.connections.sammi.boxes.get_sammi_variable import GetSammiVariable
+from streamer_toolbox.connections.sammi.boxes.is_deck_on import IsDeckOn
+from streamer_toolbox.connections.sammi.boxes.press_sammi_button import PressSammiButton
+from streamer_toolbox.connections.sammi.boxes.release_sammi_button import ReleaseSammiButton
+from streamer_toolbox.connections.sammi.boxes.sammi_alert import SammiAlert
+from streamer_toolbox.connections.sammi.boxes.sammi_notification import SammiNotification
+from streamer_toolbox.connections.sammi.boxes.sammi_popup import SammiPopup
+from streamer_toolbox.connections.sammi.boxes.set_sammi_variable import SetSammiVariable
 from streamer_toolbox.connections.sammi.sammi_deck_list import SammiDeckList
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.connections.connection_base import ConnectionBase
@@ -12,8 +23,6 @@ from streamer_toolbox.core.connections.not_connected_error import NotConnectedEr
 from streamer_toolbox.core.connections.setting_field import SettingField
 from streamer_toolbox.core.web.web_client import web_client
 
-
-DECK_STATES = {"on": 1, "off": 0, "toggle": 2}  # changeDeckStatus
 
 class SammiConnection(ConnectionBase):
     """SAMMI's Local API (sammi.solutions/docs/api/reference). SAMMI calls the toolbox with HTTP Request buttons;
@@ -71,85 +80,16 @@ class SammiConnection(ConnectionBase):
             await self.start()
         return result
 
+    @property
+    def decks(self) -> SammiDeckList:
+        """SAMMI's own decks and buttons (its boxes' pickers read them)."""
+        return self._decks
+
     def add_actions(self, actions: ActionRegistry) -> None:
-        decks = self._decks
-
-        async def buttons() -> dict[str, dict[str, str]]:
-            return await decks.button_groups()
-
-        async def buttons_and_global() -> dict[str, dict[str, str]]:
-            return {"(global)": {"global": "global (not a button)"}} | await decks.button_groups()
-
-        async def deck_names() -> dict[str, str]:
-            return await decks.deck_choices()
-
-        async def deck_states() -> list[str]:
-            return list(DECK_STATES)
-
-        async def trigger_button(button_id: str) -> Any:
-            return await self.send({"request": "triggerButton", "buttonID": button_id})
-
-        async def release_button(button_id: str) -> Any:
-            return await self.send({"request": "releaseButton", "buttonID": button_id})
-
-        async def set_variable(name: str, value: str, button_id: str = "global") -> Any:
-            return await self.send({"request": "setVariable", "name": name, "value": value, "buttonID": button_id})
-
-        async def get_variable(name: str, button_id: str = "global") -> Any:
-            params = {"request": "getVariable", "name": name}
-            if button_id and button_id != "global":
-                params["buttonID"] = button_id
-            return await self.get(**params)
-
-        async def set_deck(deck: str, state: str = "on") -> Any:
-            if state not in DECK_STATES:
-                raise ValueError(f"state must be one of {', '.join(DECK_STATES)}, got {state!r}")
-            return await self.send({"request": "changeDeckStatus", "deckID": deck, "status": DECK_STATES[state]})
-
-        async def get_deck_on(deck: str) -> bool:
-            return bool(await self.get(request="getDeckStatus", deckID=deck))
-
-        async def modify_button(button_id: str, text: str = "", color: str = "") -> Any:
-            body: dict[str, Any] = {"request": "modifyButton", "buttonID": button_id}
-            if text:
-                body["text"] = text
-            if color:
-                body["color"] = _bgr(color)
-            return await self.send(body)
-
-        async def get_decks() -> list[dict[str, Any]]:
-            return await decks.summary()
-
-        async def popup(message: str) -> Any:
-            return await self.send({"request": "popupMessage", "message": message})
-
-        async def alert(message: str) -> Any:
-            return await self.send({"request": "alertMessage", "message": message})
-
-        async def notification(message: str, title: str = "streamer-toolbox") -> Any:
-            return await self.send({"request": "notificationMessage", "title": title, "message": message})
-
-        actions.add("sammi.popup", popup, "Shows a popup message in SAMMI", "SAMMI popup", group="Messages")
-        actions.add("sammi.alert", alert, "Shows a yellow alert message in SAMMI", "SAMMI alert", group="Messages")
-        actions.add("sammi.notification", notification, "Shows a bubble notification from SAMMI (like its timer "
-                    "buttons do)", "SAMMI notification", group="Messages")
-        actions.add("sammi.trigger_button", trigger_button, "Presses a SAMMI button (the list is read from SAMMI "
-                    "each time; pick a deck first to narrow it)", "Press SAMMI button", group="Buttons",
-                    options={"button_id": buttons})
-        actions.add("sammi.release_button", release_button, "Releases a SAMMI button that is running (stops it)",
-                    "Release SAMMI button", group="Buttons", options={"button_id": buttons})
-        actions.add("sammi.modify_button", modify_button, "Changes a SAMMI button's text and / or colour "
-                    "(#rrggbb); empty = keep", "Change SAMMI button", group="Buttons", options={"button_id": buttons})
-        actions.add("sammi.set_variable", set_variable, "Sets a SAMMI variable (global unless a button is picked)",
-                    "Set SAMMI variable", group="Variables", options={"button_id": buttons_and_global})
-        actions.add("sammi.get_variable", get_variable, "Reads a SAMMI variable (global unless a button is picked)",
-                    "Get SAMMI variable", group="Variables", options={"button_id": buttons_and_global})
-        actions.add("sammi.set_deck", set_deck, "Switches a SAMMI deck on, off or the other way (toggle)",
-                    "Deck on / off", group="Decks", options={"deck": deck_names, "state": deck_states})
-        actions.add("sammi.get_deck_on", get_deck_on, "Whether a SAMMI deck is on", "Is deck on?",
-                    group="Decks", options={"deck": deck_names})
-        actions.add("sammi.get_decks", get_decks, "Every SAMMI deck with its buttons (name, id, on/off, buttons)",
-                    "Get decks", group="Decks", live=True)
+        for box in (SammiPopup(self), SammiAlert(self), SammiNotification(self), PressSammiButton(self),
+                    ReleaseSammiButton(self), ChangeSammiButton(self), SetSammiVariable(self), GetSammiVariable(self),
+                    DeckOnOff(self), IsDeckOn(self), GetDecks(self)):
+            actions.add_box(box, "sammi")
 
     def add_gui_settings(self) -> None:
         _, count = self._deck()
@@ -175,15 +115,6 @@ class SammiConnection(ConnectionBase):
             response = await client.request(method, settings["url"].rstrip("/") + "/api", headers=headers, **kwargs)
         response.raise_for_status()
         return response.json().get("data")
-
-
-def _bgr(color: str) -> int:
-    """#rrggbb (or rrggbb) to the decimal BGR number SAMMI wants."""
-    text = str(color).strip().lstrip("#")
-    if len(text) != 6 or any(c not in "0123456789abcdefABCDEF" for c in text):
-        raise ValueError(f"colour {color!r}: use #rrggbb, e.g. #ff8800")
-    r, g, b = int(text[0:2], 16), int(text[2:4], 16), int(text[4:6], 16)
-    return b * 65536 + g * 256 + r
 
 
 def _reason(e: Exception) -> str:

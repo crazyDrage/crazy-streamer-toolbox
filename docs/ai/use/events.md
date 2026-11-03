@@ -7,7 +7,7 @@ nothing to poll for new events. The toolbox calls you instead. Three ways:
 
 The streamer builds a flow in the dashboard:
 
-- trigger: the event you want (a redeem, a chat command, a follow, a tip, a timer, a key, a custom trigger)
+- trigger: the event you want (a redeem, a chat command, a follow, a tip, a timer, a key)
 - a **Web request** box that sends what you need to your address
 
 In the box's fields the event's data is available as `${event.<field>}`, e.g. `${event.user}`,
@@ -27,7 +27,7 @@ Fields per event (the common ones, the same on every platform; each also has `pl
 | redeem | user, user_login, user_id, reward, input, cost, reward_id, redemption_id |
 | online / offline | title, category (Twitch: the game; empty on YouTube and Rumble) |
 | tip | user, amount, currency, message |
-| custom | trigger, user, user_login, input (plus the fields of the event behind it) |
+| custom | trigger, platform, source, plus the values the streamer set on the trigger (Triggers → Edit); a trigger without its own values gives user, user_login, input and the fields of the event behind it |
 
 `sub` is per receiver (`gift` = true when it was gifted to them), `gift` is per giver (`amount` = how many):
 5 gifted subs are one `gift` and five `sub` with `gift` = true.
@@ -55,5 +55,5 @@ Every event, not only the last: Settings → Event recording (off by default). W
 is one line with the same four fields in `<settings folder>/cache/events/<YYYY-MM-DD>.jsonl`. Timer ticks
 are left out; a day's file is removed after 30 days.
 
-To make the toolbox react to something *you* noticed: `trigger.fire` or `tip.fire`
+To make the toolbox react to something *you* noticed: run a flow (`flow.<name>`) or `tip.fire`
 (`docs/ai/use/actions.md`).

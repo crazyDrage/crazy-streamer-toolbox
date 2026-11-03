@@ -145,8 +145,7 @@ class StreamElementsElements:
 
 def _checked(answer: httpx.Response) -> httpx.Response:
     if answer.status_code in (401, 403):
-        raise PermissionError("StreamElements refused the token: put a fresh JWT Token into the token file "
-                              "(Connections → StreamElements)")
+        raise PermissionError("StreamElements refused the token: type a fresh JWT Token into its field under Connections → StreamElements")
     answer.raise_for_status()
     return answer
 

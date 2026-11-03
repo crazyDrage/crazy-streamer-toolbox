@@ -8,11 +8,11 @@ from streamer_toolbox.gui.components.flow_editor.trigger_kinds import TRIGGER_IN
 
 TOOLBOX, ANY_PLATFORM = "Toolbox", "Any platform"
 FIRST = (TOOLBOX, ANY_PLATFORM)  # on top; the programs follow by name
-OWN = ("custom", "timer", "tip")  # nobody's events: the toolbox's own
+OWN = ("timer", "tip")  # nobody's events: the toolbox's own
 # an event's first word → its group's name, where the box categories (CATEGORY_TITLES) have none
-GROUP_TITLES = {"key": "Keyboard", "youtube": "YouTube", "rumble": "Rumble", "streamelements": "StreamElements",
-                "streamlabs": "Streamlabs", "streamsocket": "StreamSocket", "tiltify": "Tiltify",
-                "crowdcontrol": "Crowd Control"}
+GROUP_TITLES = {"key": "Keyboard", "youtube": "YouTube", "rumble": "Rumble", "fansly": "Fansly",
+                "streamelements": "StreamElements", "streamlabs": "Streamlabs", "streamsocket": "StreamSocket",
+                "tiltify": "Tiltify", "crowdcontrol": "Crowd Control"}
 
 
 class TriggerCatalog:
@@ -42,6 +42,21 @@ class TriggerCatalog:
         return [(group, sorted(items, key=lambda e: (not e.title.casefold().startswith(words[0]),
                                                      e.title.casefold())))
                 for group, items in groupby(hits, key=lambda e: e.group)]
+
+
+def start_title(kind: str, name: str) -> str:
+    """A Start box's title with its group (his round 74: "Start · Chat message" doesn't say which platform):
+    "Start · Twitch · Chat message", "Start · Any platform · Follow", "Start · YouTube · Super Chat"; the
+    group isn't said twice when the name has it already."""
+    group = group_of(kind)
+    short = name.removesuffix(" (any platform)")
+    program, dot, _ = kind.partition(".")  # only a kind with a dot names a program ("chat", "gift" don't)
+    for said in (group, program) if dot else (group,):  # "YouTube chat message", "veadotube state changed"
+        if short.casefold().startswith(said.casefold() + " "):
+            short = short[len(said) + 1:]
+            short = short[:1].upper() + short[1:]
+            break
+    return f"Start · {group} · {short}"
 
 
 def group_of(kind: str) -> str:

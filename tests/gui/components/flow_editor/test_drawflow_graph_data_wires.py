@@ -1,6 +1,7 @@
 import unittest
 
 from streamer_toolbox.core.flows.box_wire import is_wire_in
+from streamer_toolbox.core.flows.flow_trigger import FlowTrigger
 from streamer_toolbox.core.flows.flow_wire import FlowWire
 from streamer_toolbox.gui.components.flow_editor.drawflow_graph import DrawflowGraph
 from streamer_toolbox.gui.components.flow_editor.flow_draft import FlowDraft
@@ -52,7 +53,7 @@ class TestDrawflowGraphDataWires(unittest.TestCase):
         graph = DrawflowGraph(ports, lambda a: a, lambda node: ["left", "right"] if node.action == "logic.if" else
                               data_inputs(node), data_outputs,
                               value_of=lambda node, name: "" if is_wire_in(node.params[name]) else node.params[name],
-                              start_outputs=lambda: [("user", "user"), ("video", "video (input)")])
+                              start_outputs=lambda box: [("video", "video")] if box == "input" else [])
         d = draft()
         d.node("n3").params["left"] = "5 <b>"
         boxes = graph.build(d)["drawflow"]["Home"]["data"]
@@ -65,9 +66,9 @@ class TestDrawflowGraphDataWires(unittest.TestCase):
         split = boxes["3"]["html"]
         self.assertEqual(split.count('class="tb-row'), 3)  # title, data | x, y
         self.assertIn('title="y · number">y · number</span>', split)
-        start = boxes["1"]["html"]
-        self.assertIn('<div class="tb-row tb-apart"><span class="tb-in " title=""></span>'
-                      '<span class="tb-out tb-flow-input" title="video (input)">', start)
+        self.assertEqual(boxes["5"]["data"]["special"], "input")  # after the boxes: the Input box
+        self.assertIn('<span class="tb-out " title="video">video</span>', boxes["5"]["html"])
+        self.assertIn("tb-data-only", boxes["5"]["class"])  # no run wire
 
     def test_rewire_and_unwire_in_the_browser(self) -> None:
         d = draft()
@@ -105,18 +106,29 @@ class TestDrawflowGraphDataWires(unittest.TestCase):
         flow = d.to_flow()
         self.assertEqual(flow.node("n3").params["left"], "${box}")
 
-    def test_start_has_a_dot_per_trigger_field_and_wires_from_it_round_trip(self) -> None:
+    def test_a_trigger_start_has_a_dot_per_field_and_wires_from_it_round_trip(self) -> None:
         d = draft()
-        d.node("n3").params["right"] = "${box.start.user}"
+        d.triggers = [FlowTrigger("twitch.chat", {}, "t1")]
+        d.wires = [FlowWire("t1", "out", "n3")]
+        d.node("n3").params["right"] = "${box.t1.user}"
         graph = DrawflowGraph(ports, lambda a: a, data_inputs, data_outputs,
-                              start_outputs=lambda: [("user", "user"), ("message", "message")])
+                              start_outputs=lambda box: [("user", "user"), ("message", "message")] if box == "t1"
+                              else [])
         data = graph.build(d)
-        start = data["drawflow"]["Home"]["data"]["1"]
+        boxes = data["drawflow"]["Home"]["data"]
+        start = boxes["5"]  # after the three boxes; Manual Start stays 1, Input comes last (6)
+        self.assertEqual((start["name"], start["data"]["special"], boxes["6"]["name"]), ("t1", "trigger", "input"))
         self.assertEqual(len(start["outputs"]), 3)  # out + user + message
+        self.assertEqual(start["inputs"], {})  # a Start box has no run dot on the left
+        self.assertEqual(start["outputs"]["output_1"]["connections"], [{"node": "4", "output": "input_1"}])
         self.assertEqual(start["outputs"]["output_2"]["connections"], [{"node": "4", "output": "input_3"}])
         start["outputs"]["output_2"]["connections"] = []
-        data["drawflow"]["Home"]["data"]["4"]["inputs"]["input_3"]["connections"] = [
-            {"node": "1", "input": "output_3"}]  # rewired to message
+        boxes["4"]["inputs"]["input_3"]["connections"] = [{"node": "5", "input": "output_3"}]  # rewired to message
+        start["pos_x"], start["pos_y"] = 10, 200
         graph.read(data, d)
-        self.assertEqual(d.node("n3").params["right"], "${box.start.message}")
-        self.assertEqual(d.wires, [FlowWire("start", "out", "n3")])
+        self.assertEqual(d.node("n3").params["right"], "${box.t1.message}")
+        self.assertEqual(d.wires, [FlowWire("t1", "out", "n3")])
+        self.assertEqual(d.triggers[0].box, (10.0, 200.0))
+        del boxes["5"]  # deleted on the canvas: the trigger goes too
+        graph.read(data, d)
+        self.assertEqual((d.triggers, d.wires), ([], []))

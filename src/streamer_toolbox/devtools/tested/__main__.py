@@ -5,15 +5,11 @@
         Ticks, days and notes that are in the files stay; a row whose thing is gone stays, marked.
     ... -m streamer_toolbox.devtools.tested checked box:obs.set_scene tool:points
         "AI checked" for these rows: today (Hex tried them in the running toolbox). `unchecked` takes it back.
-    ... -m streamer_toolbox.devtools.tested window [port] [--no-open]
+    ... -m streamer_toolbox.devtools.tested window [port] [--no-open] [--toolbox <settings folder>]
         the test window (see TestWindow; docs/tested/test-window.bat / .sh start it): a small page of its own
         on port 8849, opened in the browser (not with --no-open), to tick next to the running toolbox. It only reads and writes
-        docs/tested, so it needs no toolbox and stays open while that is restarted.
-    ... -m streamer_toolbox.devtools.tested flows <settings folder>
-        a numbered flow for every box (Start + that box) into <settings folder>/flows, for a toolbox started
-        with --settings <settings folder> (see TestFlows; docs/tested/test-toolbox.bat / .sh does both).
-        What is set in such a flow stays when this runs again, a deleted one stays deleted (the list of written
-        ones is <settings folder>/test_flows.json). Writes nothing into docs/tested.
+        docs/tested, so it needs no toolbox and stays open while that is restarted. With --toolbox it starts the
+        test toolbox on that folder (port 8855, app window) and is tied to it (TiedToolbox): one stops, both stop.
 
 Making the files puts the toolbox together without starting it (nothing connects, no port is opened), with an
 empty config in a throwaway folder: the record is about the project, not about what is switched on in config/.
@@ -26,6 +22,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[4]
 WINDOW_PORT = 8849
+TOOLBOX_PORT = 8855  # the test toolbox's
 
 
 def write_files(scratch: Path, arguments: list[str]) -> None:
@@ -36,15 +33,6 @@ def write_files(scratch: Path, arguments: list[str]) -> None:
     gate, _ = assemble(argparse.Namespace(config=config, port=None, plugins=REPO / "plugins", open="none",
                                           child=True), ToolboxConfig.read(config))
     items = gate.items()
-    if arguments[:1] == ["flows"]:
-        from streamer_toolbox.core.flows.flow_store import FlowStore
-        from streamer_toolbox.core.testing.test_flows import TestFlows
-
-        folder = Path(arguments[1]).resolve() / "flows"
-        gate.tested.take(items)
-        new, there, deleted = TestFlows(gate.tested, FlowStore(folder), folder.parent / "test_flows.json").write()
-        print(f"{folder}: {new} new test flows, {there} were there already, {deleted} you deleted stay deleted")
-        return
     gate.tested.sync(items)
     if arguments[:1] in (["checked"], ["unchecked"]):
         for key in arguments[1:]:
@@ -52,23 +40,36 @@ def write_files(scratch: Path, arguments: list[str]) -> None:
     print(f"docs/tested: {len(items)} rows, {len([i for i in items if gate.tested.tested(i.key)])} tested")
 
 
-def show_window(port: int, open_it: bool) -> None:
-    from nicegui import ui
+def show_window(port: int, open_it: bool, toolbox: Path | None = None) -> None:
+    from nicegui import app, ui
 
     from streamer_toolbox.core.testing.test_list import TestList
     from streamer_toolbox.devtools.tested.test_window import TestWindow
+    from streamer_toolbox.devtools.tested.tied_toolbox import TiedToolbox
 
     ui.page("/", title="Test window · crazy-streamer-toolbox")(lambda: TestWindow(TestList).build())
+    if toolbox is not None:
+        # its own page settings, so the two toolboxes don't write the same file
+        tied = TiedToolbox([sys.executable, "-m", "streamer_toolbox", "--tied", "--settings", str(toolbox),
+                            "--port", str(TOOLBOX_PORT), "--open", "window"],
+                           {**os.environ, "NICEGUI_STORAGE_PATH": str(toolbox / ".nicegui")})
+        app.on_startup(lambda: tied.start(app.shutdown))  # its app window closed: the test window goes too
+        app.on_shutdown(tied.stop)
     ui.run(host="127.0.0.1", port=port, title="Test window", show=open_it, reload=False)
 
 
 if __name__ in {"__main__", "__mp_main__"}:
     with tempfile.TemporaryDirectory() as folder:
         os.environ["NICEGUI_STORAGE_PATH"] = folder  # before NiceGUI is loaded: not the toolbox's own .nicegui
-        if sys.argv[1:2] == ["flows"] and len(sys.argv) != 3:
-            sys.exit("which settings folder? ... -m streamer_toolbox.devtools.tested flows <settings folder>")
         if sys.argv[1:2] == ["window"]:
             options = [option for option in sys.argv[2:] if option != "--no-open"]
-            show_window(int(options[0]) if options else WINDOW_PORT, "--no-open" not in sys.argv)
+            settings = None
+            if "--toolbox" in options:
+                at = options.index("--toolbox")
+                if at + 1 >= len(options):
+                    sys.exit("which settings folder? ... tested window --toolbox <settings folder>")
+                settings = Path(options[at + 1]).resolve()
+                del options[at:at + 2]
+            show_window(int(options[0]) if options else WINDOW_PORT, "--no-open" not in sys.argv, settings)
         else:
             write_files(Path(folder), sys.argv[1:])

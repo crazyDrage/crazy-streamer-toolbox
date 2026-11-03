@@ -24,6 +24,19 @@ class Alert:
     look: AlertLook = AlertLook()
     parts: tuple[dict[str, Any], ...] = ()
 
+    def to_dict(self) -> dict[str, Any]:
+        """For the backup file (AlertBackup)."""
+        return {"text": self.text, "image": self.image, "sound": self.sound, "seconds": self.seconds,
+                "volume": self.volume, "highlights": list(self.highlights), "message": self.message,
+                "look": self.look.to_dict(), "parts": list(self.parts)}
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Alert":
+        return cls(str(data.get("text", "")), str(data.get("image", "")), str(data.get("sound", "")),
+                   float(data.get("seconds", 5.0)), float(data.get("volume", 1.0)),
+                   tuple(str(h) for h in data.get("highlights", ())), str(data.get("message", "")),
+                   AlertLook.from_dict(data.get("look")), tuple(data.get("parts", ())))
+
     @property
     def shown_seconds(self) -> float:
         """How long it stays, kept between half a second and two minutes (a typo mustn't block the line)."""

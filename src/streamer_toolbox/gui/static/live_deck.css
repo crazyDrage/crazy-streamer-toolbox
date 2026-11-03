@@ -25,3 +25,28 @@
 .tb-deck-dragged { z-index: 2; opacity: 0.85; }
 .tb-deck-grip { position: absolute; right: 3px; bottom: 3px; width: 16px; height: 16px; cursor: nwse-resize;
   border-radius: 3px 0 3px 0; background: linear-gradient(135deg, transparent 50%, rgba(255, 255, 255, 0.85) 50%); }
+
+/* the view menu (round 63): full screen shows only the buttons, with a dim corner button to leave it */
+.tb-deck-exit { display: none !important; }
+html:fullscreen .tb-deck-bar { display: none !important; }
+html:fullscreen .q-header, html:fullscreen .q-drawer, html:fullscreen .q-drawer__backdrop,
+html:fullscreen .q-footer { display: none !important; }
+html:fullscreen .q-page-container { padding: 0 !important; }
+html:fullscreen .tb-deck-exit { display: inline-flex !important; position: fixed; top: 6px; right: 6px; z-index: 3000;
+  background: rgba(0, 0, 0, 0.45); color: #fff; opacity: 0.6; }
+html:fullscreen .tb-deck-exit:hover { opacity: 1; }
+html:fullscreen .nicegui-content, html:fullscreen .tb-main { padding: 0 !important; max-width: none !important; }
+/* full screen: the grid fills the whole screen, whatever size the view menu has (the cells stretch, no strip
+   is left over when the screen has another shape than the grid) */
+html:fullscreen .tb-deck { width: 100vw !important; min-width: 0 !important; height: 100vh;
+  aspect-ratio: auto !important; border: none; border-radius: 0; }
+/* full screen: a small lip on the left edge opens the list of pages over the buttons */
+.tb-deck-lip, .tb-deck-drawer { display: none !important; }
+html:fullscreen .tb-deck-lip { display: inline-flex !important; position: fixed; left: 0; top: 50%; z-index: 3000;
+  transform: translateY(-50%); min-width: 0; width: 18px; height: 56px; padding: 0; border-radius: 0 6px 6px 0;
+  background: rgba(0, 0, 0, 0.45); color: #fff; opacity: 0.6; }
+html:fullscreen .tb-deck-lip:hover { opacity: 1; }
+html:fullscreen .tb-deck-drawer.open { display: flex !important; flex-direction: column; gap: 2px; position: fixed;
+  left: 22px; top: 50%; transform: translateY(-50%); z-index: 3000; max-height: 90vh; overflow-y: auto;
+  min-width: 160px; max-width: 60vw; padding: 6px; border-radius: 6px; background: var(--tb-panel);
+  border: 1px solid var(--tb-line); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5); }

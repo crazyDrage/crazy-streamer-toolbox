@@ -14,9 +14,14 @@ HTTP API with pickers).
    - `start()`, `stop()`, `test(settings)`. `test` returns a `ConnectionStatus` and may ask the streamer
      something once (a login, a pairing popup). `start` never does, and never raises: a failure goes into
      the status;
-   - `add_actions(actions)`: its boxes, named `<id>.<what>`, each with a `group` (see
-     `docs/ai/code/action.md`);
+   - `boxes()`: its boxes, one `Box` class each, named `<what>` (the toolbox adds them as `<id>.<what>`),
+     each with a `group` (see `docs/ai/code/action.md`). The built-in connections use `add_actions(actions)`
+     instead, where they hand their groups the client and add their own Box classes with `add_box`;
    - `retry_when_down = True` if it should connect by itself once the program is started later.
+   - `default_flows()` (optional): a `.flows.toml` file (the format of Flows → Export folder) next to it; its
+     tab gets "Add default flows", which puts them switched off into the folder the file names
+     (`core/flows/DefaultFlows`; Twitch and YouTube have one, `tests/connections/test_default_flow_files.py`
+     checks the triggers and fields of the built-in ones).
 2. Everything else it needs goes into `connections/<id>/`, one class per file: the client, the actions class,
    the event mapping.
 3. Add it to the list in `assembly/built_in_connections.py`, giving it `tables.get("<id>", {})`.
@@ -44,5 +49,5 @@ succeeds.
 
 ## A REST service with many answers
 
-`devtools/box_gen` writes the answer dataclasses, the actions class, a fake and a test from a JSON spec with
-example answers: `docs/PLAN_box_maker.md`.
+`devtools/box_gen` writes the answer dataclasses, one Box class per box (and their shared base), the group
+class, a fake and a test from a JSON spec with example answers: `docs/PLAN_box_maker.md`.

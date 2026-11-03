@@ -9,6 +9,21 @@ class TestWidgetHub(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         self.hub = WidgetHub()
 
+    def test_an_event_that_didnt_reach_obs_is_kept(self) -> None:
+        self.hub.not_arrived("goal", {"type": "session", "session": {}})
+        self.hub.not_arrived("goal", {"type": "event", "listener": "follower-latest", "event": {}})
+        self.assertEqual([(widget, listener) for _, widget, listener, _ in self.hub.missed],
+                         [("goal", "follower-latest")])
+
+    def test_a_widget_page_that_comes_back_gets_its_own_missed_events(self) -> None:
+        self.hub.listen("goal")
+        self.hub.test("goal", "follower-latest")
+        self.hub.test("chat_box", "follower-latest")  # another widget's
+        self.hub.reload("goal")
+        back = self.hub.greeting("goal", self.hub.sent.run, 0)
+        self.assertEqual([m["type"] for m in back], ["hello", "event", "reload"])
+        self.assertEqual(self.hub.greeting("goal", self.hub.sent.run, back[-1]["id"])[1:], [])
+
     def test_toolbox_events_in_streamelements_words(self) -> None:
         self.assertEqual(se_event("twitch.follow", {"user": "Dragon"}),
                          ("follower-latest", {"type": "follower", "name": "Dragon"}))
@@ -78,17 +93,18 @@ class TestWidgetHub(unittest.IsolatedAsyncioTestCase):
             self.assertIn(kind, EVENT_FIELDS)
             self.assertIn(se_event(kind, {"user": "x"})[0], TEST_EVENTS)
 
-    async def test_an_event_goes_to_every_widget_page_then_the_session(self) -> None:
+    async def test_an_event_counts_in_the_session_but_reaches_no_page_by_itself(self) -> None:
+        """His round 74 answer 1 a: a widget gets what a flow sends it (send), nothing by itself."""
         chat, goal = self.hub.listen("chat_box"), self.hub.listen("goal")
         await self.hub.handle("twitch.cheer", {"user": "Kit", "bits": 100, "message": "yo"})
         await self.hub.handle("timer", {"every": 1})  # nothing StreamElements knows
-        for inbox in (chat, goal):
-            first, second = inbox.get_nowait(), inbox.get_nowait()
-            self.assertEqual((first["type"], first["listener"], first["event"]["amount"]),
-                             ("event", "cheer-latest", 100))
-            self.assertEqual((second["type"], second["session"]["cheer-session"]), ("session",
-                                                                                   {"count": 1, "amount": 100}))
-            self.assertTrue(inbox.empty())
+        self.assertTrue(chat.empty() and goal.empty())
+        self.assertEqual(self.hub.session.data["cheer-session"], {"count": 1, "amount": 100})
+        self.assertEqual(self.hub.send("cheer-latest", {"name": "Kit", "amount": 100}, "goal"), 1)
+        first, second = goal.get_nowait(), goal.get_nowait()
+        self.assertEqual((first["listener"], second["session"]["cheer-session"]),
+                         ("cheer-latest", {"count": 1, "amount": 100}))  # not counted twice
+        self.assertTrue(chat.empty())
         await self.hub.handle("twitch.cheer", {"user": "Kit", "bits": 50, "message": ""})
         data = self.hub.session.data
         self.assertEqual((data["cheer-latest"]["amount"], data["cheer-session"]["amount"],
@@ -98,6 +114,7 @@ class TestWidgetHub(unittest.IsolatedAsyncioTestCase):
     async def test_chat_messages_dont_count_as_session_data(self) -> None:
         inbox = self.hub.listen("chat_box")
         await self.hub.handle("twitch.chat", {"user": "Dragon", "user_login": "dragon", "message": "hi"})
+        self.hub.send("message", {"data": {"text": "hi"}}, "chat_box")
         self.assertEqual(inbox.get_nowait()["listener"], "message")
         self.assertTrue(inbox.empty())
         self.assertEqual(self.hub.session.recents, [])
@@ -108,10 +125,10 @@ class TestWidgetHub(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.hub.test("goal", "follower-latest"), 2)  # OBS and the preview
         self.assertEqual(goal.get_nowait()["event"]["name"], "TestViewer")
         self.assertEqual(self.hub.button("goal", "reset", "now"), 2)
-        self.assertEqual(goal.get_nowait(), {"type": "event", "listener": "event:test", "event": {
-            "listener": "widget-button", "field": "reset", "value": "now"}})
+        self.assertEqual({**goal.get_nowait(), "id": 0}, {"type": "event", "listener": "event:test", "event": {
+            "listener": "widget-button", "field": "reset", "value": "now"}, "id": 0})
         self.hub.reload("goal")
-        self.assertEqual(goal.get_nowait(), {"type": "reload"})
+        self.assertEqual(goal.get_nowait()["type"], "reload")
         self.assertTrue(chat.empty())
         self.assertEqual(self.hub.session.recents, [])  # tests leave the session alone
         self.hub.stop_listening(goal)

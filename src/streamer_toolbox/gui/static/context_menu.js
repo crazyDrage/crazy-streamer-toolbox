@@ -51,6 +51,15 @@
     window.open(url, "_blank", `popup,width=${window.outerWidth},height=${window.outerHeight}`);
   };
 
+  // the middle mouse button on a link: the same window as "Open link in new window", not the browser's own
+  // tab or window with its address bar (his round 63)
+  document.addEventListener("auxclick", (e) => {
+    const link = e.button === 1 && e.target.closest && e.target.closest("a[href]");
+    if (!link || link.target === "_blank" && !link.href.startsWith(location.origin)) return;  // other sites
+    e.preventDefault();
+    tbNewWindow(link.href);
+  });
+
   function textField(target) {
     const field = target.closest && target.closest("input, textarea, [contenteditable=''], [contenteditable=true]");
     if (!field || field.readOnly || field.disabled) return null;

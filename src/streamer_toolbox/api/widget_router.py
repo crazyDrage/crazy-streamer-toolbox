@@ -1,11 +1,11 @@
-import asyncio
 import re
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Body, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Body, HTTPException, Request, WebSocket
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 
+from streamer_toolbox.api import overlay_line
 from streamer_toolbox.core.widgets.channel_lookup import ChannelLookup
 from streamer_toolbox.core.widgets.emote_lookup import EmoteLookup
 from streamer_toolbox.core.widgets.kept_answers import KeptAnswers
@@ -116,21 +116,21 @@ def build_widget_router(store: WidgetStore, hub: WidgetHub, page: WidgetPage,
         answer = await fallback.get(path) if fallback else None
         return answer if answer is not None else _not_found(missing)
 
-    def kept(name: str, file: str, keep_count: int) -> KeptAnswers:
+    def kept_answers(name: str, file: str, keep_count: int) -> KeptAnswers:
         """The answers kept for that widget, in its data folder (read each time: he may have cleared it)."""
         _widget(store, name)
         return KeptAnswers(store.data_folder(name) / file, keep_count)
 
     @router.get(API + "/channels/{who}")
     async def channel(name: str, who: str) -> Any:
-        answer = await channels.channel(who, kept(name, "channels.json", 500)) if channels else None
+        answer = await channels.channel(who, kept_answers(name, "channels.json", 500)) if channels else None
         return answer if answer is not None else await elsewhere(f"channels/{who}", f"channel {who} was not found")
 
     @router.get(API + "/channels/{who}/emotes")
     async def emotes(name: str, who: str) -> Any:
-        known = await channels.channel(who, kept(name, "channels.json", 500)) if channels else None
+        known = await channels.channel(who, kept_answers(name, "channels.json", 500)) if channels else None
         twitch_id = known["providerId"] if known else who  # a Twitch id works without the Twitch login too
-        return await emote_lookup.emotes(twitch_id, kept(name, "emotes.json", 100)) if emote_lookup else NO_EMOTES
+        return await emote_lookup.emotes(twitch_id, kept_answers(name, "emotes.json", 100)) if emote_lookup else NO_EMOTES
 
     @router.get(API + "/{path:path}")
     async def other_question(name: str, path: str) -> Any:
@@ -148,15 +148,18 @@ def build_widget_router(store: WidgetStore, hub: WidgetHub, page: WidgetPage,
     @router.websocket("/overlay/widget/{name}/ws")
     async def widget_socket(socket: WebSocket, name: str) -> None:
         await socket.accept()
-        inbox = hub.listen(name, preview="preview" in socket.query_params)
-        sender = asyncio.create_task(_send(socket, inbox))
+        preview = "preview" in socket.query_params
+        run, after = overlay_line.resume(socket)
+        inbox = hub.listen(name, preview=preview)
+        for message in hub.greeting(name, run, after):
+            inbox.put_nowait(message)
+        if after is None:  # opened, not a page whose line came back: its "Widget loaded" flows start
+            hub.loaded(name, preview)
         try:
-            while True:  # the page sends nothing; this ends when it closes
-                await socket.receive_text()
-        except WebSocketDisconnect:
-            pass
+            await overlay_line.serve(socket, inbox,
+                                     missed=None if preview else lambda message: hub.not_arrived(name, message),
+                                     arrived=hub.arrived)
         finally:
-            sender.cancel()
             hub.stop_listening(inbox)
 
     return router
@@ -173,7 +176,3 @@ def _widget(store: WidgetStore, name: str):
         raise HTTPException(status_code=404, detail=f"there's no widget {name}")
     return widget
 
-
-async def _send(socket: WebSocket, inbox: asyncio.Queue) -> None:
-    while True:
-        await socket.send_json(await inbox.get())

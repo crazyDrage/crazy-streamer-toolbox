@@ -11,6 +11,10 @@ def _keys(value: Any) -> list[str]:
     return list(_object(value, "keys"))
 
 
+def _values(value: Any) -> list[Any]:
+    return list(_object(value, "values").values())
+
+
 def _kinds(value: Any) -> dict[str, str] | list[str]:
     if isinstance(value, list):
         return [kind_of(v) for v in value]
@@ -39,6 +43,7 @@ def _text(value: Any) -> str:
 # field's "from box" list (on an output of a known kind only the helpers that fit it)
 HELPERS: dict[str, tuple[str, str, tuple[str, ...], Callable[[Any], Any]]] = {
     "keys": ("its keys", "list", ("object",), _keys),
+    "values": ("its values", "list", ("object",), _values),
     "kinds": ("each key's kind", "object", ("object", "list"), _kinds),
     "count": ("how many", "number", ("object", "list"), _count),
     "kind": ("what it is", "text", (), kind_of),

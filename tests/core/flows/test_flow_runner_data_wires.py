@@ -8,6 +8,7 @@ from streamer_toolbox.core.flows.flow_input import FlowInput
 from streamer_toolbox.core.flows.flow_node import FlowNode
 from streamer_toolbox.core.flows.flow_runner import FlowRunner
 from streamer_toolbox.core.flows.flow_step_error import FlowStepError
+from streamer_toolbox.core.flows.flow_trigger import FlowTrigger
 from streamer_toolbox.core.flows.flow_wire import FlowWire
 from streamer_toolbox.core.flows.logic_actions import LogicActions
 from streamer_toolbox.core.variables.variable_store import VariableStore
@@ -137,7 +138,20 @@ class TestFlowRunnerDataWires(unittest.IsolatedAsyncioTestCase):
                     inputs=(FlowInput("amount", 3),))
         await self.runner.run(flow, event={"user": "Kit", "input": "hi"})
         self.assertEqual(self.calls, [{"who": "Kit", "said": "hi", "amount": 3, "none": ""}])
-        self.assertEqual(self.runner.last_result("f", "start"), (True, {"user": "Kit", "input": "hi", "amount": 3}))
+        self.assertEqual(self.runner.last_result("f", "input"), (True, {"amount": 3}))
+
+    async def test_each_start_box_gives_only_what_started_this_run(self) -> None:
+        # his round 63: a Start box per trigger, the inputs on the Input box
+        node = FlowNode("n1", "a.record", {"redeemed": "${box.t1.user}", "chatted": "${box.t2.user}",
+                                           "amount": "${box.input.amount}"})
+        flow = Flow("f", "F", (node,), (FlowWire("t1", "out", "n1"), FlowWire("t2", "out", "n1")),
+                    (FlowTrigger("twitch.redeem", {}, "t1"), FlowTrigger("twitch.chat", {}, "t2")),
+                    inputs=(FlowInput("amount", 3),))
+        await self.runner.run(flow, event={"user": "Kit"}, start="t2")
+        self.assertEqual(self.calls, [{"redeemed": "", "chatted": "Kit", "amount": 3}])
+        self.assertEqual(self.runner.last_result("f", "t2"), (True, {"user": "Kit"}))
+        await self.runner.run(flow, event={"user": "Kit"})  # Manual Start: no wire, nothing runs
+        self.assertEqual(len(self.calls), 1)
 
     async def test_a_flow_with_output_boxes_gives_them_back_as_named_outputs(self) -> None:
         # "Play video"-like inner flow: gives back seconds; the outer flow reads it over a data wire
@@ -145,7 +159,7 @@ class TestFlowRunnerDataWires(unittest.IsolatedAsyncioTestCase):
                                         FlowNode("n2", "logic.output", {"name": "model", "value": "${box.n1.model}"}),
                                         FlowNode("n3", "logic.output", {"name": "done", "value": True})),
                      (FlowWire("start", "out", "n1"), FlowWire("n1", "done", "n2"), FlowWire("n2", "done", "n3")))
-        self.assertEqual(inner.outputs, ("model", "done"))
+        self.assertEqual(self.runner.outputs_of(inner), ("model", "done"))
         self.runner.register(inner)
         self.assertEqual(self.actions.get("flow.inner").outputs, {"model": "", "done": ""})
         outer = Flow("outer", "Outer", (FlowNode("n1", "flow.inner"),

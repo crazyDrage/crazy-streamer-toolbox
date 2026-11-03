@@ -3,20 +3,19 @@ import uuid
 from pathlib import PureWindowsPath
 from typing import Any
 
-from streamer_toolbox.connections.obs.obs_audio_actions import MONITORING, monitor_type, track_numbers, TRACKS
+from streamer_toolbox.connections.obs.boxes.media_status import MediaStatus
+from streamer_toolbox.connections.obs.boxes.new_media_source import NewMediaSource
+from streamer_toolbox.connections.obs.boxes.obs_audio_box import monitor_type, track_numbers, TRACKS
+from streamer_toolbox.connections.obs.boxes.obs_media_playback_shared import (ADDRESS_STARTS, FINISHED, PLACE,
+                                                                              STARTED, _seconds)
+from streamer_toolbox.connections.obs.boxes.place_like_source import PlaceLikeSource
+from streamer_toolbox.connections.obs.boxes.play_video_once import PlayVideoOnce
+from streamer_toolbox.connections.obs.boxes.wait_until_media_is_over import WaitUntilMediaIsOver
 from streamer_toolbox.connections.obs.obs_placement import ObsPlacement
 from streamer_toolbox.connections.obs.obs_request_error import ObsRequestError
 from streamer_toolbox.connections.obs.obs_requests import ObsRequests
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.data.box_value import to_bool
-from streamer_toolbox.core.files.file_types import MEDIA_TYPES
-
-STARTED = ("OBS_MEDIA_STATE_PLAYING", "OBS_MEDIA_STATE_PAUSED", "OBS_MEDIA_STATE_BUFFERING")
-FINISHED = ("OBS_MEDIA_STATE_ENDED", "OBS_MEDIA_STATE_ERROR")
-ADDRESS_STARTS = ("http://", "https://")  # a "file" that starts like this is played from the internet
-# what a placed copy takes over from the source it is placed like (the rest are OBS's read-only facts)
-PLACE = ("positionX", "positionY", "rotation", "alignment", "boundsAlignment", "cropLeft", "cropRight", "cropTop",
-         "cropBottom")
 
 
 class ObsMediaPlayback:
@@ -34,41 +33,9 @@ class ObsMediaPlayback:
         self._running: set[asyncio.Task] = set()
 
     def add_to(self, actions: ActionRegistry) -> None:
-        actions.add("obs.play_video_once", self.play_once, "Plays a video (or sound) file, or one at an "
-                    "address (https://..., e.g. from Clip video address), in a scene with its own new Media "
-                    "Source: sound settings like the Audio Mixer's, the place and size of another source "
-                    "if you like, and the source is removed again when the video is over", "Play video once",
-                    group="Media", options={"scene": self._requests.scene_names, "monitoring": _monitoring,
-                                            "place_like": self._requests.source_names},
-                    labels={"place_like": "Place like source", "wait": "Wait until it's over"},
-                    editors={"place": "obs_placement"},
-                    hints={"tracks": "audio tracks, e.g. 1, 2 (empty = OBS's default)",
-                           "volume": "0 to 1",
-                           "place_like": "takes this source's place and size in the scene (e.g. sound_alert); "
-                                         "empty = top left, own size. Or set up a place of its own below",
-                           "wait": "off: the flow goes on right away, the source still goes when it's over"},
-                    outputs={"seconds": "number", "source": "text"}, files={"file": MEDIA_TYPES})
-        actions.add("obs.new_media_source", self.new_media_source, "Play video once in parts, part 1: makes a "
-                    "new Media Source for a file in a scene, hidden. Then set it up (Set audio monitoring, Set audio "
-                    "tracks, Set volume, Place like source), Show / hide source, Wait until media is over, Remove "
-                    "source", "New media source", group="Media", options={"scene": self._requests.scene_names},
-                    hints={"name": "empty = a new name each time (toolbox <file> <letters>)",
-                           "visible": "off: it starts playing when you show it"},
-                    outputs={"source": "text", "scene": "text", "item_id": "number"},
-                    files={"file": MEDIA_TYPES})
-        actions.add("obs.place_like", self.place_like, "Gives a source the spot and size another source has in "
-                    "the scene (e.g. a new video where sound_alert is)", "Place like source", group="Sources",
-                    options={"scene": self._requests.scene_names, "source": self._requests.source_names,
-                             "like": self._requests.source_names},
-                    labels={"like": "Like source"})
-        actions.add("obs.wait_media_end", self.wait_media_end, "Waits until a Media Source's video (or sound) is "
-                    "over; gives how long it was. Show the source first: a hidden one doesn't start",
-                    "Wait until media is over", group="Media", options={"source": self._requests.media_names},
-                    outputs={"seconds": "number"})
-        actions.add("obs.get_media_status", self.media_status, "Where a Media Source is: state (playing, paused, "
-                    "ended, ...), seconds long, seconds played", "Media status", group="Media",
-                    options={"source": self._requests.media_names},
-                    outputs={"state": "text", "seconds": "number", "position": "number"})
+        for box in (PlayVideoOnce(self), NewMediaSource(self), PlaceLikeSource(self), WaitUntilMediaIsOver(self),
+                    MediaStatus(self)):
+            actions.add_box(box, "obs")
 
     async def play_once(self, scene: str, file: str, monitoring: str = "monitor and output", tracks: Any = "",
                         volume: float = 1.0, place_like: str = "", wait: bool = True,
@@ -183,12 +150,3 @@ class ObsMediaPlayback:
             pass  # already gone
 
 
-def _seconds(milliseconds: Any) -> float:
-    """OBS gives media times in ms, or nothing / -1 when it doesn't know (yet)."""
-    if not isinstance(milliseconds, (int, float)) or milliseconds < 0:
-        return 0.0
-    return round(milliseconds / 1000, 3)
-
-
-async def _monitoring() -> list[str]:
-    return list(MONITORING)

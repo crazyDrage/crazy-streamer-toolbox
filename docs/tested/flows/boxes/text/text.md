@@ -2,6 +2,7 @@
 
 | What | Name in the code | AI checked | Works | Understandable | Usable | Last change | Note |
 |---|---|---|---|---|---|---|---|
+| Build text | `text.build` | 2026-10-29 | - | - | - | - |  |
 | Change case | `text.case` | 2026-10-08 | - | - | - | - |  |
 | Join list to text | `text.join` | 2026-10-08 | - | - | - | - |  |
 | Replace in text | `text.replace` | 2026-10-08 | - | - | - | - |  |

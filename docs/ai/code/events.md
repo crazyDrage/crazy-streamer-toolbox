@@ -8,7 +8,7 @@ trigger matches start; alerts and widgets listen to the same bus.
 1. Publish it: `events.publish("<source>.<what>", {...})`, e.g. `"rumble.follow"`. Values are plain text,
    numbers, yes/no, lists. Always include `platform` for anything that comes from a streaming platform.
 2. List its fields in `EVENT_FIELDS` (`core/events/event_fields.py`). The flow editor shows them as dots on
-   the Start box; a field missing there can't be wired. Keep it in step with the `publish()` call.
+   the trigger's Start box; a field missing there can't be wired. Keep it in step with the `publish()` call.
 3. Make it a trigger the streamer can pick: an entry in `TRIGGER_KINDS` and its one line of help in
    `TRIGGER_INFO` (both in `gui/components/flow_editor/trigger_kinds.py`). The Add trigger window lists it
    under its program (the event's first word; a new program's name goes into `GROUP_TITLES` in
@@ -26,8 +26,9 @@ trigger matches start; alerts and widgets listen to the same bus.
 - A flow trigger is the event's name plus field patterns (`*` wildcards). Chat triggers have two special
   keys: `words` and `who` (the lowest role that may start it).
 - Redeem triggers keep the reward's id, so a renamed reward still matches.
-- Custom triggers (the streamer's own names, Triggers page) turn any matching event into a `custom` event;
-  `trigger.fire` does the same from a flow, SAMMI or the API. A custom event never fires another one.
+- Every trigger of a flow is a Start box of its own (id t1, t2, ...): the run starts there, and
+  `${box.t1.user}` reads its event (empty when another Start box started the run). When two triggers of one
+  flow fit an event, the first one starts it.
 - Every matching flow starts, side by side. Cooldowns and "when busy" are per flow.
 
 Details: "How a flow gets started" in `docs/ARCHITECTURE.md`.

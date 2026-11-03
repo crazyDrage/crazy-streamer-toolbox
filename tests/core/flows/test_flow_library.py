@@ -1,4 +1,5 @@
 import tempfile
+from dataclasses import replace
 import unittest
 from pathlib import Path
 
@@ -24,6 +25,7 @@ class TestFlowLibrary(unittest.IsolatedAsyncioTestCase):
             self.calls.append(params)
 
         self.actions.add("a.record", record)
+        self.actions.add("var.set", record, variable_fields=("name",))  # a field with a variable's name
         self.store = FlowStore(folder / "flows")
         runner = FlowRunner(self.actions, VariableStore(folder / "variables.json"))
         self.library = FlowLibrary(self.store, FlowStore(folder / "flow_templates"), runner, self.actions)
@@ -72,7 +74,9 @@ class TestFlowLibrary(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((copy.name, copy.label, copy.triggers), ("tick_imported", "Tick (imported)", ()))
         self.library.delete("tick")
         again = self.library.import_text(text, "tick.toml")  # nothing in the way: as it was, triggers too
-        self.assertEqual((again.name, again.label, again.triggers), ("tick", "Tick", (trigger,)))
+        self.assertEqual((again.name, again.label, again.triggers), ("tick", "Tick", (replace(trigger, id="t1"),)))
+        self.assertIn(FlowWire("t1", "out", "n1"), again.wires)  # its Start box, wired like Start
+        self.assertFalse([w for w in copy.wires if w.source == "t1"])  # the copy has no trigger, no wire from it
         await self.actions.run("flow.tick")
         self.assertEqual(self.calls, [{"n": 1}])
         for bad in ("not = [toml", 'label = "no boxes"'):

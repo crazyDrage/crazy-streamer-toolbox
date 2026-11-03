@@ -9,7 +9,8 @@ class FakeJsonSocketServer:
     """A local websocket that talks JSON like a program with a websocket API. `answer(message, path)` says
     what comes back for each message a client sends: nothing, one message or a list of them. `greeting` is
     sent to every client right after it connects; `tell` sends a message to every connected client (an
-    event). `received` keeps what clients sent, `paths` the address each client came on."""
+    event). `received` keeps what clients sent (a frame that isn't JSON as its text), `paths` the address each
+    client came on."""
 
     def __init__(self, answer: Callable[[dict[str, Any], str], Any] = lambda message, path: None,
                  greeting: list[dict[str, Any]] | None = None) -> None:
@@ -45,7 +46,11 @@ class FakeJsonSocketServer:
             for message in self._greeting:
                 await ws.send(json.dumps(message))
             async for frame in ws:
-                message = json.loads(frame)
+                try:
+                    message = json.loads(frame)
+                except ValueError:
+                    self.received.append(frame)
+                    continue
                 self.received.append(message)
                 back = self._answer(message, ws.request.path)
                 for one in back if isinstance(back, list) else [back] if back is not None else []:

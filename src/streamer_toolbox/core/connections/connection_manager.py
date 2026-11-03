@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from streamer_toolbox.core.config.config_table_writer import ConfigTableWriter
@@ -13,7 +14,9 @@ class ConnectionManager:
     """Starts every enabled connection with the toolbox, and applies GUI changes live (save + reconnect).
     While running it checks every few seconds, so a program started after the toolbox gets connected by itself."""
 
-    def __init__(self, connections: list[Connection], writer: ConfigTableWriter, check_every: float = 5.0) -> None:
+    def __init__(self, connections: list[Connection], writer: ConfigTableWriter, check_every: float = 5.0,
+                 paused: Callable[[str], bool] = lambda connection_id: False) -> None:
+        self._paused = paused  # a switched-off plugin's connection: not started, not kept alive (PluginPower)
         self._connections = {c.id: c for c in connections}
         self._writer = writer
         self._check_every = check_every
@@ -26,8 +29,12 @@ class ConnectionManager:
     def get(self, connection_id: str) -> Connection:
         return self._connections[connection_id]
 
+    def is_paused(self, connection_id: str) -> bool:
+        return self._paused(connection_id)
+
     async def start_all(self) -> None:
-        await asyncio.gather(*(self._start(c) for c in self.all() if c.settings["enabled"]))
+        await asyncio.gather(*(self._start(c) for c in self.all()
+                               if c.settings["enabled"] and not self._paused(c.id)))
         self._watcher = asyncio.create_task(self._watch())
 
     async def stop_all(self) -> None:
@@ -39,7 +46,19 @@ class ConnectionManager:
 
     async def check_all(self) -> None:
         """One round of keep_alive for every switched-on connection (the watcher calls it every few seconds)."""
-        await asyncio.gather(*(self._keep_alive(c) for c in self.all() if c.settings["enabled"]))
+        await asyncio.gather(*(self._keep_alive(c) for c in self.all()
+                               if c.settings["enabled"] and not self._paused(c.id)))
+
+    async def pause(self, connection_id: str) -> None:
+        """Stops it without switching it off (its plugin was switched off); resume starts it again."""
+        async with self._busy[connection_id]:
+            await self.get(connection_id).stop()
+
+    async def resume(self, connection_id: str) -> None:
+        connection = self.get(connection_id)
+        async with self._busy[connection_id]:
+            if connection.settings["enabled"]:
+                await self._start(connection)
 
     async def connect(self, connection_id: str, typed: dict[str, Any]) -> ConnectionStatus:
         """Tests what was typed (empty fields keep the saved value). Only if that works: switch on, save,

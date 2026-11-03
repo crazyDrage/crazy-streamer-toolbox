@@ -94,6 +94,41 @@ class TestAlertQueue(unittest.IsolatedAsyncioTestCase):
         urls = [inbox.get_nowait()["alert"]["image"].rsplit("/", 1)[1] for _ in range(3)]
         self.assertEqual([queue.file(u) is not None for u in urls], [False, True, True])
 
+    def test_an_alert_that_didnt_reach_obs_is_kept(self) -> None:
+        self.queue.not_arrived({"type": "clear"})
+        self.queue.not_arrived({"type": "alert", "alert": {"text": "Kit followed"}, "id": 7})
+        self.queue.not_arrived({"type": "alert", "alert": {"text": "Kit followed"}, "id": 7})  # a second page
+        self.assertEqual([text for _, text, _ in self.queue.missed], ["Kit followed"])
+        self.queue.arrived({"type": "alert", "id": 7})  # sent again to the page that came back, and confirmed
+        self.assertEqual(list(self.queue.missed), [])
+
+    async def test_an_alert_with_no_obs_page_listening_is_missed_too(self) -> None:
+        self.queue.listen(preview=True)  # the toolbox's preview isn't OBS
+        await self.queue.show(Alert(text="Kit raided"))
+        await self._turn()
+        self.assertEqual([text for _, text, _ in self.queue.missed], ["Kit raided"])
+        self.gate.set()
+
+    async def test_a_page_that_comes_back_gets_what_it_missed(self) -> None:
+        """His round 64: the page says the last id it got, the toolbox sends what came after it."""
+        first = self.queue.greeting()
+        self.assertEqual(first, [{"type": "hello", "run": self.queue.sent.run, "last": 0}])
+        inbox = self.queue.listen()
+        await self.queue.show(Alert(text="one"))
+        await self._turn()
+        got = inbox.get_nowait()["id"]
+        self.queue.stop_listening(inbox)  # the line breaks
+        self.gate.set()
+        await self.queue.show(Alert(text="two"))
+        await self._turn()
+        self.gate.set()
+        back = self.queue.greeting(self.queue.sent.run, got)
+        self.assertEqual([m["type"] for m in back], ["hello", "alert"])
+        self.assertEqual(back[1]["alert"]["text"], "two")
+        # after a restart the page knows another run: it gets everything this run kept
+        self.assertEqual(len(self.queue.greeting("other", got)), 3)
+        self.assertEqual(len(self.queue.greeting()), 1)  # a page that connects the first time: nothing old
+
     async def test_clear_empties_the_line_and_tells_the_overlays(self) -> None:
         inbox = self.queue.listen()
         await self.queue.show(Alert("one"))

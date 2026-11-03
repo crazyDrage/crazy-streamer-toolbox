@@ -4,6 +4,8 @@ from typing import Any
 COLORS = ("#6d5dfc", "#1e88e5", "#00897b", "#43a047", "#f9a825", "#ef6c00", "#e53935", "#d81b60", "#8e24aa",
           "#546e7a")  # the colour picker's choices; a button may have any #rrggbb
 TEXT_COLOR = "#ffffff"
+GO_TO_PAGE = "deck.page"  # a button that shows another page of the deck (params: page); not an action
+PAGE_ICON = "arrow_forward"
 
 
 @dataclass

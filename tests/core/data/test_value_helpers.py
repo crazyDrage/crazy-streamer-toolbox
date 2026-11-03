@@ -8,6 +8,7 @@ class TestValueHelpers(unittest.TestCase):
     def test_object_helpers(self) -> None:
         position = {"x": 0.5, "name": "Dragon", "items": [1, 2]}
         self.assertEqual(apply_helper("keys", position), ["x", "name", "items"])
+        self.assertEqual(apply_helper("values", position), [0.5, "Dragon", [1, 2]])
         self.assertEqual(apply_helper("kinds", position), {"x": "number", "name": "text", "items": "list"})
         self.assertEqual(apply_helper("count", position), 3)
         self.assertEqual(apply_helper("kind", position), "object")
@@ -26,12 +27,12 @@ class TestValueHelpers(unittest.TestCase):
             apply_helper("first", [])
         with self.assertRaisesRegex(KeyError, "unknown helper @size"):
             apply_helper("size", [1])
-        self.assertEqual(set(HELPERS), {"keys", "kinds", "count", "kind", "first", "last", "text"})
+        self.assertEqual(set(HELPERS), {"keys", "values", "kinds", "count", "kind", "first", "last", "text"})
 
     def test_only_the_helpers_that_fit_a_known_kind_are_offered(self) -> None:
         self.assertEqual(helpers_for("text"), [])
         self.assertEqual(helpers_for("number"), [])
-        self.assertEqual(helpers_for("object"), ["keys", "kinds", "count", "text"])
+        self.assertEqual(helpers_for("object"), ["keys", "values", "kinds", "count", "text"])
         self.assertEqual(helpers_for("list"), ["kinds", "count", "first", "last", "text"])
         self.assertEqual(helpers_for(""), list(HELPERS))
 

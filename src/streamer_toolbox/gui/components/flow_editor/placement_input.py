@@ -6,10 +6,11 @@ from nicegui import ui
 from streamer_toolbox.connections.obs.obs_placement import ObsPlacement
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.files.box_value_files import BoxValueFiles
+from streamer_toolbox.core.interfaces.field_editor import FieldEditor
 from streamer_toolbox.gui.components.flow_editor.placement_dialog import PlacementDialog
 
 
-class PlacementInput:
+class PlacementInput(FieldEditor):
     """A box's place field: where it is in one line, Set up the place (its window, with a marker in OBS) and
     Clear. The place is kept in the box itself (the flow file). The window starts in the box's own scene."""
 

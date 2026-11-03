@@ -1,7 +1,10 @@
+from collections.abc import Callable
+
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.deck.deck_images import DeckImages
 from streamer_toolbox.core.deck.deck_store import DeckStore
 from streamer_toolbox.core.flows.flow_library import FlowLibrary
+from streamer_toolbox.gui.components.flow_editor.action_picker import ActionPicker
 from streamer_toolbox.gui.components.live_deck.live_deck_view import LiveDeckView
 from streamer_toolbox.gui.services.activity_log import ActivityLog
 
@@ -12,12 +15,22 @@ class LivePage:
     Plugins → that plugin)."""
 
     def __init__(self, actions: ActionRegistry, activity: ActivityLog, deck: DeckStore, flows: FlowLibrary,
-                 images: DeckImages) -> None:
+                 images: DeckImages, picker: Callable[[], ActionPicker]) -> None:
         self._actions = actions
         self._activity = activity
         self._deck = deck
         self._flows = flows
         self._images = images
+        self._picker = picker  # the Add box window, for what a button runs
 
     def build(self) -> None:
-        LiveDeckView(self._deck, self._actions, self._flows, self._activity, self._images).build()
+        LiveDeckView(self._deck, self._actions, self._flows, self._activity, self._images, self._picker).build()
+
+    def side_items(self) -> list[tuple[str, str, str]]:
+        """The side list of Live: its deck pages (his round 63: like the Flows tab, the pages on the left)."""
+        return [(page.name, LiveDeckView.address(page.name), "grid_view") for page in self._deck.load().pages]
+
+    def build_bare(self) -> None:
+        """/live/buttons: the deck on its own, without the toolbox around it (his round 63; for a tablet)."""
+        LiveDeckView(self._deck, self._actions, self._flows, self._activity, self._images, self._picker,
+                     bare=True).build()

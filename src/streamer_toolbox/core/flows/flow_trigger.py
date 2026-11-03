@@ -17,6 +17,8 @@ REWARDS = "twitch.rewards"  # the toolbox's own event when Twitch connects: {"re
 @dataclass(frozen=True)
 class FlowTrigger:
     """Something that starts a flow besides its button, e.g. kind "twitch.redeem" with match {"reward": "..."}.
+    Each trigger is a Start box of its own (id): a run it starts follows that box's wires, and its orange dots
+    are the event's data.
 
     A trigger matches an event of the same kind whose data has every key/value in `match`, ignoring upper/lower
     case. A * stands for any text, like in SAMMI: {"message": "!qa *"} matches "!qa how are you?".
@@ -24,13 +26,16 @@ class FlowTrigger:
     so are the role keys, on every event with a viewer's "role": {"roles": "vip, mod"} matches a VIP or a mod
     (the editor's checkboxes save this one), {"who": "vip"} a VIP, a mod or the broadcaster, {"who_max": "vip"}
     a VIP, a sub or a plain viewer.
-    A number in the event can be compared: {"bpm": ">120"} matches a heart rate above 120 ("<" lower, "=" equal).
+    A number in the event can be compared: {"bpm": ">120"} matches a heart rate above 120 ("<" lower, "=" equal;
+    ">>" / "<<" only when it rises above / falls below, by the event's previous_bpm).
     A redeem trigger saved with reward_id matches by that id only (its "reward" name is kept for showing and is
     updated when the reward is renamed on Twitch).
     """
 
     kind: str
     match: dict[str, Any] = field(default_factory=dict)
+    id: str = ""  # its own Start box in the flow (t1, t2, ...; his round 63): wires and ${box.t1.user} name it
+    box: tuple[float, float] | None = None  # where that Start box sits in the box view
 
     def matches(self, kind: str, data: dict[str, Any]) -> bool:
         skipped = {ID_KEYS[k] for k, v in self.match.items() if k in ID_KEYS and v}
@@ -63,7 +68,7 @@ def _fits(key: str, wanted: str, data: dict[str, Any]) -> bool:
         return str(data.get("role", "viewer")) in {role.strip().casefold() for role in wanted.split(",")}
     if key == WHO_MAX:
         return _rank(str(data.get("role", "viewer"))) <= _rank(wanted)
-    by_number = fits_number(data.get(key), wanted)  # {"bpm": ">120"}
+    by_number = fits_number(data.get(key), wanted, data.get(f"previous_{key}"))  # {"bpm": ">120"}
     return _same(str(data.get(key, "")), wanted) if by_number is None else by_number
 
 

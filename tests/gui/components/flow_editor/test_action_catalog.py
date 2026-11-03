@@ -1,6 +1,6 @@
 import unittest
 
-from streamer_toolbox.core.actions.action_registry import ActionRegistry
+from streamer_toolbox.core.actions.action_registry import PLUGINS, SERVICES, UTILS, ActionRegistry
 from streamer_toolbox.core.actions.box_filter import BoxFilter
 from streamer_toolbox.gui.components.flow_editor.action_catalog import ActionCatalog
 
@@ -27,6 +27,15 @@ class TestActionCatalog(unittest.TestCase):
     def test_categories_basics_first_flows_last_with_counts(self) -> None:
         self.assertEqual(self.catalog.categories(), [("logic", "Logic", 1), ("mixitup", "Mix It Up", 1),
                                                      ("obs", "OBS", 3), ("flow", "Flows", 1)])
+
+    def test_sections_utils_services_plugins(self) -> None:
+        """His round 63: the toolbox's own first, then the connected programs, then the plugins."""
+        self.actions.add("hello.greet", noop)
+        self.actions.sort_into(lambda: {"obs": SERVICES, "mixitup": SERVICES, "hello": PLUGINS})
+        catalog = ActionCatalog(self.actions, exclude="flow.testing")
+        self.assertEqual([(s, [c for c, _, _ in items]) for s, items in catalog.sections()], [
+            (UTILS, ["logic", "flow"]), (SERVICES, ["mixitup", "obs"]), (PLUGINS, ["hello"])])
+        self.assertEqual([t for t, _ in catalog.search("e")][:2], ["Logic", "Flows"])  # a search in that order too
 
     def test_groups(self) -> None:
         groups = self.catalog.groups("obs")
@@ -56,6 +65,17 @@ class TestActionCatalog(unittest.TestCase):
         catalog = ActionCatalog(self.actions, shows=lambda a: a.name != "obs.set_volume")
         self.assertEqual((catalog.count(), ActionCatalog(self.actions).count()), (6, 7))
         self.assertEqual([a.name for _, items in catalog.search("volume") for a in items], ["obs.get_volume"])
+
+    def test_flow_folders_from_a_to_z_and_no_folder_last(self) -> None:
+        for name, folder in (("a", "No folder"), ("b", "testing"), ("c", "Triggers"), ("d", "lizard")):
+            self.actions.add(f"flow.{name}", noop, group=folder)
+        groups = [g for g, _ in ActionCatalog(self.actions).groups("flow")]
+        self.assertEqual(groups, ["General", "lizard", "testing", "Triggers", "No folder"])
+
+    def test_boxes_not_offered_are_left_out(self) -> None:
+        self.actions.add("flow.helper", noop, "Runs the flow helper", offered=False)
+        self.assertEqual([a.name for _, items in ActionCatalog(self.actions).search("flow") for a in items],
+                         ["flow.lizard_timer", "flow.testing"])
 
     def test_hidden_categories_are_left_out(self) -> None:
         catalog = ActionCatalog(self.actions, hide={"obs", "mixitup"})

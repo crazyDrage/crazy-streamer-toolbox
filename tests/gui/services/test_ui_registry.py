@@ -11,6 +11,15 @@ class TestUiRegistry(unittest.TestCase):
         self.assertEqual(registry.panels_for("settings"), [("hello", "Options", settings)])
         self.assertEqual(registry.panels_for("connections"), [])
 
+    def test_a_switched_off_plugin_has_no_cards_and_no_tools(self) -> None:
+        registry = UiRegistry()
+        draw = lambda: None  # noqa: E731
+        registry.panels += [("hello", "settings", "Options", draw), ("lamp", "settings", "Lamp", draw)]
+        registry.tools += [("hello", "Hello", "", "", draw), ("toolbox", "Points", "", "", draw)]
+        registry.is_off = lambda plugin_id: plugin_id == "hello"
+        self.assertEqual(registry.panels_for("settings"), [("lamp", "Lamp", draw)])
+        self.assertEqual([title for _, title, *_ in registry.tools_on()], ["Points"])
+
 
 if __name__ == "__main__":
     unittest.main()

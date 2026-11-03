@@ -131,6 +131,21 @@ class TestTestList(unittest.TestCase):
         once_more.sync([item for item in ITEMS if item.id != "obs.mute"])
         self.assertEqual(self._text("flows/boxes/obs/audio.md").count("not in the toolbox any more"), 1)
 
+    def test_a_row_written_by_hand_in_a_page_file_stays_as_it_is(self) -> None:
+        self._list().sync(ITEMS)
+        file = self.folder / "variables" / "page.md"
+        file.write_text(file.read_text(encoding="utf-8")
+                        + "| A warning next to the name | `HeaderNotice` | 2026-11-01 | - | - | - | - | a note |\n"
+                        + "| Gone page | `/triggers` | - | - | - | - | - |  |\n", encoding="utf-8")
+        tested = self._list()
+        tested.sync(ITEMS)
+        tested.sync(ITEMS)
+        text = self._text("variables/page.md")
+        self.assertIn("| A warning next to the name | `HeaderNotice` | 2026-11-01 | - | - | - | - | a note |", text)
+        self.assertIn("| Gone page (not in the toolbox any more) | `/triggers` |", text)
+        self.assertFalse(tested.is_gone("page:HeaderNotice"))
+        self.assertIn("| [variables/page](variables/page.md) | 0 | 2 |", self._text("README.md"))
+
     def test_a_row_that_is_sorted_anew_moves_with_its_ticks(self) -> None:
         tested = self._list()
         tested.sync(ITEMS)

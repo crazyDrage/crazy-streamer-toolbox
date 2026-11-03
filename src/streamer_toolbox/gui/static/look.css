@@ -28,6 +28,9 @@ body.body--dark {
 .tb-chosen { background: var(--tb-on) !important; color: var(--tb-on-fg) !important;
   box-shadow: inset 2px 0 0 #3fbfae; }
 .tb-sticky { position: sticky; top: var(--tb-head, 0px); z-index: 5; background: var(--tb-bg); }
+/* a Learn page: a wide drawing scrolls on its own, the page never goes sideways on a phone */
+.tb-learn pre { overflow-x: auto; max-width: 100%; }
+.tb-learn table { display: block; overflow-x: auto; max-width: 100%; }
 .q-header { background: var(--tb-bar) !important; color: var(--tb-bar-fg); border-bottom: 1px solid #2a323b; }
 .tb-name-line { min-height: 30px; }
 .tb-name { font-size: 12px; letter-spacing: 0.08em; color: var(--tb-bar-soft); white-space: nowrap; }
@@ -80,3 +83,24 @@ code, pre, .font-mono, .tb-value { font-family: var(--tb-mono); }
 .tb-menu-item .q-icon { font-size: 18px; opacity: .75; }
 .tb-menu-danger { color: var(--tb-bad); }
 .tb-menu-line { height: 1px; margin: 4px 0; background: var(--tb-line); }
+
+/* an editor page with a preview and its settings side by side (SplitPanes) uses the whole window, not the
+   other pages' reading width (his round 76: "I have the window in full screen, and I have a border left and right") */
+.tb-main:has(.tb-split) { max-width: none; }
+
+/* a release's text in the update window (UpdatePanel): its headings as small as a line, not page titles */
+.tb-notes h1, .tb-notes h2, .tb-notes h3, .tb-notes h4 { font-size: 1rem; font-weight: 600; line-height: 1.4; margin: 0.6em 0 0.2em; }
+
+/* the small info pop-ups (ui.notify, OPEN.md 110: "blocking some elements even with a small info text"):
+   clicks go through them to what is underneath; only a button inside one (close, Undo) takes the click.
+   Smaller and a little see-through, so what is underneath stays readable. */
+.q-notification { pointer-events: none !important; opacity: 0.9; min-height: 0; padding: 4px 10px;
+  font-size: 12px; max-width: min(420px, calc(100vw - 32px)); box-shadow: 0 2px 8px rgba(0, 0, 0, .3); }
+.q-notification__actions, .q-notification .q-btn { pointer-events: all; }
+.q-notification__message { padding: 4px 0; }
+
+/* the info bar at the bottom (his round 81, instead of the pop-ups) and its Debug panel */
+.tb-info-bar { background: var(--tb-bar) !important; color: var(--tb-bar-fg); border-top: 1px solid #2a323b; }
+.tb-info-bar .q-btn { color: var(--tb-bar-soft) !important; }
+.tb-info-new { color: var(--tb-bar-on-fg); transition: color 0.4s; }
+.tb-debug.q-drawer { border-left: 1px solid var(--tb-line); }

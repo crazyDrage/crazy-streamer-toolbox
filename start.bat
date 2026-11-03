@@ -1,9 +1,9 @@
 @echo off
 rem Start streamer-toolbox (GUI + HTTP API) and open the dashboard in its own window (Edge/Chrome app window).
-rem start-browser.bat opens it as a browser tab instead. Extra options are passed on,
+rem start-settings.bat lets you pick (browser tab, less memory, ...) and back up. Extra options are passed on,
 rem e.g. start.bat --port 8851 --config config\other.toml   or   start.bat --open none
-rem Closing the dashboard window stops the toolbox (SAMMI and Kit can't reach it then). start-browser.bat keeps it
-rem running after the tab is closed. Settings -> Restart starts it again; the window stays open.
+rem Closing the dashboard window stops the toolbox (SAMMI and Kit can't reach it then). start-headless.bat keeps it
+rem running without a window. Settings -> Restart starts it again; the window stays open.
 setlocal
 cd /d "%~dp0"
 

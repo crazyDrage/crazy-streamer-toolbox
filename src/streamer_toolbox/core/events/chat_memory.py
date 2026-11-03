@@ -1,8 +1,8 @@
 from typing import Any
 
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
-
-KEPT = 1000  # chat messages remembered, the newest ones
+from streamer_toolbox.core.events.boxes.chat_memory_shared import KEPT
+from streamer_toolbox.core.events.boxes.get_chat_message import GetChatMessage
 
 
 class ChatMemory:
@@ -26,13 +26,8 @@ class ChatMemory:
             del self._messages[next(iter(self._messages))]
 
     def add_to(self, actions: ActionRegistry) -> None:
-        actions.add("viewer.chat_message", self.get, "The text of a chat message by its id, e.g. the one that "
-                    "\"Chat message deleted\" names. From the toolbox's own memory (the newest 1000 messages since it "
-                    "started), no request to the platform; found = no when it doesn't know the id",
-                    "Get chat message", group="Chat",
-                    outputs={"found": "yes/no", "message": "text", "user": "text", "user_id": "text",
-                             "role": "text", "platform": "text"},
-                    hints={"message_id": "Wire the trigger's message_id into it"})
+        for box in (GetChatMessage(self),):
+            actions.add_box(box, "viewer")
 
     async def get(self, message_id: str) -> dict[str, Any]:
         known = self._messages.get(str(message_id if message_id is not None else "").strip())

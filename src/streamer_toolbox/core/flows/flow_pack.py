@@ -6,6 +6,7 @@ import tomlkit
 
 from streamer_toolbox.core.flows.flow import Flow
 from streamer_toolbox.core.flows.flow_store import FlowStore
+from streamer_toolbox.core.upgrades.settings_version import SETTINGS_VERSION, VERSION_KEY
 
 PACK_KEY = "toolbox_flows"  # in a file: this is a folder of flows, and the format's number
 FORMAT = 1
@@ -13,16 +14,18 @@ PREFIX = "flow."
 
 
 class FlowPack:
-    """A folder of flows as one file, to give to someone else: `toolbox_flows = 1`, `folder`, and one [[flows]]
+    """A folder of flows as one file, to give to someone else: `toolbox_flows = 1`, `settings_version` (the
+    settings version it was made at: its flows are upgraded from there on import), `folder`, and one [[flows]]
     table per flow (its file name as `name`, then what its own .toml holds). The names are in it because flows
     use each other as boxes (flow.<name>); renamed() keeps those boxes right when a name is taken on import."""
 
-    def __init__(self, folder: str, flows: tuple[Flow, ...]) -> None:
+    def __init__(self, folder: str, flows: tuple[Flow, ...], settings_version: int = SETTINGS_VERSION) -> None:
         self.folder = folder
         self.flows = flows
+        self.settings_version = settings_version
 
     def to_text(self) -> str:
-        return tomlkit.dumps({PACK_KEY: FORMAT, "folder": self.folder,
+        return tomlkit.dumps({PACK_KEY: FORMAT, VERSION_KEY: self.settings_version, "folder": self.folder,
                               "flows": [{"name": f.name, **FlowStore.to_data(f)} for f in self.flows]})
 
     @staticmethod
@@ -41,7 +44,7 @@ class FlowPack:
         if not isinstance(entries, list) or not entries:
             raise ValueError("it has no flows")
         flows = tuple(FlowStore.parse(str(entry["name"]), entry) for entry in entries)
-        return cls(str(data.get("folder", "")), flows)
+        return cls(str(data.get("folder", "")), flows, int(data.get(VERSION_KEY, 0)))
 
     def needs(self) -> list[str]:
         """Flows its boxes use that are not in it (their file names), A-Z: they must exist where it is imported."""
@@ -55,4 +58,4 @@ class FlowPack:
         return FlowPack(self.folder, tuple(
             replace(f, name=names.get(f.name, f.name),
                     nodes=tuple(replace(n, action=actions.get(n.action, n.action)) for n in f.nodes))
-            for f in self.flows))
+            for f in self.flows), self.settings_version)

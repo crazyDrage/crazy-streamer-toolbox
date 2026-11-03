@@ -1,6 +1,9 @@
 from collections.abc import Callable
+from pathlib import Path
 
+from streamer_toolbox.core.connections.secret_file import SecretFile
 from streamer_toolbox.core.interfaces.connection import Connection
+from streamer_toolbox.core.interfaces.importer import Importer
 
 SECTIONS = ("live", "connections", "settings")  # where a plugin panel can go
 
@@ -15,7 +18,26 @@ class UiRegistry:
         # the Tools page: (plugin_id, title, icon, description, builder), one tab each
         self.tools: list[tuple[str, str, str, str, Callable[[], None]]] = []
         self.category_titles: dict[str, str] = {"obs": "OBS"}
+        self.importers: list[tuple[str, Importer]] = []  # Overlay → Import: (plugin_id, importer)
+        self.learn_folders: list[tuple[str, Path]] = []  # the Learn tab's pages: (plugin_id, folder)
         self.connections: list[Connection] = []  # a plugin's own program, shown under Connections
+        # a plugin's keys (ctx.secret): (plugin_id, label, hint, file), a field each on its card under Plugins
+        self.secrets: list[tuple[str, str, str, SecretFile]] = []
+        # whether a plugin is switched off (PluginPower.is_off): its tools and cards are left out then
+        self.is_off: Callable[[str], bool] = lambda plugin_id: False
+
+    def tools_on(self) -> list[tuple[str, str, str, str, Callable[[], None]]]:
+        """The tools of the plugins that are on (and the toolbox's own)."""
+        return [tool for tool in self.tools if not self.is_off(tool[0])]
+
+    def importers_on(self) -> list[Importer]:
+        """The importers of the plugins that are on (and the toolbox's own)."""
+        return [importer for plugin_id, importer in self.importers if not self.is_off(plugin_id)]
+
+    def learn_folders_on(self) -> list[Path]:
+        """The Learn page folders of the plugins that are on."""
+        return [folder for plugin_id, folder in self.learn_folders if not self.is_off(plugin_id)]
 
     def panels_for(self, section: str) -> list[tuple[str, str, Callable[[], None]]]:
-        return [(pid, title, builder) for pid, sec, title, builder in self.panels if sec == section]
+        return [(pid, title, builder) for pid, sec, title, builder in self.panels
+                if sec == section and not self.is_off(pid)]

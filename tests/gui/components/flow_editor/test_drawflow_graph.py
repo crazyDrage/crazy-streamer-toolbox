@@ -51,6 +51,10 @@ class TestDrawflowGraph(unittest.TestCase):
         self.assertEqual([c["node"] for c in loop["inputs"]["input_1"]["connections"]], ["1"])
         self.assertEqual([c["node"] for c in loop["inputs"]["input_2"]["connections"]], ["1"])  # stop
         self.assertEqual([c["node"] for c in loop["inputs"]["input_3"]["connections"]], ["3"])  # rounds
+        # its own run dot is named start, each extra one has its own colour (his round 55)
+        self.assertIn('<span class="tb-run-dot tb-entry-start">start</span>', loop["html"])
+        self.assertIn('class="tb-in tb-entry tb-entry-stop"', loop["html"])
+        self.assertNotIn("tb-run-dot", data["drawflow"]["Home"]["data"]["3"]["html"])
         wires, params = list(d.wires), dict(d.nodes[0].params)
         d.nodes[0].params["rounds"] = "${box}"
         graph.read(data, d)
