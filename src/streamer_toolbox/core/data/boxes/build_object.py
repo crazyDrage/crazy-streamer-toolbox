@@ -7,6 +7,7 @@ from streamer_toolbox.core.interfaces.box import Box
 
 class BuildObject(Box):
     name = "build"
+    data_only = True  # no run wire: only works out a value from its inputs (his rule, round 62 A / notes 10-29)
     label = "Build object"
     help = "Builds an object from up to five name + value pairs (empty names are left out); 'start' = an object " \
            "to add them to"

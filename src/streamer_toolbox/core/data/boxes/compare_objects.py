@@ -10,6 +10,7 @@ MISSING = None  # what a key has on the side it isn't on
 
 class CompareObjects(Box):
     name = "compare"
+    data_only = True  # no run wire: only works out a value from its inputs (his rule, round 62 A / notes 10-29)
     label = "Compare objects"
     help = "What changed between two objects (e.g. the last saved one and a new one), what stayed the same, or " \
            "all of it. Keys inside keys are compared one by one, as paths (physics.wind)"

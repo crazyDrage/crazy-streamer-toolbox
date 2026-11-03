@@ -6,6 +6,8 @@ from fastapi import APIRouter
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.interfaces.box import Box
 from streamer_toolbox.core.interfaces.field_editor import FieldEditor
+from streamer_toolbox.core.interfaces.import_target import ImportTarget
+from streamer_toolbox.core.interfaces.importer import Importer
 from streamer_toolbox.core.interfaces.listener import Listener
 from streamer_toolbox.core.interfaces.page import Page
 from streamer_toolbox.core.interfaces.panel import Panel
@@ -106,6 +108,23 @@ class TestPluginAdd(unittest.IsolatedAsyncioTestCase):
                          (["Card"], ["Board"], ["/plugins/p"]))
         self.assertEqual((len(self.ctx.listeners), len(self.ctx.routers)), (1, 1))
         self.assertEqual(self.ctx.field_editors, {"p.steps": Steps})
+
+    def test_an_importer_goes_to_overlay_import(self) -> None:
+        class FromElsewhere(Importer):
+            title = "Elsewhere"
+
+            def build(self, target: ImportTarget) -> None:
+                pass
+
+        class Untitled(Importer):
+            def build(self, target: ImportTarget) -> None:
+                pass
+
+        importer = FromElsewhere()
+        self.assertEqual(self.ctx.add(importer), "")
+        self.assertEqual(self.ctx.importers, [importer])
+        with self.assertRaisesRegex(ValueError, "Untitled needs a title"):
+            self.ctx.add(Untitled())
 
     def test_something_it_doesnt_know_or_a_box_without_a_name_is_refused(self) -> None:
         class Nameless(Box):

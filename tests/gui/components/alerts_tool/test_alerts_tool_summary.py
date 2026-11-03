@@ -9,7 +9,7 @@ from streamer_toolbox.gui.components.alerts_tool.alerts_tool import summary
 
 class TestAlertsToolSummary(unittest.TestCase):
     def test_an_alert_in_one_line(self) -> None:
-        rule = AlertRule.default("twitch.resub")
+        rule = AlertRule.starter("resub")
         self.assertEqual(summary(rule), "no picture · no sound · 5 s")
         card = replace(rule, image="C:\\alerts\\sub_own_with_name.png", sound="C:\\alerts\\ding.ogg", seconds=8.0,
                        variations=(AlertVariation(12),)) \

@@ -1,9 +1,11 @@
 import json
 from collections.abc import Awaitable, Callable
+from dataclasses import asdict, replace
 
 from nicegui import app, ui
 
 from streamer_toolbox.core.flows.box_wire import box_source
+from streamer_toolbox.core.flows.flow_group import COLORS, FlowGroup
 from streamer_toolbox.core.flows.flow_wire import INPUT, START
 from streamer_toolbox.gui.components.flow_editor.box_clipboard import CLIPBOARD
 from streamer_toolbox.gui.components.flow_editor.drawflow_graph import DrawflowGraph
@@ -49,6 +51,8 @@ class FlowBoxView:
         self._start_form = start_form
         self._add_trigger = add_trigger
         self._selected: str | None = None  # node id
+        self._group: str | None = None  # a group's title was clicked: its panel shows
+        self._picked: list[str] = []  # several boxes picked at once (his round 83): Ctrl / Shift + click, a frame
         self._numbers: dict[int, str] = {}
         self._listening = False
         self._shown: str | None = None  # the debug marks on the page now
@@ -87,7 +91,8 @@ class FlowBoxView:
         with ui.row().classes("items-start no-wrap w-full gap-3 -mt-3"):
             ui.label("Drag the background to scroll · wire: drag from a right dot to a left dot · several wires "
                      "from one dot = at the same time · orange dots carry a value into a field (Wire from a box) · "
-                     "click a box or wire, then Delete to remove it · right click for a menu") \
+                     "click a box or wire, then Delete to remove it · Shift + click or Shift + drag picks several · "
+                     "right click for a menu") \
                 .classes("text-xs opacity-60 flex-1")
             ui.switch("Debug", value=self._debug(), on_change=lambda e: self._set_debug(e.value)) \
                 .props("dense").classes("text-xs shrink-0") \
@@ -105,11 +110,22 @@ class FlowBoxView:
             ui.on("tb_flow_wired", self._data_wired)
             ui.on("tb_flow_key", self._key)
             ui.on("tb_flow_menu", self._menu)
+            ui.on("tb_flow_picked", self._picked_changed)
+            ui.on("tb_flow_group", self._group_clicked)
+            ui.on("tb_flow_group_folded", self._group_folded)
             self._listening = True
         self._draw()
 
     @ui.refreshable_method
     def side_panel(self) -> None:
+        many = self._boxes() if len(self._picked) > 1 else []
+        if len(many) > 1:
+            self._many_panel(many)
+            return
+        group = self._draft.group(self._group) if self._group else None
+        if group is not None:
+            self._group_panel(group)
+            return
         node = self._draft.node(self._selected) if self._selected else None
         with ui.row().classes("items-center w-full gap-2"):
             ui.button("Add box", icon="add", on_click=lambda: self._add()).props("no-caps unelevated dense")
@@ -119,7 +135,7 @@ class FlowBoxView:
             if CLIPBOARD.has_box:
                 ui.button("Paste", icon="content_paste", on_click=lambda: self._paste()) \
                     .props("no-caps flat dense") \
-                    .tooltip("Adds the copied box (Ctrl+V on the canvas)")
+                    .tooltip("Adds the copied boxes (Ctrl+V on the canvas)")
             ui.space()
             if node is not None:
                 ui.button(icon="library_add", on_click=lambda: self._duplicate(node.id)) \
@@ -143,6 +159,81 @@ class FlowBoxView:
         else:
             ui.label("Click a box to edit it. New boxes appear unwired: they run once a wire leads to them.") \
                 .classes("text-xs opacity-60")
+
+    def _many_panel(self, many: list[str]) -> None:
+        """Several boxes picked (his round 83): what can be done with all of them at once."""
+        with ui.row().classes("items-center w-full gap-2"):
+            ui.label(f"{len(many)} boxes picked").classes("text-base font-semibold flex-1")
+            ui.button(icon="close", on_click=lambda: ui.run_javascript("tbFlowPick([])"))                 .props("flat round dense").tooltip("Let them go")
+        with ui.row().classes("items-center w-full gap-2"):
+            ui.button("Duplicate", icon="library_add", on_click=lambda: self._duplicate())                 .props("no-caps outline dense").tooltip("Copies next to them, wired among themselves (Ctrl+D)")
+            ui.button("Copy", icon="content_copy", on_click=lambda: self._copy())                 .props("no-caps outline dense").tooltip("To paste here or in another flow (Ctrl+C)")
+            ui.button(f"Delete {len(many)} boxes", icon="delete", on_click=lambda: self._delete_many(self._boxes()))                 .props("no-caps flat dense color=negative")
+        ui.label("Drag one of them to move them all. Ctrl / Shift + click adds or takes away a box; Shift + drag on "
+                 "the empty canvas draws a frame around boxes.").classes("text-xs opacity-60")
+
+    def _group_panel(self, group: FlowGroup) -> None:
+        """A group (his round 83): its name, colour, folded or open. The boxes whose middle is inside it belong
+        to it."""
+        with ui.row().classes("items-center w-full gap-2"):
+            ui.label("Group").classes("text-base font-semibold flex-1")
+            ui.button("Delete group", icon="delete", on_click=lambda: self._delete_group(group.id)) \
+                .props("no-caps flat dense color=negative").tooltip("Only the area goes; its boxes stay")
+            ui.button(icon="close", on_click=self._close).props("flat round dense").tooltip("Close the panel")
+        ui.input("Name", value=group.label,
+                 on_change=lambda e: self._set_group(group.id, label=str(e.value or "").strip() or "Group")) \
+            .props("dense").classes("w-full")
+        with ui.row().classes("items-center gap-1"):
+            for color in COLORS:
+                ui.button(on_click=lambda c=color: self._set_group(group.id, color=c, redraw=True), color=None) \
+                    .props("round dense unelevated size=sm") \
+                    .classes(f"tb-group-swatch tb-group-{color}" + (" tb-swatch-on" if color == group.color else "")) \
+                    .tooltip(color)
+        ui.button("Open" if group.folded else "Fold", icon="unfold_more" if group.folded else "unfold_less",
+                  on_click=lambda: self._set_group(group.id, folded=not group.folded, redraw=True)) \
+            .props("no-caps outline dense")
+        ui.label("Drag its title to move it with its boxes; drag its corner to make it bigger. A box belongs to it "
+                 "when its middle is inside. Folded, it is one small box; its wires end at its edges. Only a view: "
+                 "the flow runs the same.").classes("text-xs opacity-60")
+
+    async def _group_clicked(self, e) -> None:
+        group_id = e.args if isinstance(e.args, str) else None
+        await self.sync()
+        if self._draft.group(group_id) is None:
+            return
+        self._group, self._selected, self._start, self._picked = group_id, None, None, []
+        self.side_panel.refresh()
+        ui.run_javascript(f"tbFlowPanel('{PANEL_ID}', true)")
+
+    async def _group_folded(self, e) -> None:
+        if isinstance(e.args, str) and e.args == self._group:
+            await self.sync()
+            self.side_panel.refresh()
+
+    async def _set_group(self, group_id: str, redraw: bool = False, **changes) -> None:
+        await self.sync()
+        self._draft.groups = [replace(g, **changes) if g.id == group_id else g for g in self._draft.groups]
+        group = self._draft.group(group_id)
+        if group is None:
+            return
+        ui.run_javascript(f"tbFlowGroupSet({json.dumps(_group_data(group))})")
+        if redraw:
+            self.side_panel.refresh()
+
+    async def _add_group(self, spot: tuple[float, float]) -> None:
+        await self.sync()
+        group = self._draft.add_group(spot)
+        self._group, self._selected, self._start, self._picked = group.id, None, None, []
+        self._draw()
+        self.side_panel.refresh()
+        ui.run_javascript(f"tbFlowPanel('{PANEL_ID}', true)")
+
+    async def _delete_group(self, group_id: str) -> None:
+        await self.sync()
+        self._draft.groups = [g for g in self._draft.groups if g.id != group_id]
+        self._group = None
+        self._draw()
+        self.side_panel.refresh()
 
     def start_changed(self, box: str) -> None:
         """A trigger or the inputs changed in a form: that box shows it (its dots stay; a new dot needs
@@ -168,9 +259,11 @@ class FlowBoxView:
                           f"{json.dumps(self._graph.css(node))})")
 
     async def sync(self) -> None:
-        export = await ui.run_javascript("return window.tbFlow ? window.tbFlow.export() : null", timeout=5)
-        if export:
-            self._graph.read(export, self._draft)
+        state = await ui.run_javascript("return window.tbFlow ? {graph: window.tbFlow.export(), "
+                                        "groups: window.tbFlowGroups || []} : null", timeout=5)
+        if state and state.get("graph"):
+            self._graph.read(state["graph"], self._draft)
+            self._draft.groups = [_group_from(g) for g in state.get("groups") or [] if g.get("id")]
 
     async def _resync(self, edit: Callable[[], None] | None = None) -> None:
         await self.sync()
@@ -193,19 +286,29 @@ class FlowBoxView:
         self.side_panel.refresh()
         ui.run_javascript(f"tbFlowPanel('{PANEL_ID}', true)")
 
-    async def _copy(self, node_id: str) -> None:
-        await self.sync()  # its spot as it is on the canvas now
-        node = self._draft.node(node_id)
-        if node is not None:
-            CLIPBOARD.copy(node, self._draft.name)
-            ui.notify(f"Copied {self._editor.dots.title(node.action)}", type="positive", timeout=1500)
+    def _boxes(self, node_id: str | None = None) -> list[str]:
+        """The boxes an action is for: all picked ones when there are several (and node_id, if given, is one of
+        them), else node_id or the selected box. Start boxes and Input aren't copied or duplicated."""
+        picked = [n for n in self._picked if self._draft.node(n) is not None]
+        if len(picked) > 1 and (node_id is None or node_id in picked):
+            return picked
+        one = node_id or self._selected
+        return [one] if one and self._draft.node(one) is not None else []
+
+    async def _copy(self, node_id: str | None = None) -> None:
+        await self.sync()  # their spots as they are on the canvas now
+        nodes = [self._draft.node(n) for n in self._boxes(node_id)]
+        if nodes:
+            CLIPBOARD.copy(nodes, self._draft.name, self._draft.wires)
+            what = self._editor.dots.title(nodes[0].action) if len(nodes) == 1 else f"{len(nodes)} boxes"
+            ui.notify(f"Copied {what}", type="positive", timeout=1500)
             self.side_panel.refresh()
 
-    async def _duplicate(self, node_id: str) -> None:
+    async def _duplicate(self, node_id: str | None = None) -> None:
         await self.sync()
-        node = self._draft.node(node_id)
-        if node is not None and not self._refused(node.action):
-            self._show_new(self._draft.add_copy(node, same_flow=True))
+        nodes = [self._draft.node(n) for n in self._boxes(node_id)]
+        if nodes and not any(self._refused(n.action) for n in nodes):
+            self._show_new(self._draft.add_copies(nodes, self._draft.wires, same_flow=True))
 
     def _refused(self, action: str) -> bool:
         """True (and says why) if the flow can't have one more box of this action (a second End)."""
@@ -220,15 +323,14 @@ class FlowBoxView:
             if spot is not None:  # asked for in the right click menu: say why nothing came
                 ui.notify("Nothing copied yet: right click a box, then Copy", type="info")
             return
-        original, same_flow = taken
-        if self._refused(original.action):
+        originals, wires, same_flow = taken
+        if any(self._refused(o.action) for o in originals):
             return
         await self.sync()
-        copy = self._draft.add_copy(original, same_flow)
-        if spot is not None:
-            copy.box = spot
-        self._show_new(copy)
-        if not same_flow and any(box_source(v) for v in original.params.values()):
+        self._show_new(self._draft.add_copies(originals, wires, same_flow, spot))
+        inside = {o.id for o in originals}
+        if not same_flow and any(box_source(v) and box_source(v)[0] not in inside
+                                 for o in originals for v in o.params.values()):
             ui.notify("Pasted from another flow: its orange wires wait for new ones here", type="info")
 
     def _start_panel(self, box: str) -> None:
@@ -261,27 +363,39 @@ class FlowBoxView:
             ui.label("Not started yet (since the toolbox started). Test run with values, or start it for real "
                      "(redeem, chat, ...): then you see here exactly what it gives.").classes("text-xs opacity-70")
 
-    def _show_new(self, node: NodeDraft) -> None:
-        self._selected = node.id
+    def _show_new(self, nodes: list[NodeDraft]) -> None:
+        """New boxes (pasted, duplicated): one opens in the panel, several stay picked to drag them at once."""
+        self._selected = nodes[0].id if len(nodes) == 1 else None
+        self._picked = [n.id for n in nodes] if len(nodes) > 1 else []
         self._draw()
         self.side_panel.refresh()
-        ui.run_javascript(f"tbFlowPanel('{PANEL_ID}', true)")
+        if self._selected:
+            ui.run_javascript(f"tbFlowPanel('{PANEL_ID}', true)")
 
     async def _key(self, e) -> None:
         """Ctrl+C / Ctrl+V / Ctrl+D on the canvas (flow_boxes.js sends them)."""
         if e.args == "v":
             await self._paste()
-        elif self._selected and e.args in ("c", "d"):
-            await (self._copy if e.args == "c" else self._duplicate)(self._selected)
+        elif e.args in ("c", "d"):
+            await (self._copy if e.args == "c" else self._duplicate)()
+
+    def _picked_changed(self, e) -> None:
+        """The boxes picked on the canvas (flow_boxes.js: a list of box numbers)."""
+        numbers = e.args if isinstance(e.args, list) else []
+        picked = [self._numbers[n] for n in numbers if n in self._numbers]
+        if picked != self._picked and (len(picked) > 1 or len(self._picked) > 1):
+            self._picked = picked
+            self.side_panel.refresh()
+        self._picked = picked
 
     async def _menu(self, e) -> None:
         """A choice in the canvas's right click menu (flow_boxes.js): {do, node} for a box, {do, x, y} for a
         spot on the empty canvas."""
         args = e.args if isinstance(e.args, dict) else {}
         what = args.get("do")
-        if what in ("add", "paste"):
+        if what in ("add", "paste", "group"):
             spot = (float(args.get("x", 0)), float(args.get("y", 0)))
-            await (self._add if what == "add" else self._paste)(spot)
+            await {"add": self._add, "paste": self._paste, "group": self._add_group}[what](spot)
             return
         node_id = self._numbers.get(args.get("node"))
         if node_id in self._editor.dots.start_boxes():
@@ -300,13 +414,16 @@ class FlowBoxView:
             self._selected, self._start = node_id, None
             self.side_panel.refresh()
             ui.run_javascript(f"tbFlowPanel('{PANEL_ID}', true)")
-        elif what in ("copy", "duplicate", "delete"):
-            await {"copy": self._copy, "duplicate": self._duplicate, "delete": self._delete}[what](node_id)
+        elif what in ("copy", "duplicate"):
+            await (self._copy if what == "copy" else self._duplicate)(node_id)
+        elif what == "delete":
+            await self._delete_many(self._boxes(node_id))
         elif what == "test_from" and self._test_from:
             await self._test_from(node_id)
 
     async def _node_selected(self, e) -> None:
         node_id = self._numbers.get(e.args) if isinstance(e.args, int) else None
+        self._group = None
         start = node_id in self._editor.dots.start_boxes()
         self._selected = None if start else node_id
         self._start = node_id if start else None
@@ -327,8 +444,23 @@ class FlowBoxView:
         self._draw()
         self.side_panel.refresh()
 
-    def _close(self) -> None:
+    async def _delete_many(self, node_ids: list[str]) -> None:
+        if len(node_ids) <= 1:
+            for node_id in node_ids:
+                await self._delete(node_id)
+            return
+        await self.sync()
+        for node_id in node_ids:
+            node = self._draft.node(node_id)
+            if node is not None:
+                self._draft.remove(node_id, self._editor.dots.ports(node.action, node.params))
         self._selected = self._start = None
+        self._picked = []
+        self._draw()
+        self.side_panel.refresh()
+
+    def _close(self) -> None:
+        self._selected = self._start = self._group = None
         self.side_panel.refresh()
         ui.run_javascript(f"tbFlowPanelClosed('{PANEL_ID}')")
 
@@ -337,10 +469,18 @@ class FlowBoxView:
         await self._resync()
 
     async def _data_wired(self, e) -> None:
-        """A data wire was drawn or taken away: the field now names its box."""
+        """A data wire was drawn or taken away: the field now names its box. When that changes the box's own
+        dots (Object values: one per key of what is wired in), the canvas is drawn again, since only a new
+        drawing makes dots (his round 81: the new dots were missing until the view was reloaded)."""
+        node_id = self._numbers.get(e.args) if isinstance(e.args, int) else None
+        dots = self._editor.dots
+        node = self._draft.node(node_id) if node_id else None
+        before = dots.data_outputs(node) if node is not None else None
         await self.sync()
-        node = self._draft.node(self._numbers.get(e.args)) if isinstance(e.args, int) else None
-        if node is not None:
+        node = self._draft.node(node_id) if node_id else None
+        if node is not None and dots.data_outputs(node) != before:
+            self._draw()
+        elif node is not None:
             self._show_wires(node)
         if node is not None and node.id == self._selected:
             self.side_panel.refresh()
@@ -359,8 +499,10 @@ class FlowBoxView:
     def _draw(self) -> None:
         data = self._graph.build(self._draft)
         self._numbers = {int(k): v["data"]["node"] for k, v in data["drawflow"]["Home"]["data"].items()}
+        picked = [self._number_of(n) for n in self._picked if n in self._numbers.values()]
+        groups = [_group_data(g) for g in self._draft.groups]
         ui.run_javascript(f"tbFlowInit({json.dumps(ELEMENT_ID)}, {json.dumps(data)}, "
-                          f"{json.dumps(self._short_wires())})")
+                          f"{json.dumps(self._short_wires())}, {json.dumps(picked)}, {json.dumps(groups)})")
         self._shown = None  # a new canvas: debug marks go on again
         self._show_last()
 
@@ -416,6 +558,21 @@ class FlowBoxView:
     def _set_short_wires(on: bool) -> None:
         app.storage.general["flow_short_wires"] = on
         ui.run_javascript(f"tbFlowSetShort({json.dumps(on)})")
+
+
+def _group_data(group: FlowGroup) -> dict:
+    """A group as flow_boxes.js keeps it: {id, label, color, x, y, w, h, folded}."""
+    data = asdict(group)
+    (x, y), (w, h) = data.pop("box"), data.pop("size")
+    return data | {"x": x, "y": y, "w": w, "h": h}
+
+
+def _group_from(data: dict) -> FlowGroup:
+    color = str(data.get("color", "blue"))
+    return FlowGroup(str(data["id"]), str(data.get("label") or "Group"), color if color in COLORS else "blue",
+                     (float(data.get("x", 0)), float(data.get("y", 0))),
+                     (max(120.0, float(data.get("w", 420))), max(80.0, float(data.get("h", 280)))),
+                     bool(data.get("folded", False)))
 
 
 def _short(value) -> str:

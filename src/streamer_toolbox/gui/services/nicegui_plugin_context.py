@@ -25,6 +25,7 @@ from streamer_toolbox.core.actions.json_boxes import JsonBoxes, Send
 from streamer_toolbox.core.values.value_kind import ValueKind
 from streamer_toolbox.core.values.value_kinds import ValueKinds
 from streamer_toolbox.core.web.web_boxes import WebBoxes
+from streamer_toolbox.core.interfaces.importer import Importer
 from streamer_toolbox.core.interfaces.plugin_context import PluginContext
 from streamer_toolbox.plugins.plugin_settings import PluginSettings
 
@@ -155,6 +156,12 @@ class NiceGuiPluginContext(PluginContext):
 
     def add_tool(self, title: str, builder: Callable[[], None], icon: str = "build", description: str = "") -> None:
         self._ui.tools.append((self._id, title, icon, description, builder))
+
+    def add_importer(self, importer: Importer) -> None:
+        self._ui.importers.append((self._id, importer))
+
+    def add_learn_folder(self, folder: Path) -> None:
+        self._ui.learn_folders.append((self._id, folder))
 
     async def run_action(self, name: str, **params: Any) -> Any:
         return await self._actions.run(name, **params)

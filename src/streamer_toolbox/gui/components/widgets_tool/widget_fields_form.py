@@ -57,10 +57,29 @@ class WidgetFieldsForm:
             ui.number(label, value=value if isinstance(value, (int, float)) else None, **limits,
                       on_change=lambda e: self._set(key, e.value)).props(FIELD + " debounce=500").classes("w-full")
         elif kind == "slider":
+            # his round 74: the number on the left, to type it in; both show the same value
             ui.label(label).classes("text-sm")
-            ui.slider(value=value if isinstance(value, (int, float)) else limits.get("min", 0),
-                      min=limits.get("min", 0), max=limits.get("max", 100), step=limits.get("step", 1)) \
-                .props("label").on("change", lambda e: self._set(key, e.args))
+            start = value if isinstance(value, (int, float)) else limits.get("min", 0)
+            with ui.row().classes("items-center no-wrap gap-3 w-full"):
+                typed = ui.number(value=start, min=limits.get("min", 0), max=limits.get("max", 100),
+                                  step=limits.get("step", 1)).props(FIELD + " debounce=500").classes("w-24 shrink-0")
+                slider = ui.slider(value=start, min=limits.get("min", 0), max=limits.get("max", 100),
+                                   step=limits.get("step", 1)).props("label").classes("flex-1")
+            slider.on("change", lambda e: (typed.set_value(e.args), self._set(key, e.args)))
+
+            def typed_in(number: Any) -> None:
+                if not isinstance(number, (int, float)):
+                    return
+                low, high = limits.get("min", 0), limits.get("max", 100)
+                kept = min(max(number, low), high)  # a typed number stays on the slider (64100 was saved)
+                if kept != number:
+                    typed.set_value(kept)
+                    return  # set_value comes back here with the kept number
+                if kept != slider.value:
+                    slider.set_value(kept)
+                    self._set(key, kept)
+
+            typed.on_value_change(lambda e: typed_in(e.value))
         elif kind == "colorpicker":
             ui.color_input(label, value=str(value or ""), on_change=lambda e: self._set(key, e.value or "")) \
                 .props(FIELD).classes("w-full")
@@ -91,5 +110,10 @@ class WidgetFieldsForm:
             ui.button(icon="folder_open", on_click=pick).props("flat round dense").tooltip("Pick a file on this PC")
 
     def _set(self, key: str, value: Any) -> None:
-        self._values[key] = value
+        self._values[key] = _whole(value)
         self._on_change(dict(self._values))
+
+
+def _whole(value: Any) -> Any:
+    """10.0 → 10: a number input gives floats, and {{size}}px in the code should read 10px, not 10.0px."""
+    return int(value) if isinstance(value, float) and value.is_integer() else value

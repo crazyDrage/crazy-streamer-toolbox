@@ -4,7 +4,8 @@ from streamer_toolbox.core.actions.fixed_choices import fixed_choices
 from streamer_toolbox.core.data.box_value import to_number
 from streamer_toolbox.core.interfaces.box import Box
 
-OPERATORS = ["==", "!=", "contains", "<", ">", "<=", ">="]
+OPERATORS = ["==", "!=", "contains", "starts with", "ends with", "<", ">", "<=", ">="]
+TEXT_CHECKS = {"contains": str.__contains__, "starts with": str.startswith, "ends with": str.endswith}
 
 
 class IfBox(Box):
@@ -19,13 +20,14 @@ class IfBox(Box):
     ports = ("then", "else")
     flow_only = True
     labels = {"left": "Value", "op": "Check", "right": "Compare with"}
-    hints = {"op": "contains = the text is somewhere in it; < > need two numbers"}
+    hints = {"op": "contains = the text is somewhere in it; starts with / ends with = it begins / ends with it; "
+                   "< > need two numbers"}
 
     async def run(self, left: Any, op: str = "==", right: Any = "") -> bool:
         if op not in OPERATORS:
             raise ValueError(f"unknown check {op!r}; use one of {', '.join(OPERATORS)}")
-        if op == "contains":
-            return str(right).casefold() in str(left).casefold()
+        if op in TEXT_CHECKS:  # starts with / ends with: his notes of 10-29
+            return TEXT_CHECKS[op](str(left).casefold(), str(right).casefold())
         a, b = to_number(left), to_number(right)
         if a is None or b is None:  # text: only equal / not equal make sense
             a, b = str(left).casefold(), str(right).casefold()

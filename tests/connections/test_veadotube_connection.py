@@ -89,7 +89,7 @@ class TestVeadotubeConnection(unittest.IsolatedAsyncioTestCase):
             await connection.start()
             await until(lambda: connection.status.state is ConnectionState.CONNECTED)
             self.assertTrue(server.paths[0].endswith("?n=streamer-toolbox"))
-            await until(lambda: len(server.received) == 4)  # nodes, states, listen, peek
+            await until(lambda: len(server.received) == 6)  # nodes, states, listen, peek; push-to-talk listen, get
             self.assertEqual(await actions.get("veadotube.set_state").options["state"](),
                              ["idle", "happy", "angry"])
             self.assertEqual(await actions.run("veadotube.get_state"), {"state": "idle"})
@@ -110,11 +110,40 @@ class TestVeadotubeConnection(unittest.IsolatedAsyncioTestCase):
             await actions.run("veadotube.pop_state", state="angry")
             await until(lambda: len(self.seen) == 7)
             self.assertEqual(server.stack, ["2"])
-            with self.assertRaisesRegex(KeyError, "no state named"):
+            with self.assertRaisesRegex(ValueError, "no state named"):
                 await actions.run("veadotube.set_state", state="sleepy")
             server.states["4"] = "sleepy"  # the avatar got a new state: found by asking again
             await actions.run("veadotube.set_state", state="sleepy")
             await until(lambda: server.shown == "sleepy")
+            await connection.stop()
+
+    async def test_push_to_talk_is_switched_and_a_change_starts_flows(self) -> None:
+        """His round 75: "Is there no trigger for the mic active change?" (push-to-talk switches the mic)."""
+        async with FakeVeadotubeServer() as server:
+            self._instance("mini-0000000000000001-00000001", server.address)
+            connection, actions = self._connection()
+            await connection.start()
+            await until(lambda: connection.status.state is ConnectionState.CONNECTED)
+            await until(lambda: len(server.received) == 6)
+            # the 6th request sent is not its answer read yet (failed now and then, 11-03): wait for the answer
+            for _ in range(150):
+                try:
+                    talk = await actions.run("veadotube.get_push_to_talk")
+                    break
+                except ConnectionError:
+                    await asyncio.sleep(0.02)
+            self.assertEqual(talk, {"on": False})
+            self.assertEqual(self.seen, [])  # what it is at the start is no change
+            await actions.run("veadotube.push_to_talk", switch="on")
+            await until(lambda: len(self.seen) == 1)
+            self.assertEqual(self.seen[0], ("veadotube.push_to_talk", {"on": True, "state": "on"}))
+            self.assertEqual(set(self.seen[0][1]), set(EVENT_FIELDS["veadotube.push_to_talk"]))
+            await actions.run("veadotube.push_to_talk", switch="toggle")
+            await until(lambda: len(self.seen) == 2)
+            self.assertEqual((server.talk, await actions.run("veadotube.get_push_to_talk")), (False, {"on": False}))
+            await actions.run("veadotube.push_to_talk", switch="off")  # off already: nothing happens
+            with self.assertRaisesRegex(ValueError, "on, off or toggle"):
+                await actions.run("veadotube.push_to_talk", switch="maybe")
             await connection.stop()
 
     async def test_a_typed_address_wins_and_it_connects_again_when_veadotube_comes_back(self) -> None:

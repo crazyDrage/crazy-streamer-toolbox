@@ -3,6 +3,7 @@ from collections.abc import Callable
 
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.system.boxes.date_and_time import DateAndTime
+from streamer_toolbox.core.system.boxes.duration_text import DurationText
 from streamer_toolbox.core.system.boxes.seconds_since import SecondsSince
 
 
@@ -16,5 +17,5 @@ class TimeActions:
         self._clock = clock  # tests set the time
 
     def add_to(self, actions: ActionRegistry) -> None:
-        for box in (DateAndTime(self._clock), SecondsSince(self._clock)):
+        for box in (DateAndTime(self._clock), SecondsSince(self._clock), DurationText()):
             actions.add_box(box, "time")

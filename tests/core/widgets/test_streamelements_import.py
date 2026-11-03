@@ -79,7 +79,7 @@ class TestStreamElementsImport(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(KeyError, "no such overlay"):
             await self.importer.fetch(OVERLAY_ID)
         self.token.write_text("not-a-jwt", encoding="utf-8")
-        with self.assertRaisesRegex(PermissionError, "Account ID on line 2"):
+        with self.assertRaisesRegex(PermissionError, "which StreamElements account"):
             await self.importer.fetch(OVERLAY_ID)
 
     def test_a_custom_widget_comes_over_with_its_code_settings_and_place(self) -> None:

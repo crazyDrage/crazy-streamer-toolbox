@@ -24,6 +24,10 @@ class TestLogicBoxes(unittest.IsolatedAsyncioTestCase):
         compare = IfBox().run
         self.assertTrue(await compare("Desktop", "==", "desktop"))
         self.assertTrue(await compare("CrazyDrage Human (Ready to Rig)", "contains", "HUMAN"))
+        self.assertTrue(await compare("!lizard 5", "starts with", "!LIZARD"))  # his notes of 10-29
+        self.assertFalse(await compare("say !lizard", "starts with", "!lizard"))
+        self.assertTrue(await compare("lizard_sound.ogg", "ends with", ".OGG"))
+        self.assertFalse(await compare("lizard.ogg.txt", "ends with", ".ogg"))
         self.assertTrue(await compare("10", ">", 9.5))
         self.assertTrue(await compare(3, "!=", "4"))
         self.assertFalse(await compare("a", "==", "b"))
@@ -89,7 +93,8 @@ class TestLogicBoxes(unittest.IsolatedAsyncioTestCase):
             seen = []
             async for port in await ForEach(store).run('["hat", "fan"]', "thing"):
                 seen.append((port, store.get("thing")))
-            self.assertEqual(seen, [("each", "hat"), ("each", "fan"), ("done", "fan")])
+            self.assertEqual(seen, [(("each", {"item": "hat", "number": 1}), "hat"),
+                                    (("each", {"item": "fan", "number": 2}), "fan"), ("done", "fan")])
             with self.assertRaises(ValueError):
                 await ForEach(store).run("hat", "thing")
 

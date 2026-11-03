@@ -1,7 +1,10 @@
 from nicegui import ui
 
+from streamer_toolbox.core.alerts.alert_backup import AlertBackup
 from streamer_toolbox.core.alerts.alert_queue import AlertQueue
 from streamer_toolbox.gui.components.alerts_tool.alerts_tool import AlertsTool
+from streamer_toolbox.gui.components.events_tool.events_tool import EventsTool
+from streamer_toolbox.gui.components.import_tool.import_tool import ImportTool
 from streamer_toolbox.gui.components.keep_typed import keep_typed
 from streamer_toolbox.gui.components.overlay_source import OverlaySource
 from streamer_toolbox.gui.components.widgets_tool.widgets_tool import WidgetsTool
@@ -13,19 +16,30 @@ class OverlayPage:
     """Overlay: what the toolbox shows on stream through a Browser source in OBS. /overlays is the main view:
     a card each for Alerts and Widgets. /overlays?show=alerts is the alerts: the alerts overlay itself (its
     address, whether OBS is listening, Add it to OBS), their preview and the alerts; ?show=widgets the widgets
-    (custom widget code in StreamElements' format, each its own Browser source); the side menu lists both."""
+    (custom widget code in StreamElements' format, each its own Browser source); ?show=import the importers
+    (StreamElements and the ones plugins add; what they bring goes to Widgets); ?show=events the event types
+    widgets and alerts get their data from (his round 78); the side menu lists them.
+    &alert=<id> and &widget=<name> (or new) are one alert's or widget's own page."""
 
-    def __init__(self, alerts: AlertsTool, widgets: WidgetsTool, queue: AlertQueue, source: OverlaySource,
-                 port: int) -> None:
+    def __init__(self, alerts: AlertsTool, widgets: WidgetsTool, imports: ImportTool, events: EventsTool, queue: AlertQueue,
+                 backup: AlertBackup, source: OverlaySource, port: int) -> None:
         self._alerts = alerts
         self._widgets = widgets
+        self._imports = imports
+        self._events = events
         self._queue = queue
+        self._backup = backup
         self._source = source
         self._address = f"http://127.0.0.1:{port}/overlay/alerts"
 
     def build(self) -> None:
-        show = ui.context.client.request.query_params.get("show", "")
-        if show == "alerts":
+        query = ui.context.client.request.query_params
+        show = query.get("show", "")
+        if show == "alerts" and query.get("alert"):  # one alert's own page (his round 73: no popup)
+            self._alerts.build_editor(query["alert"])
+        elif show == "widgets" and query.get("widget"):
+            self._widgets.build_editor(query["widget"])
+        elif show == "alerts":
             self._back()
             with ui.card().classes("w-full max-w-3xl gap-2"):
                 self._overlay()
@@ -35,6 +49,12 @@ class OverlayPage:
         elif show == "widgets":
             self._back()
             self._widgets.build()
+        elif show == "events":
+            self._back()
+            self._events.build()
+        elif show == "import":
+            self._back()
+            self._imports.build()
         else:
             self._overview()
 
@@ -49,6 +69,10 @@ class OverlayPage:
                                                        "and their Browser source for OBS")
             self._tile("widgets", "Widgets", "widgets", "Custom widget code in StreamElements' format, each with "
                                                         "its own Browser source")
+            self._tile("bolt", "Events", "events", "What widgets and alerts get from flows: a follow, a sub, a "
+                                                    "chat message or your own, each with its values")
+            self._tile("file_download", "Import", "import", "Widgets from StreamElements (your overlays and "
+                                                            "Elements) or another program, to Widgets")
 
     @staticmethod
     def _tile(icon: str, title: str, show: str, note: str) -> None:
@@ -72,6 +96,11 @@ class OverlayPage:
                 .props("flat round dense").tooltip("Copy the address")
         self._listening()
         ui.timer(3.0, self._listening.refresh)
+        ui.switch("Keep alerts through a restart", value=self._backup.on,
+                  on_change=lambda e: self._backup.switch(e.value)).props("dense") \
+            .tooltip("Off: a restart of the toolbox clears the alerts waiting in line. On: the line is kept in a "
+                     "file (alert_backup.json next to your settings); after a restart the waiting alerts play, and "
+                     "OBS gets the ones it missed")
         with ui.row().classes("items-center no-wrap gap-2 w-full"):
             scene = keep_typed(ui.select([], label="Scene", new_value_mode="add-unique")
                                .props("outlined dense options-dense").classes("flex-1 min-w-0"))
@@ -93,6 +122,11 @@ class OverlayPage:
         text = "OBS isn't showing the overlay yet: alerts would play to nobody." if not count \
             else f"{count} Browser source{'s are' if count > 1 else ' is'} showing it."
         ui.label(text).classes("text-sm " + ("text-warning" if not count else "text-positive"))
+        missed = self._queue.missed
+        if missed:  # the page in OBS didn't say it got them: its line broke (it connects again by itself)
+            when, last, _ = missed[-1]
+            ui.label(f"{len(missed)} alert{'s' if len(missed) > 1 else ''} didn't reach OBS; the last at {when}: "
+                     f"\"{last}\"").classes("text-sm text-negative")
 
     def _preview(self) -> None:
         ui.label("Preview").classes("text-lg font-semibold")

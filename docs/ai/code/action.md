@@ -69,11 +69,14 @@ class ThingActions:
 | `editors={"animation": "vts_animation"}` | the field keeps a value of its own, edited in its own window (a `FieldEditor`; a plugin adds one with `ctx.add_field_editor`) |
 | `entries=("stop",)` | extra run dots on the left: a wire arriving while the box runs is passed to it (`BoxSignals`: `ctx.box_signals()` in a plugin, `.has("stop")`, `await .wait_for(seconds, "stop")`); it doesn't start the box. The box's own dot is drawn "start" then |
 | `toggles=("switch",)` | entries that start the box when it isn't running (Loop's switch) |
+| `entries=("next",)` on a box that yields rounds | a wire into `next` starts the next round right away; the round goes on alongside, with its own copy of the box values (For each) |
+| `alongside="*"` | every run of the flow gets its own copy of the box, without a field to choose it |
 | `port_fields="case"` | a field the box can have any number of (case_1, case_2, ...), each also a run output, before `ports` |
 | `entry_fields="value"` | a field the box can have any number of, each with a run dot of its own; only that line is read (Choose value) |
 | `value_lines="values"` | lines of name + typed value, each a data output of its own (Value) |
 | `named_lines=True` | every param that isn't the handler's own is a line he names, each with a data dot, handed over as `**values` (End) |
-| `data_only=True` | no run dots: it runs whenever a wired field needs its value (Value, Get variable, Get viewer value, Calculate, Round, Clamp, Random number, Get from list / object). Only for the toolbox's own values and pure calculations: a box that asks a program keeps its run wire |
+| `lines_from="obs.get_source_settings:Get settings"` | with `named_lines`: a button with that text runs the action with the box's matching fields and adds a line per key of its answer (an object) that the box doesn't have yet |
+| `data_only=True` | no run dots: it runs whenever a wired field needs its value (Value, Get variable, Get viewer value, Calculate, Round, Clamp, Get from list / object, the text / list / object / JSON boxes, Build text). Only for the toolbox's own values and pure calculations: a box that asks a program keeps its run wire, and so does anything random (Random number), anything that changes a variable, reads the time or a file |
 | `join=True` | runs once every run wire into it has arrived (Wait for all) |
 | `ends_flow=True` | reaching it lets the flow's box in another flow go on; the dict it gives (its `named_lines`) becomes that box's orange dots (End) |
 | `gives_back="name"` | its result is given back by the flow under the text in that field (Flow output) |
@@ -81,8 +84,10 @@ class ThingActions:
 | `retrigger="if_started_again"` | that field ("nothing", "restart", "add") says what a new start of the flow does while the box waits: the handler gets the run's `Retrigger` (`ctx.retrigger()`, `await .wait(seconds, mode)`) (Wait) |
 | `variable_fields=("name",)` | the field holds a variable's own name: it gets a variable picker, and renaming the variable renames it (Set variable) |
 | `keys_of="object"` | the keys of what is wired into (or typed in) that field become the box's data dots, following the wire and kept on the box (`FlowNode.outputs`) for when nothing is known (Object values) |
+| `output_names="outputs"` | that text field holds names separated by commas (`text, count`); each one becomes a data dot of the box, a key of its result (Run Python; kept on the box as `FlowNode.outputs`) |
 | `alongside="if_already_looping"` | a box with `entries` runs once at a time per flow; this field set to `"alongside"` gives every run its own copy (a stop from a run goes to its own copy, from a run without one to all) (Loop) |
 | `offered=False` | left out of the Add box window; it still runs everywhere else (a flow switched off as a box) |
+| `freeze=None` | the box can't be frozen (default `False`: it can). Frozen (the editor's Freeze, his idea of 2026-10-29), a box ran once and gives that answer from then on, without running in the flow; Run again asks again; the value is kept in the flow's file (`FlowNode.frozen`, `FrozenBox`). Set `None` for a box that gives no answer (Move model, Play sound). Boxes that steer the flow (then / else, lines, entries, End, Wait for all) and `data_only` boxes are never offered it |
 | `typed=("value",)` | fields that take any kind of value and keep it: what is typed by hand is read once (0.5 â†’ number, true â†’ yes, JSON â†’ list / object; "007", "+49" stay text); a wired value keeps its kind |
 | an async generator handler | yields port names one after the other ("each", ..., "done"), or `(port, value)` to give the box a value for that round (Loop's round); rounds don't count toward the run limit |
 

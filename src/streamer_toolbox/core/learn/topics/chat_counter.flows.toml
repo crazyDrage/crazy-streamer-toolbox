@@ -1,0 +1,29 @@
+toolbox_flows = 1
+folder = "Examples"
+
+[[flows]]
+name = "example_chat_counter"
+label = "A counter in chat"
+description = "!lizard in chat counts one up and writes the new number in chat (Learn → A counter in chat)."
+wires = [
+    {from = "chat", port = "out", to = "count"},
+    {from = "count", port = "done", to = "tell"},
+]
+
+[[flows.triggers]]
+kind = "twitch.chat"
+id = "chat"
+command = "!lizard"
+box = [320, 40]
+
+[[flows.nodes]]
+id = "count"
+action = "var.add"
+box = [620, 40]
+params = {name = "lizards", op = "+", amount = 1}
+
+[[flows.nodes]]
+id = "tell"
+action = "twitch.send_chat"
+box = [920, 40]
+params = {message = "Lizards so far: ${box.count}"}

@@ -66,6 +66,7 @@ class Box(ABC):
     # its dots
     outputs: dict[str, str] = {}                             # the keys its result always has: data dots
     keys_of: str = ""                                       # a dot per key of what's wired into this field
+    output_names: str = ""                                   # a text field: each name in it (a, b) is a dot
     ports: tuple[str, ...] = ()                              # several run outputs (then / else)
     port_fields: str = ""                                    # a field it can have any number of, each a run output
     entries: tuple[str, ...] = ()                            # extra run dots on the left (a Loop's stop)
@@ -73,8 +74,10 @@ class Box(ABC):
     entry_fields: str = ""                                   # a field it can have any number of, each a run dot
     value_lines: str = ""                                    # lines of name + value, each a data dot (Value)
     named_lines: bool = False                                # lines he names, handed over as **values (End)
+    lines_from: str = ""                                     # "action:Button text": a button adds those lines
     data_only: bool = False                                  # no run dots: runs when a wired field needs it
     join: bool = False                                       # runs once every run wire into it arrived
+    freeze: bool | None = False                              # None: it can't be frozen (it gives no answer)
 
     # what it does to its flow
     ends_flow: bool = False                                  # the flow's box in another flow goes on (End)

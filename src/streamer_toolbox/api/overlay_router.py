@@ -1,15 +1,15 @@
-import asyncio
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, WebSocket
 from fastapi.responses import FileResponse, HTMLResponse
 
+from streamer_toolbox.api import overlay_line
 from streamer_toolbox.core.alerts.alert_queue import AlertQueue
 
 PAGE = Path(__file__).parent.parent / "gui" / "static" / "overlay" / "alerts.html"
 
 
-def build_overlay_router(queue: AlertQueue) -> APIRouter:
+def build_overlay_router(queue: AlertQueue, heartbeat: float = overlay_line.HEARTBEAT) -> APIRouter:
     """The overlay for OBS's Browser source: GET /overlay/alerts (a plain see-through page), its socket
     /overlay/alerts/ws (the page listens; the AlertQueue sends each alert when it's its turn) and
     /overlay/file/<token> (an alert's picture or sound, only under the random name the queue gave it).
@@ -31,20 +31,16 @@ def build_overlay_router(queue: AlertQueue) -> APIRouter:
     @router.websocket("/overlay/alerts/ws")
     async def alerts_socket(socket: WebSocket) -> None:
         await socket.accept()
-        inbox = queue.listen(preview="preview" in socket.query_params)
-        sender = asyncio.create_task(_send(socket, inbox))
+        preview = "preview" in socket.query_params
+        run, after = overlay_line.resume(socket)
+        inbox = queue.listen(preview=preview)
+        for message in queue.greeting(run, after):
+            inbox.put_nowait(message)
         try:
-            while True:  # the page sends nothing; this ends when it closes
-                await socket.receive_text()
-        except WebSocketDisconnect:
-            pass
+            await overlay_line.serve(socket, inbox, heartbeat, None if preview else queue.not_arrived,
+                                     arrived=queue.arrived)
         finally:
-            sender.cancel()
             queue.stop_listening(inbox)
 
     return router
 
-
-async def _send(socket: WebSocket, inbox: asyncio.Queue) -> None:
-    while True:
-        await socket.send_json(await inbox.get())

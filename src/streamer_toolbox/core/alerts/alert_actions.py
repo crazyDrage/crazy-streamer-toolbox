@@ -5,10 +5,11 @@ from streamer_toolbox.core.alerts.boxes.show_alert import ShowAlert
 
 
 class AlertActions:
-    """The Alerts boxes: show an alert on the overlay (the Browser source in OBS that shows /overlay/alerts),
-    empty the line.
+    """The Alerts boxes: show an alert made on the spot, and empty the line. The alerts of the Alerts tool play
+    on their event (his round 78 answer 2 b: "we want to switch to events"): the event's Send box
+    (core/event_types), not a box per alert any more.
 
-    One Box class per box, in boxes/."""
+    One Box class per fixed box, in boxes/."""
 
     def __init__(self, queue: AlertQueue) -> None:
         self._queue = queue

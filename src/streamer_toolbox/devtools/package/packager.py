@@ -4,8 +4,10 @@ import sys
 import tarfile
 import urllib.request
 import zipfile
+from collections.abc import Mapping
 from pathlib import Path
 
+from streamer_toolbox.core.app_version import APP_VERSION
 from streamer_toolbox.devtools.package.linux_python import LinuxPython
 from streamer_toolbox.devtools.package.windows_launcher import EXE, WindowsLauncher
 
@@ -17,10 +19,10 @@ SHARED = ("src/", "plugins/", "config/toolbox.example.toml", "requirements.txt",
 DOCS = {"docs/USER_GUIDE.md": "README.md", "docs/WIDGETS.md": "docs/WIDGETS.md",
         "docs/PLUGINS.md": "docs/PLUGINS.md"}
 START = """@echo off
-rem Starts streamer-toolbox and opens it in its own window. Closing that window stops it.
+rem Starts streamer-toolbox and {how}. Closing this console stops it too.
 rem Everything it needs is in this folder; nothing is installed on the PC.
 cd /d "%~dp0"
-"python\\python.exe" -m streamer_toolbox --open {open} %*
+"python\\python.exe" -m {run} %*
 if errorlevel 1 pause
 """
 # The archive for both systems carries no Python for Linux: the script makes a .venv in the folder
@@ -28,7 +30,7 @@ if errorlevel 1 pause
 # asyncio.wait_for can swallow a cancel, and a connection's stop then never returns. The keyboard library
 # (pynput) brings evdev, which pip has to compile: that is what gcc and python3-dev are for
 LINUX_START = """#!/bin/sh
-# Starts streamer-toolbox on Linux and opens it {how}.
+# streamer-toolbox on Linux: {how}.
 # The first start needs python3 (3.12 or newer, with venv), a C compiler and the internet: it puts the
 # libraries into a .venv folder here. Nothing is installed outside this folder.
 cd "$(dirname "$0")" || exit 1
@@ -45,21 +47,35 @@ if [ ! -x ".venv/bin/python" ]; then
         exit 1
     }}
 fi
-PYTHONPATH="$(pwd)/src" exec .venv/bin/python -m streamer_toolbox --open {open} "$@"
+PYTHONPATH="$(pwd)/src" exec .venv/bin/python -m {run} "$@"
 """
 # the Linux download brings its Python and the libraries (LinuxPython): nothing to get, nothing to install
 LINUX_OWN_START = """#!/bin/sh
-# Starts streamer-toolbox on Linux and opens it {how}.
+# streamer-toolbox on Linux: {how}.
 # Everything it needs is in this folder; nothing is installed on the PC.
 cd "$(dirname "$0")" || exit 1
-PYTHONPATH="$(pwd)/src" exec python/bin/python3 -m streamer_toolbox --open {open} "$@"
+PYTHONPATH="$(pwd)/src" exec python/bin/python3 -m {run} "$@"
 """
-SCRIPTS = (("Start streamer-toolbox.bat", START, "window", "ascii", "\r\n"),
-           ("Start in the browser.bat", START, "browser", "ascii", "\r\n"),
-           ("start-linux.sh", LINUX_START, "window", "utf-8", "\n"),
-           ("start-linux-browser.sh", LINUX_START, "browser", "utf-8", "\n"))
+# start-settings (his round 84): the starter window, without a console (pythonw), so this closes at once
+SETTINGS_START = """@echo off
+rem Opens the small streamer-toolbox window: {how}.
+rem Everything it needs is in this folder; nothing is installed on the PC.
+cd /d "%~dp0"
+start "" "python\\pythonw.exe" -m {run} %*
+"""
+WINDOW, HEADLESS, SETTINGS = ("streamer_toolbox --open window", "streamer_toolbox --open none",
+                              "streamer_toolbox.starter")
+# his 2026-11-03: three ways to start, the same on both systems; browser tab and less memory are in start-settings
+SCRIPTS = (("Start streamer-toolbox.bat", START, WINDOW, "ascii", "\r\n"),
+           ("Start without a window.bat", START, HEADLESS, "ascii", "\r\n"),
+           ("Start settings.bat", SETTINGS_START, SETTINGS, "ascii", "\r\n"),
+           ("start-linux.sh", LINUX_START, WINDOW, "utf-8", "\n"),
+           ("start-linux-headless.sh", LINUX_START, HEADLESS, "utf-8", "\n"),
+           ("start-linux-settings.sh", LINUX_START, SETTINGS, "utf-8", "\n"))
 WINDOWS, LINUX = "windows", "linux"  # a build for one of them only; "" = the one archive that starts on both
-HOW = {"window": "in its own window (a browser tab without a Chromium browser)", "browser": "as a browser tab"}
+HOW = {WINDOW: "opens it in its own window (a browser tab without a Chromium browser); closing it stops it",
+       HEADLESS: "runs it without a window: open http://127.0.0.1:8850 in any browser or on your phone",
+       SETTINGS: "pick how the toolbox opens, start it, back up its settings (a tray icon next to the clock)"}
 
 
 class Packager:
@@ -106,6 +122,7 @@ class Packager:
             python = self._linux_python.put(folder, folder / "requirements.txt")
         else:
             self._python(folder / "python")
+            self._tkinter(folder / "python")
             self._libraries(folder / "python" / "Lib" / "site-packages")
             if not self._launcher.build(folder):
                 print(f"no {EXE} in this build (this PC has no gcc for Windows programs): only the .bat files")
@@ -143,12 +160,12 @@ class Packager:
 
     @staticmethod
     def _start_scripts(folder: Path, target: str = "") -> None:
-        for script, text, how, encoding, line_end in SCRIPTS:
+        for script, text, run, encoding, line_end in SCRIPTS:
             if target and (target == LINUX) != script.endswith(".sh"):
                 continue  # the other system's script
             if target == LINUX:
                 text = LINUX_OWN_START
-            (folder / script).write_text(text.format(open=how, how=HOW[how]), encoding=encoding, newline=line_end)
+            (folder / script).write_text(text.format(run=run, how=HOW[run]), encoding=encoding, newline=line_end)
 
     @staticmethod
     def _pack(packed: zipfile.ZipFile, file: Path, name: Path) -> None:
@@ -179,6 +196,24 @@ class Packager:
         pth.write_text("\n".join((zipped, ".", "Lib\\site-packages", "..\\src", "import site")) + "\n",
                        encoding="ascii")
 
+    def _tkinter(self, folder: Path, base: Path | None = None) -> bool:
+        """The embeddable Python has no tkinter, which start-settings (the starter window) needs: _tkinter and the
+        Tcl/Tk DLLs (zlib1 is theirs), the tkinter package and Tcl/Tk's own files, from this PC's own Windows
+        Python of the same version (on GitHub: setup-python's). ~8 MB. False (and says so) when there is none."""
+        base = base or Path(sys.base_prefix)
+        dlls = [base / "DLLs" / "_tkinter.pyd", base / "DLLs" / "zlib1.dll", *(base / "DLLs").glob("tcl*t.dll"),
+                *(base / "DLLs").glob("tk*t.dll")]
+        if sys.platform != "win32" or not all(dll.is_file() for dll in dlls) or len(dlls) < 4 \
+                or "{}.{}".format(*sys.version_info[:2]) != ".".join(self._version.split(".")[:2]):
+            print("no tkinter in this build (needs a Windows Python of the same version): start-settings won't open")
+            return False
+        for dll in dlls:
+            shutil.copyfile(dll, folder / dll.name)
+        ignore = shutil.ignore_patterns("__pycache__", "*.lib", "test", "tests")
+        shutil.copytree(base / "Lib" / "tkinter", folder / "tkinter", ignore=ignore)
+        shutil.copytree(base / "tcl", folder / "tcl", ignore=ignore)
+        return True
+
     def _libraries(self, folder: Path) -> None:
         folder.mkdir(parents=True)
         # built on another system than Windows: take the ready-made Windows packages, never compile for this one
@@ -196,3 +231,15 @@ class Packager:
             (folder / target).parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(self._repo / path, folder / target)
         return len(wanted)
+
+
+def tag_problem(env: Mapping[str, str]) -> str:
+    """A release build (GitHub, for a version tag) whose tag isn't this code's APP_VERSION: what is wrong, else
+    "". Without it a release could carry an old version number, and every toolbox would offer it as new
+    forever (ToolboxUpdate compares against APP_VERSION)."""
+    if env.get("GITHUB_REF_TYPE") != "tag":
+        return ""
+    tag = env.get("GITHUB_REF_NAME", "")
+    if tag != f"v{APP_VERSION}":
+        return f"the tag is {tag}, but core/app_version.py says {APP_VERSION}: raise APP_VERSION in the release commit"
+    return ""

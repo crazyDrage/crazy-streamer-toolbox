@@ -2,6 +2,7 @@
 
 | What | Name in the code | AI checked | Works | Understandable | Usable | Last change | Note |
 |---|---|---|---|---|---|---|---|
+| Field from each | `list.field_from_each` | - | - | - | - | - |  |
 | Insert into list | `list.insert` | 2026-10-08 | - | - | - | - |  |
 | Remove at position | `list.remove_at` | 2026-10-08 | - | - | - | - |  |
 | Shuffle list | `list.shuffle` | 2026-10-08 | - | - | - | - |  |

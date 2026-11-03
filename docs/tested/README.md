@@ -29,13 +29,9 @@ the toolbox is restarted, and writes the row's file at once):
 
     test-window.bat          (Linux: ./test-window.sh)      both are in this folder
 
-To try the boxes without building a flow for each, the same script starts the **test toolbox** next to it: a second toolbox on
-its own settings folder (`temp/test_settings`) and port 8855, with a flow for every box (Start and that box).
-Triggers get none: you set them up in a flow of your own.
-The flows are numbered in the order of this record ("012 Mute"), and the test window shows the
-same number on the row.
-What you set in a test flow stays when the flows are written again, and a test flow you delete stays deleted
-(`temp/test_settings/test_flows.json` lists the written ones: delete that file to get them all back).
+The same script starts the **test toolbox** next to it: the same toolbox as start.bat, on its own settings
+folder (`temp/test_settings`) and port 8855, so it never touches your own settings. It adds nothing to that
+folder: move the folder away to start clean.
 
 Both run in the script's console: closing it closes both. To start only the test toolbox:
 
@@ -49,14 +45,18 @@ anew and renews the table below (ticks, days and notes stay):
 
     $env:PYTHONPATH = "src"; .venv\Scripts\python.exe -m streamer_toolbox.devtools.tested
 
+A row for a part of a page (a panel, a warning, a setting) can be added by hand to a tab's `page.md`. Its
+"Name in the code" must not start with `/` (that is a page's address) and must differ from every other row's
+name in that file. The script keeps such rows as they are.
+
 ## How far it is
 
 | Where | Tested | Of |
 |---|---|---|
 | **[live](live/)** | **0** | **1** |
 | [live/page](live/page.md) | 0 | 1 |
-| **[flows](flows/)** | **15** | **335** |
-| [flows/page](flows/page.md) | 0 | 2 |
+| **[flows](flows/)** | **15** | **363** |
+| [flows/page](flows/page.md) | 0 | 6 |
 | [flows/triggers/any_platform](flows/triggers/any_platform.md) | 3 | 10 |
 | [flows/triggers/crowdcontrol](flows/triggers/crowdcontrol.md) | 0 | 1 |
 | [flows/triggers/example](flows/triggers/example.md) | 0 | 1 |
@@ -73,11 +73,13 @@ anew and renews the table below (ticks, days and notes stay):
 | [flows/triggers/tits](flows/triggers/tits.md) | 3 | 3 |
 | [flows/triggers/toolbox](flows/triggers/toolbox.md) | 0 | 2 |
 | [flows/triggers/twitch](flows/triggers/twitch.md) | 3 | 14 |
-| [flows/triggers/veadotube](flows/triggers/veadotube.md) | 0 | 1 |
+| [flows/triggers/veadotube](flows/triggers/veadotube.md) | 0 | 2 |
 | [flows/triggers/vtube_studio](flows/triggers/vtube_studio.md) | 4 | 6 |
+| [flows/triggers/widget](flows/triggers/widget.md) | 0 | 1 |
 | [flows/triggers/youtube](flows/triggers/youtube.md) | 0 | 8 |
 | [flows/boxes/alert/alerts](flows/boxes/alert/alerts.md) | 0 | 2 |
 | [flows/boxes/discord/general](flows/boxes/discord/general.md) | 0 | 1 |
+| [flows/boxes/event/events](flows/boxes/event/events.md) | 0 | 10 |
 | [flows/boxes/example/effects](flows/boxes/example/effects.md) | 0 | 1 |
 | [flows/boxes/example/general](flows/boxes/example/general.md) | 0 | 5 |
 | [flows/boxes/file/text_files](flows/boxes/file/text_files.md) | 0 | 2 |
@@ -90,7 +92,7 @@ anew and renews the table below (ticks, days and notes stay):
 | [flows/boxes/jokes/jokes](flows/boxes/jokes/jokes.md) | 0 | 2 |
 | [flows/boxes/json/json](flows/boxes/json/json.md) | 0 | 2 |
 | [flows/boxes/list/change](flows/boxes/list/change.md) | 0 | 2 |
-| [flows/boxes/list/new_list](flows/boxes/list/new_list.md) | 0 | 4 |
+| [flows/boxes/list/new_list](flows/boxes/list/new_list.md) | 0 | 5 |
 | [flows/boxes/list/read](flows/boxes/list/read.md) | 0 | 5 |
 | [flows/boxes/logic/flow](flows/boxes/logic/flow.md) | 0 | 4 |
 | [flows/boxes/logic/if](flows/boxes/logic/if.md) | 0 | 3 |
@@ -113,8 +115,8 @@ anew and renews the table below (ticks, days and notes stay):
 | [flows/boxes/obs/media](flows/boxes/obs/media.md) | 0 | 7 |
 | [flows/boxes/obs/profile_scene_collection](flows/boxes/obs/profile_scene_collection.md) | 0 | 2 |
 | [flows/boxes/obs/recording_streaming](flows/boxes/obs/recording_streaming.md) | 0 | 8 |
-| [flows/boxes/obs/scenes](flows/boxes/obs/scenes.md) | 1 | 6 |
-| [flows/boxes/obs/sources](flows/boxes/obs/sources.md) | 0 | 14 |
+| [flows/boxes/obs/scenes](flows/boxes/obs/scenes.md) | 1 | 9 |
+| [flows/boxes/obs/sources](flows/boxes/obs/sources.md) | 0 | 16 |
 | [flows/boxes/obs/studio_mode](flows/boxes/obs/studio_mode.md) | 0 | 5 |
 | [flows/boxes/obs/windows](flows/boxes/obs/windows.md) | 0 | 4 |
 | [flows/boxes/points/points](flows/boxes/points/points.md) | 0 | 6 |
@@ -125,9 +127,9 @@ anew and renews the table below (ticks, days and notes stay):
 | [flows/boxes/sammi/variables](flows/boxes/sammi/variables.md) | 0 | 2 |
 | [flows/boxes/sound/play](flows/boxes/sound/play.md) | 0 | 2 |
 | [flows/boxes/streamerbot/general](flows/boxes/streamerbot/general.md) | 0 | 4 |
-| [flows/boxes/system/programs](flows/boxes/system/programs.md) | 0 | 1 |
-| [flows/boxes/text/text](flows/boxes/text/text.md) | 0 | 6 |
-| [flows/boxes/time/time](flows/boxes/time/time.md) | 0 | 2 |
+| [flows/boxes/system/programs](flows/boxes/system/programs.md) | 0 | 2 |
+| [flows/boxes/text/text](flows/boxes/text/text.md) | 0 | 7 |
+| [flows/boxes/time/time](flows/boxes/time/time.md) | 0 | 3 |
 | [flows/boxes/tip/tips](flows/boxes/tip/tips.md) | 0 | 1 |
 | [flows/boxes/tits/general](flows/boxes/tits/general.md) | 0 | 5 |
 | [flows/boxes/twitch/channel_points](flows/boxes/twitch/channel_points.md) | 0 | 5 |
@@ -135,8 +137,9 @@ anew and renews the table below (ticks, days and notes stay):
 | [flows/boxes/twitch/polls_and_predictions](flows/boxes/twitch/polls_and_predictions.md) | 0 | 4 |
 | [flows/boxes/twitch/stream](flows/boxes/twitch/stream.md) | 0 | 13 |
 | [flows/boxes/twitch/viewers](flows/boxes/twitch/viewers.md) | 0 | 5 |
-| [flows/boxes/var/variables](flows/boxes/var/variables.md) | 0 | 4 |
-| [flows/boxes/veadotube/general](flows/boxes/veadotube/general.md) | 0 | 3 |
+| [flows/boxes/var/variables](flows/boxes/var/variables.md) | 0 | 5 |
+| [flows/boxes/var/wait](flows/boxes/var/wait.md) | 0 | 1 |
+| [flows/boxes/veadotube/general](flows/boxes/veadotube/general.md) | 0 | 5 |
 | [flows/boxes/veadotube/stack](flows/boxes/veadotube/stack.md) | 0 | 3 |
 | [flows/boxes/video/video](flows/boxes/video/video.md) | 0 | 1 |
 | [flows/boxes/viewer/chat](flows/boxes/viewer/chat.md) | 0 | 1 |
@@ -154,12 +157,11 @@ anew and renews the table below (ticks, days and notes stay):
 | [flows/boxes/vtube_studio/visual_effects](flows/boxes/vtube_studio/visual_effects.md) | 0 | 4 |
 | [flows/boxes/warudo/general](flows/boxes/warudo/general.md) | 0 | 1 |
 | [flows/boxes/web/request](flows/boxes/web/request.md) | 0 | 1 |
-| [flows/boxes/widget/widgets](flows/boxes/widget/widgets.md) | 0 | 1 |
 | [flows/boxes/youtube/chat](flows/boxes/youtube/chat.md) | 0 | 1 |
 | **[variables](variables/)** | **0** | **1** |
 | [variables/page](variables/page.md) | 0 | 1 |
-| **[overlay](overlay/)** | **0** | **3** |
-| [overlay/page](overlay/page.md) | 0 | 3 |
+| **[overlay](overlay/)** | **0** | **5** |
+| [overlay/page](overlay/page.md) | 0 | 5 |
 | **[tools](tools/)** | **0** | **6** |
 | [tools/page](tools/page.md) | 0 | 1 |
 | [tools/twitch](tools/twitch.md) | 0 | 1 |
@@ -195,8 +197,10 @@ anew and renews the table below (ticks, days and notes stay):
 | [connections/tiltify](connections/tiltify.md) | 0 | 1 |
 | [connections/crowdcontrol](connections/crowdcontrol.md) | 0 | 1 |
 | [connections/example](connections/example.md) | 0 | 1 |
-| **[plugins](plugins/)** | **0** | **3** |
-| [plugins/page](plugins/page.md) | 0 | 3 |
-| **[settings](settings/)** | **0** | **8** |
-| [settings/page](settings/page.md) | 0 | 8 |
-| **All** | **15** | **385** |
+| **[plugins](plugins/)** | **0** | **4** |
+| [plugins/page](plugins/page.md) | 0 | 4 |
+| **[learn](learn/)** | **0** | **11** |
+| [learn/page](learn/page.md) | 0 | 11 |
+| **[settings](settings/)** | **0** | **19** |
+| [settings/page](settings/page.md) | 0 | 19 |
+| **All** | **15** | **438** |

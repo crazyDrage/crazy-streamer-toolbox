@@ -40,6 +40,7 @@ class FlowTriggerRouter:
         # side by side, so a flow waiting in line doesn't hold back the others
         starts = [(flow, trigger) for flow in self._library.all()
                   if flow.enabled and flow.triggers_enabled  # a switched-off one stays quiet
+                  and not self._library.folder_settings.off(flow.folder)  # also in a switched-off folder
                   for trigger in [next((t for t in flow.triggers if t.matches(kind, data)), None)] if trigger]
         await asyncio.gather(*(self._run(flow, kind, data, trigger.id) for flow, trigger in starts))
 

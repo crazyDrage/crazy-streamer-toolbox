@@ -35,7 +35,8 @@ Nothing is installed on your PC. The toolbox lives in its own folder; to remove 
 1. Download the Windows archive and unpack it anywhere you like (not inside `Program Files`: the toolbox
    writes its settings into its own folder).
 2. Double-click **crazy-streamer-toolbox.exe**. It opens in its own window; closing the window stops it.
-   **Start in the browser.bat** opens it as a browser tab instead.
+   **Start settings.bat** lets you pick how it opens (browser tab, less memory, no window) and back it up;
+   **Start without a window.bat** runs it without one.
 3. The first time, Windows may show "Windows protected your PC": *More info* → *Run anyway*. The program is
    not signed yet; that is all the warning means.
 
@@ -44,7 +45,8 @@ Python and every library it needs are in the archive.
 ### Linux
 
 1. Download the Linux archive and unpack it: `tar -xzf crazy-streamer-toolbox-linux.tar.gz`
-2. Run `./start-linux.sh` in its folder (`./start-linux-browser.sh` for a browser tab).
+2. Run `./start-linux.sh` in its folder (`./start-linux-settings.sh` to pick how it opens,
+   `./start-linux-headless.sh` without a window).
 
 Python and every library it needs are in the archive here too; no `apt install`, no internet at the start.
 It needs a 64 bit (x86) Linux about as new as Ubuntu 22.04 or Debian 12.

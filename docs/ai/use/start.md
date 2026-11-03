@@ -11,13 +11,13 @@ Ask the streamer first if they may be live: a start connects to their programs.
 
 | Where you are | How |
 |---|---|
-| The packed archive (a folder with `python/` in it) | `Start streamer-toolbox.bat` (own window) or `Start in the browser.bat` |
-| The repository | `start.bat` or `start-browser.bat` |
-| Without a window (for an agent) | add `--open none`, e.g. `start.bat --open none` |
+| The packed archive (a folder with `python/` in it) | `Start streamer-toolbox.bat` (own window), `Start without a window.bat`, `Start settings.bat` (the streamer's start window) |
+| The repository | `start.bat`, `start-headless.bat`, `start-settings.bat` (`python -m streamer_toolbox.starter`: the streamer's start window, tray icon) |
+| Without a window (for an agent, or the streamer's `start-headless.bat`) | add `--open none`, e.g. `start.bat --open none` |
 | By hand, repository, PowerShell | `$env:PYTHONPATH = "src"; .venv\Scripts\python.exe -m streamer_toolbox --open none` |
 
 Options: `--port 8851` (overrides the settings file), `--config <path to a toolbox.toml>`,
-`--plugins <folder>`, `--open none|browser|window`.
+`--plugins <folder>`, `--open none|browser|window|lean-window`. On Linux each `.bat` has a `.sh`.
 
 It is ready when `GET /actions` answers; that takes a few seconds. Closing the toolbox's own window stops it.
 

@@ -9,7 +9,7 @@ walks through it (`plugins/hello/` is a small one, `plugins/jokes/` one without 
 | Your idea | Where it goes |
 |---|---|
 | Boxes that call a web API, without code | plugin without code: `plugin.json` + `boxes/*.json` |
-| A box (with pickers, outputs, hints), a tool tab, a page, a card, an API route of your own | plugin (a `Box`, `Tool`, `Page`, `Panel` class, an `APIRouter`; `ctx.add`) |
+| A box (with pickers, outputs, hints), a tool tab, a page, a card, an importer, an API route of your own | plugin (a `Box`, `Tool`, `Page`, `Panel`, `Importer` class, an `APIRouter`; `ctx.add`) |
 | The toolbox should talk to a new program: its own tab under Connections, its boxes, its events as triggers | plugin (a `ConnectionBase` with `boxes()`, a `Trigger` class and its `fire`) |
 | Glue between actions that already exist | plugin, or just a flow in the dashboard |
 | A program that should ship with the toolbox itself | the toolbox's code: `docs/ai/code/connection.md` |

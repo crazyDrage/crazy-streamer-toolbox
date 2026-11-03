@@ -6,6 +6,7 @@ from streamer_toolbox.core.interfaces.box import Box
 
 class JoinListToText(Box):
     name = "join"
+    data_only = True  # no run wire: only works out a value from its inputs (his rule, round 62 A / notes 10-29)
     label = "Join list to text"
     help = "Puts the values of a list together into one text, with the separator between them"
     group = "Text"

@@ -20,16 +20,19 @@ class ActionPicker:
     one filter (the basic ones, and his own from Settings); the one picked stays for the next time. The boxes
     of programs that are switched off under Connections, and of plugins switched off under Plugins, are left
     out, with one line to show them anyway. So are the boxes his checks hide (TestView, Settings → What you
-    see), with a line of their own."""
+    see), with a line of their own. flow_only = False: without the boxes that only work inside a flow (the
+    Live deck's buttons pick what they run here too, his round 63)."""
 
     def __init__(self, actions: ActionRegistry, exclude: str = "", filters: BoxFilterStore | None = None,
-                 switched_off: SwitchedOff | None = None, view: TestView | None = None) -> None:
+                 switched_off: SwitchedOff | None = None, view: TestView | None = None,
+                 flow_only: bool = True) -> None:
         self._actions = actions
+        self._flow_only = flow_only
         self._exclude = exclude  # the flow being edited, so it can't call itself
         self._filters = filters
         self._view = view
         self._show_unchecked = False
-        has_boxes = {a.category for a in actions.all(include_flow_only=True)}
+        has_boxes = {a.category for a in actions.all(include_flow_only=flow_only)}
         # category → the program's name (a connection without boxes, like Keyboard, isn't named)
         self._off = {c: name for c, name in (switched_off() if switched_off else {}).items() if c in has_boxes}
         self._show_off = False
@@ -40,9 +43,9 @@ class ActionPicker:
         box_filter = self._filters.get(name) if self._filters and name else None  # a deleted one: all boxes
         self._filter = box_filter.name if box_filter else ""
         hide = () if self._show_off else tuple(self._off)
-        everything = ActionCatalog(self._actions, self._exclude, box_filter, hide)
+        everything = ActionCatalog(self._actions, self._exclude, box_filter, hide, flow_only=self._flow_only)
         self._catalog = everything if self._view is None or self._show_unchecked else ActionCatalog(
-            self._actions, self._exclude, box_filter, hide, self._view.shows_box)
+            self._actions, self._exclude, box_filter, hide, self._view.shows_box, self._flow_only)
         self._unchecked = everything.count() - self._catalog.count()  # how many his checks hide
         self._category = next(iter(self._catalog.categories()), ("", "", 0))[0]
 

@@ -225,6 +225,18 @@ class TestWidgetRouter(unittest.TestCase):
         with self.client.websocket_connect("/overlay/widget/follow_box/ws?preview=1"):
             self.assertEqual(self.hub.pages("follow_box"), 0)
 
+    def test_an_opened_page_is_loaded_but_one_that_comes_back_is_not(self) -> None:
+        """His round 74: a start trigger, so a flow can send what the widget shows at once."""
+        loaded: list[tuple[str, bool]] = []
+        self.hub.on_loaded = lambda widget, preview: loaded.append((widget, preview))
+        with self.client.websocket_connect("/overlay/widget/follow_box/ws"):
+            pass
+        with self.client.websocket_connect("/overlay/widget/follow_box/ws?preview=1"):
+            pass
+        with self.client.websocket_connect("/overlay/widget/follow_box/ws?run=r1&after=7"):  # its line came back
+            pass
+        self.assertEqual(loaded, [("follow_box", False), ("follow_box", True)])
+
 
 if __name__ == "__main__":
     unittest.main()

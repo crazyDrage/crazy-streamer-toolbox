@@ -2,6 +2,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from streamer_toolbox.core.widgets.widget_input import WidgetInput
+
 NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*")
 MEDIA_FIELDS = ("image-input", "video-input", "sound-input")  # their value is a file on this PC
 NO_VALUE = ("button",)  # a field that only does something when pressed
@@ -11,7 +13,9 @@ NO_VALUE = ("button",)  # a field that only does something when pressed
 class Widget:
     """A custom widget in StreamElements' format: the four parts people share (HTML, CSS, JS and FIELDS, the
     settings its code asks for as {name: {type, label, value, ...}}), the values he set for those fields, and
-    `frame`: the box it sat in on a StreamElements overlay (width, height, top, left; empty = the whole page)."""
+    `frame`: the box it sat in on a StreamElements overlay (width, height, top, left; empty = the whole page),
+    and the event types it gets (Overlay → Events, his round 78; None = as they are, for one saved without
+    knowing them). `inputs`: what flows sent it before (round 74, inputs.json), read once to become events."""
 
     name: str
     html: str = ""
@@ -20,6 +24,8 @@ class Widget:
     fields: dict[str, dict[str, Any]] = field(default_factory=dict)
     values: dict[str, Any] = field(default_factory=dict)
     frame: dict[str, Any] = field(default_factory=dict)
+    inputs: tuple[WidgetInput, ...] | None = None
+    events: tuple[str, ...] | None = None
 
     def field_data(self) -> dict[str, Any]:
         """What the widget's code gets as fieldData: every field's start value, with his own on top."""

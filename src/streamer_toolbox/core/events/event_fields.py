@@ -75,6 +75,11 @@ EVENT_FIELDS: dict[str, tuple[str, ...]] = {
     # a viewer redeemed an event in the Twitch extension "StreamSocket Events" (bits: 0 = free)
     # veadotube mini shows another avatar state (names; previous = the one before)
     "veadotube.state": ("state", "state_id", "previous"),
+    # veadotube mini's push-to-talk (its microphone) went on or off: on = true / false, state = "on" / "off"
+    "veadotube.push_to_talk": ("on", "state"),
+    # a widget's page was opened (OBS loaded it, or the toolbox's preview: preview = true); a flow sends it what
+    # it shows at once
+    "widget.loaded": ("widget", "preview"),
     "streamsocket.event": ("event", "event_id", "bits", "user", "user_id", "categories", "test", "role", "platform"),
     # T.I.T.S.: something hit the model (item = what was thrown; x, y, z = the direction it flew, each -1 to 1),
     # a trigger started / ended

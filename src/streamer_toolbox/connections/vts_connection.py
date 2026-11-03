@@ -238,6 +238,10 @@ class VtsConnection(ConnectionBase, ModelMover):
             return
         await self.load_model(model, True, wait)
 
+    def default_flows(self) -> Path:
+        """Model position: save or move back, and a spot that uses it (made from his "model_pos" flows, 10-30)."""
+        return Path(__file__).parent / "vtube_studio" / "default_flows.flows.toml"
+
     def add_actions(self, actions: ActionRegistry) -> None:
         VtsHotkeyActions(self._request).add_to(actions)
         self._items.add_to(actions)

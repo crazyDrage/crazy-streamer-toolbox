@@ -3,7 +3,7 @@ import threading
 import unittest
 from pathlib import Path
 
-from streamer_toolbox.gui.services.app_window_page_opener import (DEFAULT_BROWSERS, AppWindowPageOpener,
+from streamer_toolbox.gui.services.app_window_page_opener import (DEFAULT_BROWSERS, LEAN_FLAGS, AppWindowPageOpener,
                                                                  installed_browsers)
 from tests.fakes.fake_browser_process import FakeBrowserProcess
 from tests.fakes.fake_page_opener import FakePageOpener
@@ -26,6 +26,15 @@ class TestAppWindowPageOpener(unittest.TestCase):
         opener.open("http://127.0.0.1:8850")
         self.assertEqual(self.launched, [[str(chrome), "--app=http://127.0.0.1:8850", "--window-size=1280,800"]])
         self.assertEqual(self.fallback.opened, [])
+
+    def test_lean_window_adds_its_flags_after_the_profile(self) -> None:
+        chrome = self.folder / "chrome.exe"
+        chrome.touch()
+        opener = AppWindowPageOpener(self.fallback, [chrome], self.launched.append, profile_dir=self.folder / "w",
+                                     flags=LEAN_FLAGS)
+        opener.open("http://127.0.0.1:8850")
+        self.assertEqual(self.launched[0][-len(LEAN_FLAGS):], list(LEAN_FLAGS))
+        self.assertIn("--renderer-process-limit=1", self.launched[0])
 
     def test_own_profile_closing_the_window_runs_on_closed(self) -> None:
         chrome = self.folder / "chrome.exe"

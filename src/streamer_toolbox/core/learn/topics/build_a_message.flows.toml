@@ -1,0 +1,27 @@
+toolbox_flows = 1
+folder = "Examples"
+
+[[flows]]
+name = "example_build_a_message"
+label = "Build a chat message"
+description = "A cheer: a chat message built from the cheerer's name and the Bits (Learn → Build a chat message)."
+wires = [
+    {from = "cheer", port = "out", to = "tell"},
+]
+
+[[flows.triggers]]
+kind = "twitch.cheer"
+id = "cheer"
+box = [320, 40]
+
+[[flows.nodes]]
+id = "text"
+action = "text.build"
+box = [620, 200]
+params = {text = "{user} just gave {bits} Bits!", user = "${box.cheer.user}", bits = "${box.cheer.bits}"}
+
+[[flows.nodes]]
+id = "tell"
+action = "twitch.send_chat"
+box = [920, 40]
+params = {message = "${box.text}"}

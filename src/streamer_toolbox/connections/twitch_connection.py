@@ -246,6 +246,9 @@ class TwitchConnection(ConnectionBase, RewardManager):
             raise KeyError(f"no channel point reward {reward!r}")
         return found["id"]
 
+    def default_flows(self) -> Path:
+        return Path(__file__).parent / "twitch" / "default_flows.flows.toml"
+
     def add_actions(self, actions: ActionRegistry) -> None:
         TwitchChannelActions(self._helix, self._need_token).add_to(actions)
         TwitchStreamActions(self._helix, self._need_token).add_to(actions)

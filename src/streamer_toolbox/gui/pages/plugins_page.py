@@ -2,7 +2,9 @@ from collections.abc import Callable
 
 from nicegui import ui
 
+from streamer_toolbox.gui.components.plugin_listing_panel import ADDRESS as LISTING_ADDRESS, PluginListingPanel
 from streamer_toolbox.gui.components.secret_input import SecretInput
+from streamer_toolbox.gui.components.type_chips import TypeChips
 from streamer_toolbox.gui.services.ui_registry import UiRegistry
 from streamer_toolbox.plugins.plugin_manifest import PluginManifest
 from streamer_toolbox.plugins.plugin_power import PluginPower
@@ -24,12 +26,15 @@ class PluginsPage:
     Settings any more), and below it a row per page the plugin added."""
 
     def __init__(self, status: PluginStatus, ui_registry: UiRegistry, switches: PluginSwitches | None = None,
-                 template: PluginTemplate | None = None, power: PluginPower | None = None) -> None:
+                 template: PluginTemplate | None = None, power: PluginPower | None = None,
+                 listing: PluginListingPanel | None = None) -> None:
         self._status = status
+        self._listing = listing  # Get plugins: from the listing files
         self._ui = ui_registry
         self._switches = switches
         self._power = power  # what switching does (without it, only the switch is written)
         self._template = template  # the "New plugin" button
+        self._chips = TypeChips(lambda: self._all.refresh())  # plugin.json "types" (his "sort-able", 11-02)
 
     def side_items(self) -> list[tuple[str, str, str] | tuple[str, str, str, bool]]:
         """(title, address, icon) per plugin, then (title, address, icon, True) per page of it (a sub row). A
@@ -38,6 +43,8 @@ class PluginsPage:
         loaded, failed, _disabled, manifests = self._status()
         off = self._switches.off() if self._switches else set()
         items: list[tuple[str, str, str] | tuple[str, str, str, bool]] = []
+        if self._listing is not None:
+            items.append(("Get plugins", LISTING_ADDRESS, "download"))
         for plugin_id in [*[p for p in loaded if p not in off], *failed]:
             manifest = manifests.get(plugin_id)
             items.append((manifest.name if manifest else plugin_id, f"/plugins?show={plugin_id}", "extension"))
@@ -47,7 +54,9 @@ class PluginsPage:
 
     def build(self) -> None:
         show = ui.context.client.request.query_params.get("show", "")
-        if show:
+        if self._listing is not None and LISTING_ADDRESS.endswith(f"={show}"):
+            self._listing.build()
+        elif show:
             self._one(show)
         else:
             self._all()
@@ -64,8 +73,13 @@ class PluginsPage:
 
     @ui.refreshable_method
     def _all(self) -> None:
-        if self._template:
-            ui.button("New plugin", icon="add", on_click=self._new).props("no-caps unelevated")
+        with ui.row().classes("gap-2"):
+            if self._listing is not None:
+                ui.button("Get plugins", icon="download").props(f"no-caps unelevated href={LISTING_ADDRESS}")
+            if self._template:
+                ui.button("New plugin", icon="add", on_click=self._new).props("no-caps outline")
+        if self._listing is not None:
+            self._listing.restart_line()
         self._cards()
         ui.label("Plugins live in the plugins folder. The switch takes effect at once. To not load a plugin at "
                  "all, list the ones you want in [plugins] enabled in the settings file (then boxes of the "
@@ -87,6 +101,8 @@ class PluginsPage:
                      f"{len(disabled)} not loaded").classes("opacity-80")
             if not rows:
                 ui.label("No plugins found in the plugins folder.").classes("opacity-70")
+            self._chips.build([manifests[p].types if p in manifests else () for p, _, _ in rows])
+            rows = [row for row in rows if self._chips.fits(manifests[row[0]].types if row[0] in manifests else ())]
         pages = {path.split("/")[2]: path for _, path, _ in self._ui.pages if path.count("/") == 2}
         with ui.element("div").classes("grid gap-4 w-full items-start"
                                        + ("" if only else " sm:grid-cols-2 lg:grid-cols-3")):
@@ -100,6 +116,8 @@ class PluginsPage:
                         ui.badge(status).props(f"color={STATUS_COLOURS[status]}")
                     version = f" · version {manifest.version}" if manifest else ""
                     ui.label(f"{plugin_id}{version}").classes("text-xs opacity-60 font-mono")
+                    if manifest:
+                        TypeChips.badges(manifest.types)
                     if detail:
                         ui.label(detail).classes("text-sm break-words" + (" text-negative" if status == "failed" else ""))
                     if status in ("loaded", "off") and self._switches:
@@ -114,8 +132,18 @@ class PluginsPage:
                                      "the flows and work again once it is on.").classes("text-xs opacity-70")
                     if status in ("loaded", "off"):
                         self._keys(plugin_id)
-                    if status == "loaded" and plugin_id in pages:
-                        ui.button("Open", icon="open_in_new").props(f"no-caps flat dense href={pages[plugin_id]}")
+                    with ui.row().classes("items-center gap-1"):
+                        if status == "loaded" and plugin_id in pages:
+                            ui.button("Open", icon="open_in_new")                                 .props(f"no-caps flat dense href={pages[plugin_id]}")
+                        if manifest and self._listing is not None and plugin_id in self._listing.removed:
+                            ui.label("Removed: gone when the toolbox starts again").classes("text-xs opacity-70")
+                        elif manifest and self._listing is not None:
+                            ui.button("Remove", icon="delete", on_click=lambda p=plugin_id, n=manifest.name:
+                                      self._listing.ask_remove(p, n, self._redraw))                                 .props("no-caps flat dense color=grey")
+
+    def _redraw(self) -> None:
+        self._all.refresh()
+        self._one.refresh()
 
     def _keys(self, plugin_id: str) -> None:
         """A field per key the plugin needs (ctx.secret, a web box's {secret.name}): typed here, never shown."""

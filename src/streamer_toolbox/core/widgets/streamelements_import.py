@@ -40,8 +40,8 @@ class StreamElementsImport:
             answer = await client.get(f"{API}/{channel}", params={"limit": 100},
                                       headers={"Authorization": f"Bearer {token}", "Accept": "application/json"})
         if answer.status_code in (401, 403):
-            raise PermissionError("StreamElements refused the token: put a fresh JWT Token into "
-                                  f"{self._token_path}")
+            raise PermissionError("StreamElements refused the token: type a fresh JWT Token into "
+                                  "its field under Connections → StreamElements")
         answer.raise_for_status()
         found = answer.json()
         docs = found.get("docs", []) if isinstance(found, dict) else found
@@ -56,8 +56,8 @@ class StreamElementsImport:
             answer = await client.get(f"{API}/{channel}/{overlay}",
                                       headers={"Authorization": f"Bearer {token}", "Accept": "application/json"})
         if answer.status_code in (401, 403):
-            raise PermissionError("StreamElements refused the token: put a fresh JWT Token into "
-                                  f"{self._token_path}")
+            raise PermissionError("StreamElements refused the token: type a fresh JWT Token into "
+                                  "its field under Connections → StreamElements")
         if answer.status_code == 404:
             raise KeyError("StreamElements has no such overlay on your account")
         answer.raise_for_status()
@@ -103,10 +103,12 @@ class StreamElementsImport:
         text = self._token_path.read_text(encoding="utf-8") if self._token_path.is_file() else ""
         lines = [line.strip() for line in text.splitlines() if line.strip()]
         if not lines:
-            raise PermissionError(f"No token yet: put your StreamElements JWT Token into {self._token_path}")
+            raise PermissionError("No token yet: type your StreamElements JWT Token into its field under "
+                                  "Connections → StreamElements")
         channel = lines[1] if len(lines) > 1 else _channel_in(lines[0])
         if not channel:
-            raise PermissionError(f"Put your StreamElements Account ID on line 2 of {self._token_path}")
+            raise PermissionError("That token doesn't say which StreamElements account it is: copy the JWT Token "
+                                  "again from StreamElements into its field under Connections → StreamElements")
         return lines[0], channel
 
 

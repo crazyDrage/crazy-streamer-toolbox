@@ -7,10 +7,12 @@ from typing import Any
 import tomlkit
 
 from streamer_toolbox.core.flows.flow import Flow
+from streamer_toolbox.core.flows.flow_group import FlowGroup
 from streamer_toolbox.core.flows.flow_input import FlowInput
 from streamer_toolbox.core.flows.flow_node import FlowNode
 from streamer_toolbox.core.flows.flow_trigger import FlowTrigger
 from streamer_toolbox.core.flows.flow_wire import DONE, START, FlowWire
+from streamer_toolbox.core.flows.frozen_box import FrozenBox
 from streamer_toolbox.core.flows.old_end_boxes import end_boxes_from_lines
 from streamer_toolbox.core.flows.old_split_boxes import split_boxes_away
 from streamer_toolbox.core.flows.old_start_box import start_boxes_from_triggers
@@ -91,7 +93,8 @@ class FlowStore:
                     float(data.get("cooldown", 0)), float(data.get("user_cooldown", 0)),
                     bool(data.get("refund_on_fail", False)), str(data.get("folder", "")).strip(),
                     bool(data.get("enabled", True)), bool(data.get("triggers_enabled", True)),
-                    bool(data.get("as_box", True)), _spot(data, "start_box"), _spot(data, "input_box"))
+                    bool(data.get("as_box", True)), _spot(data, "start_box"), _spot(data, "input_box"),
+                    bool(data.get("hidden", False)), tuple(_group(g) for g in data.get("groups", [])))
 
     @staticmethod
     def to_data(flow: Flow) -> dict[str, Any]:
@@ -101,6 +104,8 @@ class FlowStore:
         for key in ("enabled", "triggers_enabled", "as_box"):  # only said when switched off
             if not getattr(flow, key):
                 data[key] = False
+        if flow.hidden:
+            data["hidden"] = True
         if flow.description:
             data["description"] = flow.description
         if flow.when_busy != "alongside":
@@ -132,7 +137,13 @@ class FlowStore:
                 entry["box"] = _rounded(node.box)
             if node.outputs:
                 entry["outputs"] = _inline(node.outputs)
+            if node.frozen is not None:
+                entry["frozen"] = node.frozen.to_data()
             nodes.append(entry)
+        if flow.groups:
+            data["groups"] = [{"id": g.id, "label": g.label, "color": g.color, "box": _rounded(g.box),
+                               "size": _rounded(g.size), **({"folded": True} if g.folded else {})}
+                              for g in flow.groups]
         data["nodes"] = nodes
         wires = tomlkit.array()
         wires.extend(_inline({"from": w.source, "port": w.port, "to": w.target}
@@ -146,6 +157,11 @@ def _spot(data: dict[str, Any], key: str = "box") -> tuple[float, float] | None:
     return tuple(data[key]) if key in data else None
 
 
+def _group(g: dict[str, Any]) -> FlowGroup:
+    return FlowGroup(str(g["id"]), str(g.get("label", "Group")), str(g.get("color", "blue")),
+                     _spot(g) or (0.0, 0.0), _spot(g, "size") or (420.0, 280.0), bool(g.get("folded", False)))
+
+
 def _rounded(spot: tuple[float, float]) -> list[int]:
     return [round(spot[0]), round(spot[1])]
 
@@ -153,7 +169,8 @@ def _rounded(spot: tuple[float, float]) -> list[int]:
 def _node(node_id: str, n: dict[str, Any]) -> FlowNode:
     return FlowNode(node_id, n["action"], dict(n.get("params", {})), bool(n.get("enabled", True)),
                     n.get("note", ""), n.get("save_as", ""), tuple(n["box"]) if "box" in n else None,
-                    {str(k): str(v) for k, v in dict(n.get("outputs", {})).items()})
+                    {str(k): str(v) for k, v in dict(n.get("outputs", {})).items()},
+                    FrozenBox.from_data(n["frozen"]) if isinstance(n.get("frozen"), dict) else None)
 
 
 def _from_steps(steps: list[dict[str, Any]]) -> tuple[tuple[FlowNode, ...], tuple[FlowWire, ...]]:

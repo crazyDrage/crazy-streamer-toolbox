@@ -11,6 +11,7 @@ from streamer_toolbox.core.flows.flow_library import FlowLibrary
 from streamer_toolbox.core.flows.flow_outline import FlowOutline
 from streamer_toolbox.core.flows.flow_runner import FlowRunner
 from streamer_toolbox.core.flows.outline_entry import OutlineEntry
+from streamer_toolbox.gui.components.app_shell import SHOW_ALL_KEY
 from streamer_toolbox.gui.components.folder_field import FolderField
 from streamer_toolbox.gui.components.save_as import SaveAs
 from streamer_toolbox.gui.services.activity_log import ActivityLog
@@ -21,6 +22,7 @@ NO_FOLDER = "No folder"
 NO_FOLDER_SHOW = "~"  # /flows?show=~ : the flows that are in no folder
 OPEN_FOLDERS = "flows_page_open_folders"  # in the page settings: the names of the folders that are open
 SEARCH_OPENS = 40  # a search opens the folders it found something in, up to this many flows
+SHOW_HIDDEN = "flows_page_show_hidden"  # in the page settings: the hidden flows and folders are listed too
 SELECTED = "flows_page_selected"  # in this browser tab's storage: the ticked flows' names while Select is on
 
 
@@ -51,6 +53,8 @@ class FlowsPage:
         """The side list of the Flows area: a row per folder ("No folder" last, for the flows outside them) with
         its flows as sub rows (his wish of 2026-10-16: open the folders on the side and see the flows)."""
         flows = self._library.all()
+        if not self._showing_hidden():  # his "hide in list"
+            flows = [f for f in flows if not self._library.hidden(f)]
         items: list[tuple[str, str, str] | tuple[str, str, str, bool]] = []
         for folder in [*self._library.folders(), ""]:
             inside = sorted((f for f in flows if f.folder == folder), key=lambda f: f.label.casefold())
@@ -106,6 +110,15 @@ class FlowsPage:
                              "toolbox). Opening this page does it too")
                 ui.button(icon="unfold_less", on_click=lambda: self._close_all(search.value or "")) \
                     .props("flat round dense").tooltip("Close all folders")
+                hidden = sum(1 for f in self._library.all() if self._library.hidden(f))
+                showing = bool(app.storage.general.get(SHOW_HIDDEN, False))
+                if (hidden or showing) and not self._show_all():  # Show everything on top: shown already
+                    ui.button(f"Hidden ({hidden})", icon="visibility" if showing else "visibility_off",
+                              on_click=lambda: self._show_hidden(not showing)) \
+                        .props("no-caps " + ("unelevated" if showing else "outline")) \
+                        .tooltip("Flows and folders set to \"Hide in list\" (e.g. the alerts' own flows). Click "
+                                 "to " + ("leave them out again" if showing else "list them too") + ". A search "
+                                 "always finds them")
                 ui.toggle(VIEWS, value=app.storage.general.get("flows_page_view", "list"),
                           on_change=lambda e: self._set_view(e.value, search.value or "")).props("no-caps dense")
                 self._stop_all = ui.button("Stop all", icon="stop", on_click=lambda: self._stop(None)) \
@@ -121,6 +134,21 @@ class FlowsPage:
             with ui.row().classes("gap-2"):
                 for template in templates:
                     self._template_card(template)
+        everything = self._show_all()
+
+        def follow_the_eye() -> None:  # the eye on the top right redraws the menus, not this page
+            if self._show_all() != everything:
+                self.build.refresh()
+
+        ui.timer(1.0, follow_the_eye)
+
+    @staticmethod
+    def _show_all() -> bool:
+        """Show everything on the top bar (his round 81: it has to show the hidden flows too)."""
+        return bool(app.storage.general.get(SHOW_ALL_KEY, False))
+
+    def _showing_hidden(self) -> bool:
+        return self._show_all() or bool(app.storage.general.get(SHOW_HIDDEN, False))
 
     def _set_view(self, view: str, search: str) -> None:
         app.storage.general["flows_page_view"] = view
@@ -185,6 +213,29 @@ class FlowsPage:
             ui.notify(f"{len(flows)} deleted")
             self._select_mode(True)
 
+    def _show_hidden(self, on: bool) -> None:
+        app.storage.general[SHOW_HIDDEN] = on
+        self.build.refresh()
+        ui.navigate.reload()  # the side list too
+
+    def _hide(self, flow: Flow, on: bool) -> None:
+        self._library.save(replace(flow, hidden=on))
+        ui.notify(f"{flow.label} is " + ("hidden in the list (Hidden on top shows it)" if on else "listed again"))
+        self.build.refresh()
+
+    def _folder_off(self, folder: str, off: bool) -> None:
+        self._library.folder_settings.set_off(folder, off)
+        ui.notify(f"The folder {folder} is " + ("switched off: none of its flows starts" if off else
+                                               "on again: its flows start as their own switches say"),
+                  type="warning" if off else "positive")
+        self.build.refresh()
+
+    def _hide_folder(self, folder: str, on: bool) -> None:
+        self._library.folder_settings.set_hidden(folder, on)
+        ui.notify(f"The folder {folder} is " + ("hidden in the list (Hidden on top shows it)" if on else
+                                               "listed again"))
+        self.build.refresh()
+
     def _close_all(self, search: str) -> None:
         app.storage.general[OPEN_FOLDERS] = []
         self._flows.refresh(search)
@@ -202,6 +253,11 @@ class FlowsPage:
                 ui.label(f"No flows in {only or NO_FOLDER}.").classes("opacity-70")
                 return
         words = search.casefold().split()
+        if only is None and not words and not self._showing_hidden():
+            flows = [f for f in flows if not self._library.hidden(f)]
+            if not flows:
+                ui.label("Every flow is hidden in the list: press Hidden on top to see them.").classes("opacity-70")
+                return
         if words:
             flows = [f for f in flows if all(w in f"{f.label} {f.name} {f.folder} {f.description}".casefold()
                                              for w in words)]
@@ -225,6 +281,10 @@ class FlowsPage:
                 with ui.row().classes("items-center no-wrap w-full gap-2"):
                     ui.icon("folder" if folder else "folder_off").classes("text-primary text-xl")
                     ui.label(folder or NO_FOLDER).classes("font-semibold")
+                    if self._library.folder_settings.hidden(folder):
+                        ui.icon("visibility_off").classes("text-sm opacity-60").tooltip("Hidden in the list")
+                    if self._library.folder_settings.off(folder):
+                        ui.badge("off").props("color=grey-7").tooltip("Switched off: none of its flows starts")
                     ui.label(str(len(flows))).classes("text-xs opacity-60")
             content = ui.column().classes("w-full gap-0")
         drawn = False
@@ -256,6 +316,19 @@ class FlowsPage:
                 ui.button("Export folder", icon="download", on_click=lambda: self._export_folder(folder)) \
                     .props("flat dense no-caps size=sm") \
                     .tooltip("All its flows as one file, to give to someone else: they bring it in with Import")
+                off = self._library.folder_settings.off(folder)
+                ui.button("Switch folder on" if off else "Switch folder off", icon="power_settings_new",
+                          on_click=lambda: self._folder_off(folder, not off)) \
+                    .props("flat dense no-caps size=sm " + ("color=positive" if off else "color=negative")) \
+                    .tooltip("Its flows start again as their own switches say" if off else
+                             "None of its flows starts (button, triggers, SAMMI, API, other flows) until you switch "
+                             "it on again. Each flow keeps its own switch")
+                hidden = self._library.folder_settings.hidden(folder)
+                ui.button("Show in list" if hidden else "Hide in list", icon="visibility" if hidden else "visibility_off",
+                          on_click=lambda: self._hide_folder(folder, not hidden)) \
+                    .props("flat dense no-caps size=sm") \
+                    .tooltip("Listed again" if hidden else "The folder and its flows are left out of this list and the "
+                             "side list until you press Hidden on top. They still run")
         boxes: list[ui.checkbox] = []
         if self._selected() is not None:
             with ui.row().classes("gap-1 pl-2"):
@@ -284,10 +357,15 @@ class FlowsPage:
             box = self._tick_box(flow)
             ui.icon("account_tree").classes("text-primary" if flow.enabled else "opacity-40")
             with ui.column().classes("gap-0 min-w-0 flex-1" + ("" if flow.enabled else " opacity-50")):
-                ui.link(flow.label, f"/flows/edit?flow={flow.name}").classes("font-medium no-underline truncate")
+                with ui.row().classes("items-center no-wrap gap-1 min-w-0"):
+                    ui.link(flow.label, f"/flows/edit?flow={flow.name}").classes("font-medium no-underline truncate")
+                    if self._library.hidden(flow):
+                        ui.icon("visibility_off").classes("text-sm opacity-60").tooltip("Hidden in the list")
                 inputs = ", ".join(i.name for i in flow.inputs)
                 line = flow.description or f"{len(flow.nodes)} boxes" + (f" · inputs: {inputs}" if inputs else "")
-                ui.label(("Switched off · " if not flow.enabled else "") + line) \
+                why = "Switched off · " if not flow.enabled else \
+                    "Folder off · " if self._library.folder_settings.off(flow.folder) else ""
+                ui.label(why + line) \
                     .classes("text-xs opacity-60 truncate w-full")
             self._switches(flow)
             button = ui.button(icon="play_arrow").props("flat round dense").tooltip("Run")
@@ -326,6 +404,8 @@ class FlowsPage:
         with ui.button(icon="more_vert").props("flat round dense"):
             with ui.menu():
                 ui.menu_item("Move to folder", on_click=lambda f=flow: self._move(f))
+                ui.menu_item("Show in list" if flow.hidden else "Hide in list",
+                             on_click=lambda f=flow: self._hide(f, not f.hidden))
                 ui.menu_item("Duplicate", on_click=lambda f=flow: self._duplicate(f))
                 ui.menu_item("Save as template", on_click=lambda f=flow: self._template(f))
                 ui.menu_item("Export (save as file)", on_click=lambda f=flow: self._export(f))
@@ -342,6 +422,8 @@ class FlowsPage:
             if self._runner is not None:
                 ui.menu_item("Stop", on_click=lambda f=flow: self._stop(f.name)).props("dense")
             ui.menu_item("Move to folder", on_click=lambda f=flow: self._move(f)).props("dense")
+            ui.menu_item("Show in list" if flow.hidden else "Hide in list",
+                         on_click=lambda f=flow: self._hide(f, not f.hidden)).props("dense")
             ui.menu_item("Export (save as file)", on_click=lambda f=flow: self._export(f)).props("dense")
             ui.menu_item("Delete", on_click=lambda f=flow: self._delete(f)).props("dense").classes("text-negative")
 
@@ -437,6 +519,8 @@ class FlowsPage:
                 box = self._tick_box(flow)
                 ui.icon("account_tree").classes("text-xl text-primary")
                 ui.label(flow.label).classes("text-lg font-semibold")
+                if self._library.hidden(flow):
+                    ui.icon("visibility_off").classes("opacity-60").tooltip("Hidden in the list")
                 if flow.triggers:
                     ui.badge(" · ".join(t.kind for t in flow.triggers)).props("color=warning text-color=black") \
                         .classes("text-xs").tooltip("Also starts by itself: " + "; ".join(

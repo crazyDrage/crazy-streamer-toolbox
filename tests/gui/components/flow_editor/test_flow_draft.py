@@ -7,6 +7,15 @@ from streamer_toolbox.gui.components.flow_editor.node_draft import NodeDraft
 
 
 class TestFlowDraft(unittest.TestCase):
+    def test_empty_lines_stay_on_save_empty_fields_go(self) -> None:
+        """His round 81 (7 b): Get settings' lines stay even when empty; an empty field of its own still goes."""
+        node = NodeDraft("n7", "obs.set_source_settings", {"source": "so-event", "settings": "", "url": "",
+                                                           "width": ""})
+        d = FlowDraft("f", "F", nodes=[node])
+        self.assertEqual(d.to_flow().nodes[0].params, {"source": "so-event"})
+        d.named_lines = lambda n: ["url", "width"]
+        self.assertEqual(d.to_flow().nodes[0].params, {"source": "so-event", "url": "", "width": ""})
+
     def test_add_after_inserts_add_beside_runs_together_remove_bridges(self) -> None:
         d = FlowDraft("f", "F", nodes=[NodeDraft("n1", "a.x"), NodeDraft("n2", "a.y")],
                       wires=[FlowWire("start", "out", "n1"), FlowWire("n1", "done", "n2")])

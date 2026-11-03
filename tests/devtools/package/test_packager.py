@@ -1,10 +1,12 @@
+import sys
 import tarfile
 import tempfile
 import zipfile
 import unittest
 from pathlib import Path
 
-from streamer_toolbox.devtools.package.packager import LINUX, WINDOWS, Packager
+from streamer_toolbox.core.app_version import APP_VERSION
+from streamer_toolbox.devtools.package.packager import LINUX, WINDOWS, Packager, tag_problem
 from tests.fakes.fake_linux_python import FakeLinuxPython
 from tests.fakes.fake_python_packager import FakePythonPackager
 from tests.fakes.fake_windows_launcher import FakeWindowsLauncher
@@ -42,11 +44,16 @@ class TestPackager(unittest.TestCase):
         self.assertNotIn(b"\r", linux)  # a Windows line end breaks a shell script
         self.assertIn(b'--open window "$@"', linux)
         self.assertIn(b"requirements.txt || {\n", linux)  # the doubled braces of the template became one
-        self.assertIn(b'--open browser "$@"', (self.out / "start-linux-browser.sh").read_bytes())
+        self.assertIn(b'--open none "$@"', (self.out / "start-linux-headless.sh").read_bytes())
+        settings = (self.out / "Start settings.bat").read_bytes()  # the starter, without a console
+        self.assertIn(b'start "" "python\\pythonw.exe" -m streamer_toolbox.starter %*\r\n', settings)
+        self.assertIn(b'-m streamer_toolbox.starter "$@"', (self.out / "start-linux-settings.sh").read_bytes())
 
     def test_a_build_for_one_system_gets_only_its_start_scripts(self) -> None:
-        for target, scripts in ((WINDOWS, ["Start in the browser.bat", "Start streamer-toolbox.bat"]),
-                                (LINUX, ["start-linux-browser.sh", "start-linux.sh"])):
+        # his 2026-11-03: three ways to start on each system
+        for target, scripts in ((WINDOWS, ["Start settings.bat", "Start streamer-toolbox.bat",
+                                           "Start without a window.bat"]),
+                                (LINUX, ["start-linux-headless.sh", "start-linux-settings.sh", "start-linux.sh"])):
             folder = self.out / target
             folder.mkdir(parents=True)
             Packager._start_scripts(folder, target)
@@ -81,15 +88,29 @@ class TestPackager(unittest.TestCase):
         ListedPackager(self.repo, self.out, target=LINUX, linux_python=FakeLinuxPython(), launcher=linux).build()
         self.assertEqual((with_exe.built, without.built, linux.built), (1, 0, 0))
 
+    @unittest.skipUnless(sys.platform == "win32", "takes tkinter from a Windows Python")
+    def test_the_windows_python_gets_tkinter(self) -> None:
+        python = self.out / "python"
+        python.mkdir(parents=True)
+        self.assertTrue(Packager(self.repo, self.out)._tkinter(python))
+        for name in ("_tkinter.pyd", "zlib1.dll", "tkinter/__init__.py", "tcl/tcl8.6/init.tcl"):
+            self.assertTrue((python / name).is_file(), name)
+
     def test_a_shell_script_is_runnable_in_the_archive(self) -> None:
         self.out.mkdir()
         Packager._start_scripts(self.out)
         with zipfile.ZipFile(self.out / "a.zip", "w") as packed:
             Packager._pack(packed, self.out / "start-linux.sh", Path("x/start-linux.sh"))
-            Packager._pack(packed, self.out / "Start in the browser.bat", Path("x/Start in the browser.bat"))
+            Packager._pack(packed, self.out / "Start settings.bat", Path("x/Start settings.bat"))
         with zipfile.ZipFile(self.out / "a.zip") as packed:
             self.assertEqual(packed.getinfo("x/start-linux.sh").external_attr >> 16, 0o100755)
             self.assertEqual(packed.read("x/start-linux.sh"), (self.out / "start-linux.sh").read_bytes())
+
+    def test_a_release_tag_must_be_the_codes_version(self) -> None:
+        """Else every toolbox would offer that release as new forever (ToolboxUpdate)."""
+        self.assertEqual(tag_problem({"GITHUB_REF_TYPE": "tag", "GITHUB_REF_NAME": f"v{APP_VERSION}"}), "")
+        self.assertEqual(tag_problem({"GITHUB_REF_TYPE": "branch", "GITHUB_REF_NAME": "main"}), "")
+        self.assertIn("raise APP_VERSION", tag_problem({"GITHUB_REF_TYPE": "tag", "GITHUB_REF_NAME": "v9.9.9"}))
 
 
 if __name__ == "__main__":

@@ -15,7 +15,7 @@ class TestOwnBoxes(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             actions = ActionRegistry()
             OwnBoxes(VariableStore(Path(folder) / "variables"), Mp4HeaderProbe(), FakeMessageService(),
-                     FakeConfirmService(True), None).add_to(actions)
+                     FakeConfirmService(True), None, Path(folder) / "boxes").add_to(actions)
         boxes = actions.all(include_flow_only=True)
         self.assertEqual([b.name for b in boxes if not b.label or not b.description], [])
         categories = {b.name.split(".")[0] for b in boxes}

@@ -5,6 +5,7 @@ from nicegui import ui
 
 from streamer_toolbox.core.config.toolbox_config import ToolboxConfig
 from streamer_toolbox.core.connections.connection_manager import ConnectionManager
+from streamer_toolbox.core.flows.default_flows import DefaultFlows
 from streamer_toolbox.core.interfaces.connection import Connection
 from streamer_toolbox.core.testing.test_item import CONNECTION
 from streamer_toolbox.core.testing.test_view import TestView
@@ -24,12 +25,14 @@ class ConnectionsPage:
     a connection stays as it is (connected or not), and its address still opens it."""
 
     def __init__(self, config: ToolboxConfig, config_path: Path, ui_registry: UiRegistry,
-                 connections: ConnectionManager, view: TestView | None = None) -> None:
+                 connections: ConnectionManager, view: TestView | None = None,
+                 default_flows: DefaultFlows | None = None) -> None:
         self._config = config
         self._path = config_path
         self._ui = ui_registry
         self._connections = connections
         self._view = view
+        self._default_flows = default_flows
 
     def shown(self) -> list[Connection]:
         """The connections the overview and the side menu list now."""
@@ -43,7 +46,7 @@ class ConnectionsPage:
                            and not self._connections.is_paused(c.id)), None)
         if connection is not None:
             self._back()
-            ConnectionPanel(connection, self._connections).build()
+            ConnectionPanel(connection, self._connections, self._default_flows).build()
         elif show == TOOLBOX:
             self._back()
             self._toolbox()

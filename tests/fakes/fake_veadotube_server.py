@@ -4,6 +4,7 @@ from typing import Any
 import websockets
 
 NODE = {"type": "stateEvents", "id": "mini", "name": "avatar state"}
+TALK = {"type": "boolean", "id": "mini", "name": "push-to-talk"}
 
 
 class FakeVeadotubeServer:
@@ -11,7 +12,9 @@ class FakeVeadotubeServer:
     without a name (?n=), lists its nodes, and for the avatar's stateEvents node answers list and peek and
     keeps a stack of states for set / push / pop / toggle. A client that sent `listen` is told the shown state
     as a peek payload whenever it changes (the docs don't show that message; this is the client's assumption).
-    `states` is id → name; `stack` the stack (the last one shows); `paths` the address each client came on."""
+    `states` is id → name; `stack` the stack (the last one shows); `paths` the address each client came on.
+    The boolean push-to-talk node: get / set / toggle / listen; `talk` its value (as the docs show it: a get
+    is answered with the bare value as payload)."""
 
     def __init__(self, states: dict[str, str] | None = None) -> None:
         self.states = states if states is not None else {"1": "idle", "2": "happy", "3": "angry"}
@@ -19,6 +22,8 @@ class FakeVeadotubeServer:
         self.paths: list[str] = []
         self.received: list[dict[str, Any]] = []
         self._listening: list[Any] = []
+        self.talk = False
+        self._talk_listening: list[Any] = []
         self._server: Any = None
 
     @property
@@ -50,8 +55,9 @@ class FakeVeadotubeServer:
                 if channel != "nodes":
                     continue
                 if message["event"] == "list":
-                    await self._say(ws, {"event": "list", "entries": [
-                        {"type": "boolean", "id": "mini", "name": "push-to-talk"}, NODE]})
+                    await self._say(ws, {"event": "list", "entries": [TALK, NODE]})
+                elif message["event"] == "payload" and message.get("type") == "boolean":
+                    await self._talk(ws, message["payload"])
                 elif message["event"] == "payload":
                     await self._payload(ws, message["payload"])
         except websockets.ConnectionClosed:
@@ -59,6 +65,22 @@ class FakeVeadotubeServer:
         finally:
             if ws in self._listening:
                 self._listening.remove(ws)
+            if ws in self._talk_listening:
+                self._talk_listening.remove(ws)
+
+    async def _talk(self, ws: Any, payload: dict[str, Any]) -> None:
+        before = self.talk
+        if payload["event"] == "get":
+            await self._say(ws, {"event": "payload", **TALK, "payload": self.talk})
+        elif payload["event"] == "listen":
+            self._talk_listening.append(ws)
+        elif payload["event"] == "set":
+            self.talk = bool(payload["value"])
+        elif payload["event"] == "toggle":
+            self.talk = not self.talk
+        if self.talk != before:
+            for listener in self._talk_listening:
+                await self._say(listener, {"event": "payload", **TALK, "payload": self.talk})
 
     async def _payload(self, ws: Any, payload: dict[str, Any]) -> None:
         event, state = payload["event"], payload.get("state")

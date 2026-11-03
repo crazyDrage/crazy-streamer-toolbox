@@ -1,0 +1,6 @@
+{
+  "title": {"type": "text", "label": "Title", "value": "My widget", "group": "Text"},
+  "textColor": {"type": "colorpicker", "label": "Text colour", "value": "#ffffff", "group": "Look"},
+  "fontSize": {"type": "slider", "label": "Font size", "value": 32, "min": 12, "max": 96, "step": 2, "group": "Look"},
+  "maxLines": {"type": "number", "label": "Lines shown at most", "value": 8, "min": 1, "max": 50, "group": "Look"}
+}

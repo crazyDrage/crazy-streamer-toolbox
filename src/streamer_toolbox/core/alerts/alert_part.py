@@ -19,7 +19,9 @@ class AlertPart:
     left end, middle or right end of its top edge is, by `align`), so a picture that is a card with boxes to
     fill ("Name:", "Age: __ months", "Message:") gets each piece in its box. width = how much of the picture's
     width it may use before it wraps (0 = as wide as it needs), size = pixels (0 = the alert's text size),
-    color = "" for the alert's own. `text` is what it says, with {user}, {amount}, ... ("" = its default)."""
+    color = "" for the alert's own, lines = how many lines it may have before the rest is cut with "…" (0 = as
+    many as it needs; his round 77: "to not have it go unlimited size"). `text` is what it says, with {user},
+    {amount}, ... ("" = its default)."""
 
     kind: str
     text: str = ""
@@ -30,6 +32,7 @@ class AlertPart:
     size: float = 0.0
     color: str = ""
     align: str = "center"
+    lines: int = 0
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "AlertPart":
@@ -37,12 +40,13 @@ class AlertPart:
                    bool(data.get("on_picture", False)), _between(data.get("x", 50), 0, 100),
                    _between(data.get("y", 50), 0, 100), _between(data.get("width", 0), 0, 100),
                    _between(data.get("size", 0), 0, 300), str(data.get("color", "")).strip(),
-                   data.get("align") if data.get("align") in ALIGNS else "center")
+                   data.get("align") if data.get("align") in ALIGNS else "center",
+                   int(_between(data.get("lines", 0), 0, 50)))
 
     def to_dict(self) -> dict[str, Any]:
         return {"kind": self.kind, "text": self.text, "on_picture": self.on_picture,
                 "x": self.x, "y": self.y, "width": self.width, "size": self.size, "color": self.color,
-                "align": self.align}
+                "align": self.align, "lines": self.lines}
 
     @property
     def title(self) -> str:
@@ -58,7 +62,8 @@ class AlertPart:
         """What the overlay gets for this piece, with its words filled in. index = its place in the alert's
         list (the editor's frame names a dragged piece by it)."""
         return {"kind": self.kind, "index": index, "text": text, "on_picture": self.on_picture, "x": self.x,
-                "y": self.y, "width": self.width, "size": self.size, "color": self.color, "align": self.align}
+                "y": self.y, "width": self.width, "size": self.size, "color": self.color, "align": self.align,
+                "lines": self.lines}
 
 
 def _between(value: Any, lowest: float, highest: float) -> float:

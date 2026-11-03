@@ -44,6 +44,10 @@ class VNyanConnection(ConnectionBase):
         ui.label('What VNyan does with a message is built in VNyan: add a "WebSocket" node (or an "API '
                  'Message" node) to a node graph and give it a name. A flow\'s "Send message to VNyan" box '
                  'with the same name runs it.').classes("text-sm opacity-80")
+        ui.label("A WebSocket node gets the whole line (name and value) as its "
+                 "Message. An API Message node runs only when its Action is filled in; its json output is the "
+                 "whole message, its Payload the values, every value as text (3 → \"3\").") \
+            .classes("text-xs opacity-60")
         outside_link("VNyan's documentation", DOCS).classes("text-sm")
 
     async def start(self) -> None:

@@ -54,11 +54,12 @@ class ActionRegistry:
             entry_fields: str = "", named_lines: bool = False, toggles: tuple[str, ...] = (),
             offered: bool = True, ends_flow: bool = False, gives_back: str = "", once_per_flow: bool = False,
             retrigger: str = "", variable_fields: tuple[str, ...] = (),
-            keys_of: str = "", alongside: str = "") -> None:
+            keys_of: str = "", output_names: str = "", alongside: str = "",
+            freeze: bool | None = False, lines_from: str = "") -> None:
         """See RegisteredAction for what options, capture, group, ports, flow_only, join, live, outputs,
         port_fields, labels, hints, editors, entries, fills, live_hints, files, colors, many,
         lights, shown, typed, value_lines, data_only, entry_fields, named_lines, toggles, offered, ends_flow, gives_back,
-        once_per_flow, retrigger, variable_fields, keys_of and alongside mean."""
+        once_per_flow, retrigger, variable_fields, keys_of, output_names, alongside, freeze and lines_from mean."""
         if name in self._actions:
             raise ValueError(f"action {name!r} is already registered")
         self._actions[name] = RegisteredAction(name, handler, description, label, dict(options or {}), capture,
@@ -72,7 +73,7 @@ class ActionRegistry:
                                                tuple(typed), value_lines, data_only, entry_fields,
                                                named_lines, tuple(toggles), offered, ends_flow, gives_back,
                                                once_per_flow, retrigger, tuple(variable_fields), keys_of,
-                                               alongside)
+                                               output_names, alongside, freeze=freeze, lines_from=lines_from)
 
     def add_box(self, box: "Box", owner: str) -> str:
         """A Box class's box as "<owner>.<name>" (owner: a connection's or plugin's id, or "logic", ...).

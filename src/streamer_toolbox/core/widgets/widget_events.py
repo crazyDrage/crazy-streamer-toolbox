@@ -126,3 +126,19 @@ def _tier(data: dict[str, Any]) -> str:
         return str(int(data.get("tier", 1)) * 1000)
     except (TypeError, ValueError):
         return "1000"
+
+
+# a widget input's type → the toolbox event whose StreamElements words it is sent in (se_event)
+INPUT_EVENTS = {"chat": "twitch.chat", "chat_deleted": "twitch.chat_deleted", "follow": "twitch.follow",
+                "sub": "twitch.sub", "resub": "twitch.resub", "gift": "twitch.gift", "cheer": "twitch.cheer",
+                "raid": "twitch.raid", "tip": "tip"}
+
+
+def input_event(kind: str, values: dict[str, Any]) -> dict[str, Any]:
+    """What a widget's code gets as obj.detail.event when a flow sends an event of that type (EventSender):
+    StreamElements' words for its kind (a chat message with its platform as `service`), a custom input's
+    fields as they are."""
+    if kind not in INPUT_EVENTS:
+        return dict(values)
+    mapped = se_event(INPUT_EVENTS[kind], {key: value for key, value in values.items() if value not in (None, "")})
+    return mapped[1] if mapped else dict(values)

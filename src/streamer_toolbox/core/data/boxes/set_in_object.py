@@ -7,6 +7,7 @@ from streamer_toolbox.core.interfaces.box import Box
 
 class SetInObject(Box):
     name = "set"
+    data_only = True  # no run wire: only works out a value from its inputs (his rule, round 62 A / notes 10-29)
     label = "Set in object"
     help = "The object with one key set to a value (added or replaced). Gives back the new object; empty object " \
            "= start a new one"

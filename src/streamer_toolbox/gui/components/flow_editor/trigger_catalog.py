@@ -44,6 +44,21 @@ class TriggerCatalog:
                 for group, items in groupby(hits, key=lambda e: e.group)]
 
 
+def start_title(kind: str, name: str) -> str:
+    """A Start box's title with its group (his round 74: "Start · Chat message" doesn't say which platform):
+    "Start · Twitch · Chat message", "Start · Any platform · Follow", "Start · YouTube · Super Chat"; the
+    group isn't said twice when the name has it already."""
+    group = group_of(kind)
+    short = name.removesuffix(" (any platform)")
+    program, dot, _ = kind.partition(".")  # only a kind with a dot names a program ("chat", "gift" don't)
+    for said in (group, program) if dot else (group,):  # "YouTube chat message", "veadotube state changed"
+        if short.casefold().startswith(said.casefold() + " "):
+            short = short[len(said) + 1:]
+            short = short[:1].upper() + short[1:]
+            break
+    return f"Start · {group} · {short}"
+
+
 def group_of(kind: str) -> str:
     """The group a trigger is listed under: the program that tells it, by its first word."""
     if kind in OWN:

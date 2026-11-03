@@ -73,10 +73,16 @@ class TestNodeEditorDataDots(unittest.TestCase):
         self.assertIn(("user", "user"), self.editor.dots.start_outputs("t1"))
         self.assertEqual(self.editor.dots.start_outputs("start"), [])
         self.assertEqual(self.editor.dots.start_boxes(), ["start", "t1", "input"])
-        self.assertEqual(self.editor.dots.start_text("t1")[0], "Start · Chat message")
+        self.assertEqual(self.editor.dots.start_text("t1")[0], "Start · Twitch · Chat message")
+        # his round 82: every filter shows, the others with their names (a sub's gift: false was invisible)
+        self.draft.triggers = [FlowTrigger("sub", {"gift": "false"}, "t1")]
+        self.assertEqual(self.editor.dots.start_text("t1")[1], "gift: false")
+        self.draft.triggers = [FlowTrigger("twitch.chat", {"command": "!so-event", "roles": "mod, broadcaster"}, "t1")]
+        self.assertEqual(self.editor.dots.start_text("t1")[1], "!so-event, roles: mod, broadcaster")
+        self.draft.triggers = [FlowTrigger("twitch.chat", {}, "t1")]
         sources = self.editor.dots.wire_sources(self.draft.node("n2"))
         self.assertEqual((sources["${box.t1.user}"], sources["${box.input.video}"]),
-                         ("Start · Chat message · user", "Input · video"))
+                         ("Start · Twitch · Chat message · user", "Input · video"))
 
     def test_the_box_line_leaves_out_what_the_chosen_way_does_not_use(self) -> None:
         node = NodeDraft("n9", "a.send", {"address": "a@b.c", "number": "123"})

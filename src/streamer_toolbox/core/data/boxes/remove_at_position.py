@@ -6,6 +6,7 @@ from streamer_toolbox.core.interfaces.box import Box
 
 class RemoveAtPosition(Box):
     name = "remove_at"
+    data_only = True  # no run wire: only works out a value from its inputs (his rule, round 62 A / notes 10-29)
     label = "Remove at position"
     help = "The list without the value at a position (1 = first, -1 = last)"
     group = "New list"

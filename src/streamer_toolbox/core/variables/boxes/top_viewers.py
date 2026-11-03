@@ -6,6 +6,7 @@ from streamer_toolbox.core.variables.variable_store import VariableStore
 
 class TopViewers(ViewerBox):
     name = "top"
+    data_only = True  # no run wire: the toolbox's own values (his rule, round 62 A / notes 10-29)
     label = "Top viewers"
     help = "The viewers with the highest numbers, as a list of {user, value}"
     group = "Per viewer"

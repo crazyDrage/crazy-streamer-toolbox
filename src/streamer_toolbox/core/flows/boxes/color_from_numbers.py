@@ -4,6 +4,7 @@ from streamer_toolbox.core.interfaces.box import Box
 
 class ColorFromNumbers(Box):
     name = "color"
+    data_only = True  # no run wire: only works out a value from its inputs (his rule, round 62 A / notes 10-29)
     label = "Colour from numbers"
     help = "Makes a colour from three numbers 0-255 (red, green, blue), e.g. 255 128 0 = orange; gives it as hex " \
            "(#FF8000) for Tint model and other colour fields. Numbers outside 0-255 are kept inside"

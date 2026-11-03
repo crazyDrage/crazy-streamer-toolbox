@@ -18,6 +18,10 @@ HTTP API with pickers).
      each with a `group` (see `docs/ai/code/action.md`). The built-in connections use `add_actions(actions)`
      instead, where they hand their groups the client and add their own Box classes with `add_box`;
    - `retry_when_down = True` if it should connect by itself once the program is started later.
+   - `default_flows()` (optional): a `.flows.toml` file (the format of Flows → Export folder) next to it; its
+     tab gets "Add default flows", which puts them switched off into the folder the file names
+     (`core/flows/DefaultFlows`; Twitch and YouTube have one, `tests/connections/test_default_flow_files.py`
+     checks the triggers and fields of the built-in ones).
 2. Everything else it needs goes into `connections/<id>/`, one class per file: the client, the actions class,
    the event mapping.
 3. Add it to the list in `assembly/built_in_connections.py`, giving it `tables.get("<id>", {})`.

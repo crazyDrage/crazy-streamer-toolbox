@@ -6,6 +6,7 @@ from streamer_toolbox.core.interfaces.box import Box
 
 class ObjectValues(Box):
     name = "values"
+    data_only = True  # no run wire: only works out a value from its inputs (his rule, round 62 A / notes 10-29)
     label = "Object values"
     help = "Takes an object apart: one orange dot per key (x, y, ...), following what is wired in. result = the " \
            "whole object; its @values = every value as a list"

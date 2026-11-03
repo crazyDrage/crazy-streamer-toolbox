@@ -77,11 +77,16 @@
     emitEvent("tb_deck_turn", { by: event.key === "ArrowRight" ? 1 : -1 });
   });
 
-  // Fit the screen: the deck as wide as it can be while all of it stays in the window
+  // Fit the screen: the deck as wide as it can be while all of it stays in the window (full screen: the css)
   let fitting = false;
   const fit = () => {
     fitting = false;
-    document.querySelectorAll(".tb-deck[data-fit=screen]").forEach((board) => {
+    const full = Boolean(document.fullscreenElement);
+    document.querySelectorAll(".tb-deck").forEach((board) => {
+      if (full || board.dataset.fit !== "screen") {
+        board.style.maxWidth = "";
+        return;
+      }
       const left = window.innerHeight - board.getBoundingClientRect().top - 8;
       const columns = Number(board.dataset.columns);
       const rows = Number(board.dataset.rows);

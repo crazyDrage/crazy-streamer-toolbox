@@ -8,14 +8,14 @@ from streamer_toolbox.core.alerts.alert import Alert
 from streamer_toolbox.core.alerts.alert_part import AlertPart
 from streamer_toolbox.core.alerts.alert_queue import AlertQueue
 from streamer_toolbox.core.alerts.alert_rule import AlertRule
-from streamer_toolbox.core.alerts.alert_store import AlertStore
+from streamer_toolbox.core.alerts.alert_store import AlertStore, _old
 
 RESUB = {"user": "Kit", "tier": 1, "months": 7, "message": "still here"}
 
 
 class TestAlertPart(unittest.TestCase):
     def setUp(self) -> None:
-        self.rule = AlertRule.default("twitch.resub")
+        self.rule = AlertRule.starter("resub")
 
     def _said(self, rule: AlertRule, data: dict = RESUB) -> list[tuple[str, str]]:
         return [(view["kind"], view["text"]) for view in rule.alert_for(data).parts]
@@ -25,7 +25,7 @@ class TestAlertPart(unittest.TestCase):
         self.assertEqual(self._said(self.rule), [("text", "Kit subscribed for 7 months!"), ("message", "still here")])
         self.assertEqual(self._said(self.rule, {**RESUB, "message": ""}),
                          [("text", "Kit subscribed for 7 months!")])  # nothing written: no empty piece
-        self.assertEqual(AlertRule.default("twitch.follow").parts, (AlertPart("text"),))  # a follow has no message
+        self.assertEqual(AlertRule.starter("follow").parts, (AlertPart("text"),))  # a follow has no message
 
     def test_pieces_are_added_taken_away_and_moved_up(self) -> None:
         rule = self.rule.add_part(AlertPart("name")).add_part(AlertPart("amount", text="{amount} months old"))
@@ -54,7 +54,7 @@ class TestAlertPart(unittest.TestCase):
         self.assertEqual(self._said(rule), [("text", "Kit subscribed for 7 months!"), ("message", "still here"),
                                             ("text", "Welcome back, Kit")])
         self.assertEqual(rule.alert_for(RESUB).text, "Kit subscribed for 7 months!")  # the first text line
-        follow = AlertRule.default("twitch.follow").add_part(AlertPart("amount"))
+        follow = AlertRule.starter("follow").add_part(AlertPart("amount"))
         self.assertEqual(self._said(follow, {"user": "Kit"}), [("text", "Kit just followed!")])  # no amount
 
     def test_a_dragged_piece_keeps_its_place_in_the_list(self) -> None:
@@ -74,9 +74,9 @@ class TestAlertPart(unittest.TestCase):
             path = Path(folder) / "alerts.json"
             parts = (AlertPart("name", on_picture=True, x=10, y=20), AlertPart("text"), AlertPart("name"))
             AlertStore(path).save(replace(self.rule, parts=parts))
-            self.assertEqual(AlertStore(path).get("twitch.resub").parts, parts)
+            self.assertEqual(AlertStore(path).get("resub").parts, parts)
             AlertStore(path).save(replace(self.rule, parts=()))
-            self.assertEqual(AlertStore(path).get("twitch.resub").parts, ())  # emptied stays empty
+            self.assertEqual(AlertStore(path).get("resub").parts, ())  # emptied stays empty
 
     def test_files_where_each_kind_had_a_shown_switch(self) -> None:
         """Before the list: one entry per kind; a kind that wasn't there had its default (text line and
@@ -84,19 +84,19 @@ class TestAlertPart(unittest.TestCase):
         old = {"parts": [{"key": "amount", "shown": True, "on_picture": True, "x": 41, "y": 63},
                          {"key": "text", "shown": False},
                          {"key": "name", "shown": True, "text": "{user}", "size": 28}]}
-        rule = AlertRule.from_dict("twitch.resub", old)
+        rule = _old("resub", old)
         self.assertEqual(rule.parts, (AlertPart("name", text="{user}", size=28),
                                       AlertPart("amount", on_picture=True, x=41, y=63), AlertPart("message")))
-        self.assertEqual(AlertRule.from_dict("twitch.resub", {"parts": []}).parts, self.rule.parts)
-        follow = AlertRule.from_dict("twitch.follow", {"parts": [{"key": "amount", "shown": True}]})
+        self.assertEqual(_old("resub", {"parts": []}).parts, self.rule.parts)
+        follow = _old("follow", {"parts": [{"key": "amount", "shown": True}]})
         self.assertEqual(follow.parts, (AlertPart("text"),))  # a follow has no amount and no message
         self.assertNotIn("parts", rule.to_dict())
-        self.assertEqual(AlertRule.from_dict("twitch.resub", rule.to_dict()), rule)
+        self.assertEqual(AlertRule.from_dict(rule.to_dict()), rule)
 
     def test_files_from_before_there_were_pieces(self) -> None:
         old = {"on": True, "text": "{user} is back", "with_message": False,
                "look": {"text_place": "over", "text_x": 20.5, "text_y": 80, "animation_in": "pop"}}
-        rule = AlertRule.from_dict("twitch.resub", old)
+        rule = _old("resub", old)
         self.assertEqual(rule.parts, (AlertPart("text", on_picture=True, x=20.5, y=80.0),))
         self.assertEqual((rule.look.text_place, rule.look.animation_in), ("below", "pop"))
         json.dumps(rule.to_dict())  # and it can be written again
@@ -104,8 +104,14 @@ class TestAlertPart(unittest.TestCase):
     def test_wrong_values_in_a_piece_fall_back(self) -> None:
         part = AlertPart.from_dict({"kind": "name", "x": 300, "y": "top", "width": -5, "align": "justify"})
         self.assertEqual((part.x, part.y, part.width, part.align), (100.0, 0.0, 0.0, "center"))
-        rule = AlertRule.from_dict("twitch.resub", {"pieces": [{"kind": "name"}, {"kind": "nope"}, "name"]})
+        rule = _old("resub", {"pieces": [{"kind": "name"}, {"kind": "nope"}, "name"]})
         self.assertEqual(rule.parts, (AlertPart("name"),))
+
+    def test_most_lines_is_kept_and_bounded(self) -> None:
+        part = AlertPart.from_dict(AlertPart("message", lines=2).to_dict())
+        self.assertEqual(part.lines, 2)
+        self.assertEqual(AlertPart.from_dict({"kind": "name", "lines": "many"}).lines, 0)
+        self.assertEqual(AlertPart.from_dict({"kind": "name", "lines": 999}).lines, 50)
 
     def test_the_overlay_gets_the_pieces_and_the_box_still_works(self) -> None:
         queue = AlertQueue()
@@ -114,7 +120,7 @@ class TestAlertPart(unittest.TestCase):
         self.assertEqual([p["kind"] for p in payload["parts"]], ["text", "name"])
         self.assertEqual(payload["parts"][1], {"kind": "name", "index": 1, "text": "Kit", "on_picture": True,
                                                "x": 33, "y": 53, "width": 0.0, "size": 0.0, "color": "",
-                                               "align": "center"})
+                                               "align": "center", "lines": 0})
         plain = queue.payload(Alert("hi", message="there"))  # the Show alert box: a text and a message
         self.assertEqual(plain["parts"], [{"kind": "text", "text": "hi"}, {"kind": "message", "text": "there"}])
 

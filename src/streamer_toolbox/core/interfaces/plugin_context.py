@@ -14,6 +14,7 @@ from streamer_toolbox.core.flows.retrigger import Retrigger
 from streamer_toolbox.core.interfaces.box import Box
 from streamer_toolbox.core.interfaces.connection import Connection
 from streamer_toolbox.core.interfaces.field_editor import FieldEditor
+from streamer_toolbox.core.interfaces.importer import Importer
 from streamer_toolbox.core.interfaces.listener import Listener
 from streamer_toolbox.core.interfaces.page import Page
 from streamer_toolbox.core.interfaces.panel import Panel
@@ -22,14 +23,14 @@ from streamer_toolbox.core.interfaces.trigger import Trigger
 from streamer_toolbox.core.values.value_kind import ValueKind
 
 
-Addable = Box | Trigger | Connection | Tool | Page | Panel | Listener | APIRouter | type[FieldEditor]
+Addable = Box | Trigger | Connection | Tool | Page | Panel | Importer | Listener | APIRouter | type[FieldEditor]
 
 
 class PluginContext(ABC):
     """The only door a plugin gets into the toolbox, so the internals can change behind it.
 
     What a plugin adds goes through add(): one class per kind of thing (core/interfaces: Box, Trigger,
-    Connection, Tool, Page, Panel, Listener, FieldEditor; FastAPI's own APIRouter for routes). The rest of the
+    Connection, Tool, Page, Panel, Importer, Listener, FieldEditor; FastAPI's own APIRouter for routes). The rest of the
     methods are what a plugin can use (run_action, settings, ask_yes_no, ...). The add_* methods are the
     older way of api_version 1 to 3 and stay for those plugins."""
 
@@ -64,6 +65,11 @@ class PluginContext(ABC):
         if isinstance(thing, Panel):
             self.add_panel(thing.title, thing.build, thing.section)
             return ""
+        if isinstance(thing, Importer):
+            if not thing.title:
+                raise ValueError(f"{type(thing).__name__} needs a title")
+            self.add_importer(thing)
+            return ""
         if isinstance(thing, Listener):
             self.on_event(thing.heard)
             return ""
@@ -74,7 +80,8 @@ class PluginContext(ABC):
             if not thing.kind:
                 raise ValueError(f"{thing.__name__} needs a kind")
             return self.add_field_editor(thing.kind, thing)
-        raise TypeError(f"ctx.add takes a Box, Trigger, Connection, Tool, Page, Panel, Listener, APIRouter or a "
+        raise TypeError(f"ctx.add takes a Box, Trigger, Connection, Tool, Page, Panel, Importer, Listener, "
+                        f"APIRouter or a "
                         f"FieldEditor class, not {type(thing).__name__}")
 
     @abstractmethod
@@ -165,6 +172,16 @@ class PluginContext(ABC):
     @abstractmethod
     def add_panel(self, title: str, builder: Callable[[], None], section: str = "live") -> None:
         """Add a card to a core area: "live" (next to the actions), "connections" or "settings"."""
+
+    @abstractmethod
+    def add_importer(self, importer: Importer) -> None:
+        """Add an importer to Overlay → Import (api_version 5); ctx.add(importer) calls this."""
+
+    @abstractmethod
+    def add_learn_folder(self, folder: Path) -> None:
+        """Pages for the Learn tab (api_version 6): every <id>.md in `folder` (a head between +++ lines with
+        title, section, order; then Markdown), an example flow as <id>.flows.toml next to it ("Add to my flows").
+        A plugin without code gets its learn/ folder by itself."""
 
     @abstractmethod
     def add_static(self, folder: Path) -> str:

@@ -1,5 +1,6 @@
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.data.boxes.add_to_list import AddToList
+from streamer_toolbox.core.data.boxes.field_from_each import FieldFromEach
 from streamer_toolbox.core.data.boxes.find_in_list import FindInList
 from streamer_toolbox.core.data.boxes.get_from_list import GetFromList
 from streamer_toolbox.core.data.boxes.insert_into_list import InsertIntoList
@@ -26,5 +27,5 @@ class ListActions:
     def add_to(self, actions: ActionRegistry) -> None:
         for box in (AddToList(self._variables), RemoveFromList(self._variables), ListHas(), ListSize(),
                     GetFromList(), RandomFromList(), FindInList(), InsertIntoList(), RemoveAtPosition(), SortList(),
-                    ShuffleList()):
+                    ShuffleList(), FieldFromEach()):
             actions.add_box(box, "list")

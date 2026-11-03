@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Any
 
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
@@ -60,6 +61,11 @@ class Connection(ABC):
     def add_actions(self, actions: ActionRegistry) -> None:
         """The older way to give its boxes: register them on the registry yourself (the built-in connections
         still do). New code gives them through boxes()."""
+
+    def default_flows(self) -> Path | None:
+        """A file of ready-made flows for it (the format of Flows → Export folder, `*.flows.toml`): its tab's
+        "Add default flows" puts them into the folder the file names, switched off. None: it has none."""
+        return None
 
     def add_gui_settings(self) -> None:
         """Extra NiceGUI content under the standard fields on its tab (e.g. OBS fit targets, the SAMMI deck)."""

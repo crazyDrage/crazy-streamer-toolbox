@@ -6,6 +6,7 @@ from streamer_toolbox.core.interfaces.box import Box
 
 class InsertIntoList(Box):
     name = "insert"
+    data_only = True  # no run wire: only works out a value from its inputs (his rule, round 62 A / notes 10-29)
     label = "Insert into list"
     help = "The list with a value put in at a position (1 = first, empty = at the end)"
     group = "New list"

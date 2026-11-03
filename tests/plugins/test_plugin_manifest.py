@@ -26,6 +26,12 @@ class TestPluginManifest(unittest.TestCase):
                          ("lamp", 1, "main.py", "", "a lamp", self.path.parent))
         self.assertEqual(m.resources, self.path.parent / "resources")
 
+    def test_types_are_optional_words(self) -> None:
+        self.assertEqual(self._read(GOOD).types, ())
+        self.assertEqual(self._read({**GOOD, "types": ["Bot", "game"]}).types, ("bot", "game"))
+        with self.assertRaisesRegex(ValueError, "types must be a list of words"):
+            self._read({**GOOD, "types": 3})
+
     def test_missing_fields_are_named(self) -> None:
         with self.assertRaisesRegex(ValueError, "missing name, version"):
             self._read({"id": "lamp", "api_version": 1})

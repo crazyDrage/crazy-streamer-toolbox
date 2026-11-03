@@ -52,9 +52,12 @@ class RegisteredAction:
     if_started_again): the handler gets the Retrigger (PluginContext.retrigger). `variable_fields` hold a
     variable's own name (Set variable's name): renaming the variable renames them too.
     `keys_of` names a field whose value's keys become the box's data dots, following what is wired into it
-    (Object values, his round 60). A box with `entries` runs once at a time per flow (a second run that reaches it
+    (Object values, his round 60). `output_names` names a text field whose names (separated by commas) become the
+    box's data dots, each one a key of its result (Run Python's outputs, his idea of 10-30). A box with `entries` runs once at a time per flow (a second run that reaches it
     stops there); `alongside` names the field that can say ALONGSIDE (core/flows/box_signals.py): then every run
-    gets its own copy of the box (Loop's if_already_looping, his round 63). Every one of these is a
+    gets its own copy of the box (Loop's if_already_looping, his round 63); `alongside` "*" (ALWAYS) means every run
+    always does (For each). A box that yields rounds and has the entry "next" (NEXT): with a wire into it, the next
+    round starts when one arrives, the round itself goes on alongside with its own box values (his round 81). Every one of these is a
     keyword of ActionRegistry.add and PluginContext.add_action, so a plugin can make the same boxes (his round
     56; tests/test_plugin_parity.py keeps it so). `fills` fill other fields when a field is set ({field: provider(value) → {other field: value}}, the
     Raw request's data template for the request picked): only a field that is empty or still holds the last fill
@@ -79,7 +82,10 @@ class RegisteredAction:
     field is read, handed to the handler under the plain name (name=...). The box's normal run dot isn't drawn; a
     wire into it counts as the first one (Choose value; his round 53). `named_lines`: the box's params beyond its
     handler's own are lines he names (End's values, his round 54): each one a field of its own with a data dot on
-    the left, read like a `typed` field and handed to the handler under its name (**values).
+    the left, read like a `typed` field and handed to the handler under its name (**values). `lines_from`
+    ("obs.get_source_settings:Get settings": an action, then the button's text) gives such a box a button
+    that runs that action with the box's matching fields and adds a line per key of its answer (an object)
+    that the box doesn't have yet (Set source settings, his round 81).
 
     `is_tested`, `is_understandable` and `is_usable` are his three checks of the box (works, understandable,
     usable). No box sets them itself: they are read from the test record at start (TestGate), and TestView
@@ -123,7 +129,10 @@ class RegisteredAction:
     retrigger: str = ""
     variable_fields: tuple[str, ...] = ()
     keys_of: str = ""
+    output_names: str = ""
     alongside: str = ""
+    freeze: bool | None = False  # None: the box can't be frozen (see freezable)
+    lines_from: str = ""
     is_tested: bool = False
     is_understandable: bool = False
     is_usable: bool = False
@@ -175,6 +184,18 @@ class RegisteredAction:
             if new.get(other) in ("", None) or new.get(other) == before.get(other):
                 new[other] = filling
         return new
+
+    @property
+    def freezable(self) -> bool:
+        """Whether the editor offers Freeze (his idea of 10-29): not when the box says freeze = None (it gives
+        no answer, e.g. Move model), nor for a box that steers the flow (then / else, lines, a Loop's stop, End,
+        Wait for all) or only works out a value (it has nothing to ask). A handler that says it gives nothing
+        (-> None) counts as freeze = None without saying so."""
+        steers = len(self.ports) > 1 or self.port_fields or self.entries or self.entry_fields or self.join \
+            or self.ends_flow or self.named_lines or self.value_lines
+        returns = inspect.signature(self.handler).return_annotation
+        gives_nothing = returns in (None, "None", type(None))
+        return self.freeze is not None and not steers and not self.data_only and not gives_nothing
 
     @property
     def category(self) -> str:

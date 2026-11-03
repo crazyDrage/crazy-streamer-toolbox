@@ -32,7 +32,7 @@ their own: `example` (a guided tour: one of every kind, with a README that walks
   "id": "my_thing",
   "name": "My thing",
   "version": "0.1.0",
-  "api_version": 4,
+  "api_version": 8,
   "description": "What it does, one sentence",
   "author": "you"
 }
@@ -40,10 +40,11 @@ their own: `example` (a guided tour: one of every kind, with a README that walks
 
 - `id`: lowercase letters, digits and `_`. It's the folder's package name and the start of its boxes'
   names (`my_thing.do_it`).
-- `api_version`: 4. Plugins made for 1 to 3 still load (they use the older `ctx.add_*` calls, see the end).
+- `api_version`: 8 (5 added importers, 6 Learn pages, 7 the box option `output_names`, 8 the box option `lines_from`). Plugins made for 1 to 7 still load (they use the older `ctx.add_*` calls, see the end).
   A plugin made for a newer version than the toolbox knows isn't loaded (the Plugins page says why).
 - Optional: `"main": "start.py"` if the entry file isn't `main.py`; `"class": "MyPlugin"` if main has more
-  than one plugin class.
+  than one plugin class; `"types": ["bot", "game"]` (the same words as in a listing, see
+  [Plugin listings](#plugin-listings-plugins--get-plugins)): the Plugins page can then show one kind only.
 
 ## A plugin with code
 
@@ -86,11 +87,17 @@ class MyThingPlugin(ToolboxPlugin):
 | a tool | `Tool` | a page under Tools (a card on its overview, an item in the side menu) | `title`, `icon`, `description`, `build()` |
 | a page | `Page` | a page of its own at `/plugins/<id>`, listed in the side list of the Plugins tab | `title`, `icon`, maybe `subpath`, `build()` |
 | a card | `Panel` | a card: `"connections"` on Connections, `"live"` / `"settings"` under Plugins → your plugin | `title`, `section`, `build()` |
+| an importer | `Importer` | a card on Overlay → Import that brings widgets over from another program; it hands them to `target.add_widget(widget, files)` | `title`, `icon`, `description`, `build(target)` |
 | a listener | `Listener` | hears every event of the toolbox (a follow, a redeem, another plugin's trigger) | `async heard(kind, data)` |
 | a field window | `FieldEditor` | a field kind with its own window (like the VTube Studio animation); add the class, not one of it | `kind`, `build()`, `text(value)` |
 | API routes | FastAPI's `APIRouter` | your own addresses under `/api/plugins/<id>` | the routes |
 
 All of them: `ctx.add(thing)`. It gives back the full name where there is one (`"my_thing.shout"`).
+
+**Learn pages** (api_version 6) are files, not a class: `ctx.add_learn_folder(folder)`. Each `<page>.md` in it
+starts with a head between `+++` lines (`title`, `section`, `order`), then Markdown; an example flow next to it
+as `<page>.flows.toml` (Flows → Export folder makes one) gets an "Add to my flows" button. A plugin without
+code gets its `learn/` folder by itself.
 
 ### A box
 
@@ -139,6 +146,8 @@ class LampBlinked(Trigger):
 How to write one: `docs/ai/code/connection.md` and `plugins/example/lib/lamp_connection.py`. Its `id` must be
 the plugin's id (it names its settings table in toolbox.toml and its boxes); one per plugin. Its `boxes()`
 gives its Box classes: their names get the id in front by themselves, and they are hidden while it is off.
+Its `default_flows()` (optional) gives a `.flows.toml` file of ready-made flows: its tab then has "Add default
+flows", which puts them, switched off, into the folder the file names (make the file with Flows → Export folder).
 
 ### What a plugin can use
 
@@ -200,6 +209,86 @@ API:
 - A wrong file stops the plugin with the file, the box and what's wrong on the Plugins page.
 
 `plugins/jokes/` is a whole one. A plugin with code can have web boxes too: `ctx.add_web_boxes(folder)`.
+
+## Plugin listings (Plugins → Get plugins)
+
+A listing file names plugins people can install with one press. Where the listings are is kept in
+`plugin_listings.txt` in the settings folder (the Get plugins page adds and removes lines; by hand works too):
+
+```
+# official
+https://raw.githubusercontent.com/crazyDrage/crazy-streamer-toolbox-plugins/main/plugins.toml
+# custom list
+C:/streams/my_plugins.toml
+```
+
+One web address or file path per line. A line starting with `#` is a note for people; empty lines are fine.
+
+A listing is a TOML file with one `[[plugin]]` block per **version** of a plugin. Every block is whole (all
+its fields). A new version is a new block at the end; the old blocks stay as they are:
+
+```toml
+listing = 1
+name = "My plugins"
+
+[[plugin]]
+id = "jokes"
+name = "Jokes"
+version = "1.2.0"
+download = "https://github.com/someone/jokes/releases/download/v1.2.0/jokes.zip"
+about = "A box that tells a joke in chat"
+author = "someone"
+page = "https://github.com/someone/jokes"
+toolbox = "0.3.0"
+types = ["bot", "game"]
+
+[[plugin]]
+id = "jokes"
+name = "Jokes"
+version = "1.3.0"
+download = "https://github.com/someone/jokes/releases/download/v1.3.0/jokes.zip"
+about = "A box that tells a joke in chat"
+author = "someone"
+page = "https://github.com/someone/jokes"
+toolbox = "0.4.0"
+types = ["bot", "game"]
+changes = "Jokes in German too"
+os = ["windows", "linux"]
+needs = ["dice"]
+sha256 = "the download's SHA-256 (optional)"
+```
+
+- A Google Drive share link (`.../file/d/<id>/view`) works as an address: the toolbox reads the file
+  itself (`https://drive.google.com/uc?export=download&id=<id>`).
+- Needed in every block: `id` (the plugin.json id), `name`, `version`, `download` (https, a zip with the
+  plugin folder: plugin.json at its top or one folder down, as GitHub's own zips have it).
+- `toolbox`: the oldest toolbox version this version works with. `sha256`: when given, the download must
+  match it. `broken = "why"`: this version is not offered any more (keep the block, don't delete it).
+  `page`: an https address without spaces (anything else, like a `javascript:` link, makes the block a
+  problem). A download may unpack to at most 200 MB and 10000 files (against a "zip bomb").
+- `types`: what kind of plugin it is, one or several, so Get plugins can show only one kind (chips above
+  the list, and a search): `platform` (streaming platforms), `trigger`, `bot`, `game`, `avatar` (VTuber and
+  avatars), `audio`, `overlay` (overlays and alerts), `tool`, `other`. No type counts as other. A new type
+  (from the form's "Other" field, e.g. `chat_games`) gets its own chip, named after its id ("Chat games").
+- `changes`: what's new in this version (on the card next to "Update to", and in the install window).
+- `os`: the systems this version runs on: `windows`, `linux`, `macos`, `android`. No `os`: everywhere. A
+  version for another system isn't offered; when none runs here, the card says "Only for Windows".
+- `needs`: plugin ids that must be installed first; until then the card says "Needs the plugin x first".
+- Test versions (`1.4.0-dev.1` < `-alpha.1` < `-beta.1` < `-rc.1` < `1.4.0`) are only offered when Settings →
+  General → Which versions takes them, like the toolbox's own update.
+- Which version is offered: the newest one this toolbox is new enough for and that runs on this system.
+  When none is, the newest one, with what it needs. The order of the blocks doesn't matter. Several listings
+  with the same version: all their names are shown, and the main listing's block counts (its download), so
+  another listing can't put its own zip under that version.
+- A plugin that isn't from the main listing: the install window says nobody checked it.
+- A plugin that is there already gets "Update to x.y.z"; the old folder is kept in the settings folder's
+  cache/plugins/kept. Its ⋮ menu has the other versions ("Install 1.2.0 instead": back after a bad update)
+  and Remove (also on its card under Plugins; the folder is kept too, its settings and keys stay). The
+  download's plugin.json must have the listed id and version. An installed plugin loads, a removed one
+  stops, when the toolbox starts again (the page offers Restart).
+- With Settings → General → "Look for updates once a day" on, the listings are read at the start too:
+  installed plugins with a newer version show "Plugin updates (n)" next to the toolbox's name.
+- A big listing can be split: one file per author or per plugin, each a line in `plugin_listings.txt`.
 
 ## Installed plugins (pip)
 

@@ -3,6 +3,7 @@ import secrets
 import time
 import webbrowser
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -76,6 +77,9 @@ class YouTubeConnection(ConnectionBase):
                 SettingField("may_write", "May write in chat (yes / no)",
                              hint="yes asks Google for a permission that may manage your whole YouTube account "
                                   "(there is no smaller one for sending chat). Press Connect again after changing")]
+
+    def default_flows(self) -> Path:
+        return Path(__file__).parent / "youtube" / "default_flows.flows.toml"
 
     def add_gui_settings(self) -> None:
         ui.label("Needs a Google Cloud project of your own: switch on \"YouTube Data API v3\", make an OAuth "

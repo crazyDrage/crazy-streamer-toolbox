@@ -16,6 +16,7 @@ from streamer_toolbox.core.interfaces.connection import Connection
 from streamer_toolbox.core.interfaces.field_editor import FieldEditor
 from streamer_toolbox.core.interfaces.plugin_context import PluginContext
 from streamer_toolbox.core.actions.json_boxes import JsonBoxes, Send
+from streamer_toolbox.core.interfaces.importer import Importer
 from streamer_toolbox.core.values.value_kind import ValueKind
 from streamer_toolbox.core.values.value_kinds import ValueKinds
 from streamer_toolbox.core.web.web_boxes import WebBoxes
@@ -36,6 +37,8 @@ class FakePluginContext(PluginContext):
         self.routers: list[APIRouter] = []
         self.pages: list[str] = []
         self.panels: list[str] = []
+        self.importers: list[Importer] = []
+        self.learn_folders: list[Path] = []
         self.static: list[Path] = []
         self.questions: list[str] = []
         self.connections: list[Connection] = []
@@ -111,6 +114,12 @@ class FakePluginContext(PluginContext):
 
     def add_panel(self, title: str, builder: Callable[[], None], section: str = "live") -> None:
         self.panels.append(title)
+
+    def add_importer(self, importer: Importer) -> None:
+        self.importers.append(importer)
+
+    def add_learn_folder(self, folder: Path) -> None:
+        self.learn_folders.append(folder)
 
     def add_static(self, folder: Path) -> str:
         self.static.append(folder)

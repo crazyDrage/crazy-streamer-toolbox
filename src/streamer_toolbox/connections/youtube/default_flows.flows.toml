@@ -1,0 +1,42 @@
+# YouTube's default flows: its tab's "Add default flows" puts them, switched off, into the folder "YouTube - default"
+# (DefaultFlows). The same format as Flows → Export folder. Writing in chat needs "May write in chat" on its tab.
+toolbox_flows = 1
+folder = "YouTube - default"
+
+[[flows]]
+name = "youtube_thank_member"
+label = "YouTube - default - thank a member"
+description = "Welcomes every new member in chat. Change the words in the box."
+wires = [
+    {from = "member", port = "out", to = "thank"},
+]
+
+[[flows.triggers]]
+kind = "youtube.member"
+id = "member"
+box = [320, 40]
+
+[[flows.nodes]]
+id = "thank"
+action = "youtube.send_chat"
+box = [620, 40]
+params = {message = "Welcome to the members, ${box.member.user}!"}
+
+[[flows]]
+name = "youtube_thank_superchat"
+label = "YouTube - default - thank a Super Chat"
+description = "Thanks everyone who sends a Super Chat, in chat."
+wires = [
+    {from = "superchat", port = "out", to = "thank"},
+]
+
+[[flows.triggers]]
+kind = "youtube.superchat"
+id = "superchat"
+box = [320, 40]
+
+[[flows.nodes]]
+id = "thank"
+action = "youtube.send_chat"
+box = [620, 40]
+params = {message = "Thanks for the Super Chat, ${box.superchat.user}!"}

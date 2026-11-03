@@ -8,9 +8,9 @@ to look in it. A name is `<category>.<what>`; the category says who does the wor
 | You want to | Look for | Notes |
 |---|---|---|
 | Run something the streamer built | `flow.<name>` | One action per flow. The flow's inputs are its parameters. This is the best door: the streamer decides in the dashboard what happens, you only start it. |
-| Tell the toolbox a tip / donation came in | `tip.fire` | `user`, `amount` (above 0), optional `currency`, `message`, `source`. Flows with a Tip trigger start, the Tip alert shows, widgets get it. |
+| Tell the toolbox a tip / donation came in | `tip.fire` | `user`, `amount` (above 0), optional `currency`, `message`, `source`. Flows with a Tip trigger start (the Tip alert's, a widget's). |
 | Show an alert on stream | `alert.show`, `alert.clear` | Viewers see it. |
-| Send an event to the widgets on stream | `widget.send_event` | |
+| Send an event to the widgets and alerts that use it | `event.send.<event>` | One per event type (Overlay → Events); a field per value, `only_to` = `widget <name>` or `alert <id>` for one only. Nothing reaches a widget by itself. |
 | Tell the streamer something | `popup.message` | Shows on every open toolbox screen. Asking yes / no (`popup.ask`) only exists inside a flow. |
 | Play a sound on the PC | `sound.play`, `sound.stop_all` | |
 | Read or change the toolbox's variables | `var.*` | Flows read the same variables. |

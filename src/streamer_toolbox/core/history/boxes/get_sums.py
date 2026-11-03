@@ -6,6 +6,7 @@ from streamer_toolbox.core.history.boxes.history_box import HistoryBox, KIND_CHO
 
 class GetSums(HistoryBox):
     name = "summary"
+    data_only = True  # no run wire: the toolbox's own values (his rule, round 62 A / notes 10-29)
     label = "Get sums"
     help = "The sums of one kind (followers, subs, cheers, raids, tips) from the toolbox's own record: session, " \
            "week, month and total, each with count and amount, and top (who gave most, the biggest one) per " \

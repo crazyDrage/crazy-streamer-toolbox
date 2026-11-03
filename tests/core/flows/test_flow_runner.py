@@ -115,6 +115,37 @@ class TestFlowRunner(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(self.variables.get("x"))
         self.assertEqual(await self.runner.run_node(Flow("f", "F", nodes, wires), nodes[0]), ["each", "each", "done"])
 
+    async def test_for_each_next_dot_starts_the_next_round_while_this_one_goes_on(self) -> None:
+        """His round 81 (8 b): show → next round; the round itself still waits and hides its own item."""
+        nodes = (FlowNode("loop", "logic.for_each", {"items": '["a", "b"]'}),
+                 FlowNode("show", "a.record", {"show": "${box.loop.item}"}),
+                 FlowNode("slow", "a.slow", {"label": "${box.loop.item}"}),
+                 FlowNode("hide", "a.record", {"hide": "${box.loop.item}", "shown": "${box.show}"}),
+                 FlowNode("end", "a.record", {"end": "${box.loop.number}"}))
+        wires = (FlowWire("start", "out", "loop"), FlowWire("loop", "each", "show"),
+                 FlowWire("show", "done", "loop", "next"), FlowWire("show", "done", "slow"),
+                 FlowWire("slow", "done", "hide"), FlowWire("loop", "done", "end"))
+        await self.runner.run(Flow("f", "F", nodes, wires))
+        self.assertEqual(self.calls[:3], [{"show": "a"}, {"show": "b"}, {"end": 2}])
+        self.assertCountEqual(self.calls[3:], [{"slow": "a"}, {"slow": "b"}, {"hide": "a", "shown": "ok"},
+                                               {"hide": "b", "shown": "ok"}])  # the run waited for both rounds
+
+    async def test_for_each_without_a_next_wire_waits_for_each_round(self) -> None:
+        nodes = (FlowNode("loop", "logic.for_each", {"items": '["a", "b"]'}),
+                 FlowNode("slow", "a.slow", {"label": "${box.loop.item}"}),
+                 FlowNode("hide", "a.record", {"hide": "${box.loop.item}"}))
+        wires = (FlowWire("start", "out", "loop"), FlowWire("loop", "each", "slow"), FlowWire("slow", "done", "hide"))
+        await self.runner.run(Flow("f", "F", nodes, wires))
+        self.assertEqual(self.calls, [{"slow": "a"}, {"hide": "a"}, {"slow": "b"}, {"hide": "b"}])
+
+    async def test_for_each_gives_each_value_on_its_own_dot(self) -> None:
+        nodes = (FlowNode("loop", "logic.for_each", {"items": '["Just_chatting", "Gaming"]'}),
+                 FlowNode("slow", "a.slow", {"label": "${box.loop.item}"}),
+                 FlowNode("count", "a.record", {"number": "${box.loop.number}"}))
+        wires = (FlowWire("start", "out", "loop"), FlowWire("loop", "each", "slow"), FlowWire("slow", "done", "count"))
+        await self.runner.run(Flow("f", "F", nodes, wires))
+        self.assertEqual(self.calls, [{"slow": "Just_chatting"}, {"number": 1}, {"slow": "Gaming"}, {"number": 2}])
+
     def _loop_flow(self, rounds: int = 0) -> Flow:
         """Start → If input do == stop → the Loop's stop dot, else → its start; each round → record."""
         nodes = (FlowNode("ask", "logic.if", {"left": "${input.do}", "op": "==", "right": "stop"}),

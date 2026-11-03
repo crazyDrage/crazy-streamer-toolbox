@@ -1,7 +1,7 @@
 @echo off
 rem The test window: the checklist of what has to be tested (docs\tested), in a browser tab of its own,
 rem and next to it the test toolbox (see test-toolbox.bat): a second toolbox on temp\test_settings, port 8855,
-rem with a numbered flow for every box. Both run in this console: closing it closes both.
+rem the same toolbox as start.bat. Both run in this console; one stops, both stop.
 rem The test window stays open while the toolbox is restarted. A tick is written into docs\tested at once.
 rem Another port for the test window: test-window.bat 8860
 setlocal
@@ -20,19 +20,7 @@ if not exist "%PY%" (
 set "SETTINGS=%CD%\temp\test_settings"
 set "PYTHONPATH=%CD%\src"
 
-echo Writing the test flows into %SETTINGS%\flows ...
-"%PY%" -m streamer_toolbox.devtools.tested flows "%SETTINGS%"
-if errorlevel 1 (
-    pause
-    exit /b 1
-)
-
-rem start /b keeps the test toolbox in this console, so closing the console (or Ctrl+C) stops it too.
-rem Its own page settings, so the two toolboxes don't write the same file; only the toolbox gets them.
-setlocal
-set "NICEGUI_STORAGE_PATH=%SETTINGS%\.nicegui"
-start "" /b "%PY%" -m streamer_toolbox --settings "%SETTINGS%" --port 8855 --open window
-endlocal
-
-"%PY%" -m streamer_toolbox.devtools.tested window %*
+rem The test window starts the test toolbox itself and is tied to it: Ctrl+C, closing this console or closing
+rem the toolbox's window stops both. (Not start /b: that switches Ctrl+C off, and the toolbox stayed running.)
+"%PY%" -m streamer_toolbox.devtools.tested window --toolbox "%SETTINGS%" %*
 if errorlevel 1 pause

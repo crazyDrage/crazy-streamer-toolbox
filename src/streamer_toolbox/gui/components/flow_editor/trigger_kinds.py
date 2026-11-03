@@ -63,6 +63,8 @@ TRIGGER_KINDS = {  # every platform at once (CommonEvents); the platform's own o
                  "vts.model_config": ("tune", "VTS model settings changed", "model", "*"),
                  "vts.model_moved": ("open_with", "Model moved", "model", "*"),
                  "veadotube.state": ("face_retouching_natural", "veadotube state changed", "state", "*"),
+                 "veadotube.push_to_talk": ("mic", "veadotube push-to-talk changed", "state", "*"),
+                 "widget.loaded": ("widgets", "Widget loaded", "widget", "*"),
                  "tits.hit": ("sports_baseball", "T.I.T.S. model was hit", "item", "*"),
                  "tits.trigger_started": ("play_circle", "T.I.T.S. trigger started", "trigger", "*"),
                  "tits.trigger_ended": ("stop_circle", "T.I.T.S. trigger ended", "trigger", "*"),
@@ -135,6 +137,9 @@ TRIGGER_INFO: dict[str, str] = {
     "vts.model_moved": "The model was moved, turned or resized. Comes many times a second while it moves: give "
                        "the flow a Cooldown (e.g. 0.5 s) to start it less often",
     "veadotube.state": "veadotube mini shows another avatar state",
+    "widget.loaded": "A widget's page was opened: OBS loaded its Browser source, or its preview in the toolbox. "
+                     "Send it what it shows at once (the last follower, a goal, ...). Match the widget's name",
+    "veadotube.push_to_talk": "veadotube mini's push-to-talk (its microphone) went on or off. Match on to start only when it goes on, off for off",
     "tits.hit": "A thrown item hit the model; with the item, how hard (strength) and from where (x, y, z)",
     "tits.trigger_started": "A T.I.T.S. trigger started",
     "tits.trigger_ended": "A T.I.T.S. trigger ended",

@@ -6,7 +6,7 @@ import websockets
 from nicegui import ui
 
 from streamer_toolbox.connections.veadotube.veadotube_actions import VeadotubeActions
-from streamer_toolbox.connections.veadotube.veadotube_client import STATE_CHANGED, VeadotubeClient, url
+from streamer_toolbox.connections.veadotube.veadotube_client import PUSH_TO_TALK, STATE_CHANGED, VeadotubeClient, url
 from streamer_toolbox.connections.veadotube.veadotube_instances import VeadotubeInstances
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.connections.connection_base import ConnectionBase
@@ -22,7 +22,8 @@ DOCS = "https://veado.tube/docs/tech/api/"
 class VeadotubeConnection(ConnectionBase):
     """veadotube mini (PNG avatar program): its avatar's states over its websocket. The toolbox switches
     states (boxes in VeadotubeActions) and gets told when the shown state changes (`veadotube.state`, trigger
-    "veadotube state changed").
+    "veadotube state changed"), and when push-to-talk (its microphone) goes on or off
+    (`veadotube.push_to_talk`).
 
     Where veadotube listens changes with every start, so it is looked up in the files veadotube keeps about
     its running programs (VeadotubeInstances); an address typed on the tab wins. It keeps trying while
@@ -38,7 +39,8 @@ class VeadotubeConnection(ConnectionBase):
         self._events = events
         self._instances = instances or VeadotubeInstances()
         self._connect = connect
-        self._client = VeadotubeClient(self._address, self._changed, self._state, connect, retry_delay)
+        self._client = VeadotubeClient(self._address, self._changed, self._state, connect, retry_delay,
+                                       self._talked)
         self._listener: asyncio.Task | None = None
 
     def fields(self) -> list[SettingField]:
@@ -93,3 +95,6 @@ class VeadotubeConnection(ConnectionBase):
 
     async def _changed(self, data: dict[str, Any]) -> None:
         self._events.publish(STATE_CHANGED, data)
+
+    async def _talked(self, on: bool) -> None:
+        self._events.publish(PUSH_TO_TALK, {"on": on, "state": "on" if on else "off"})

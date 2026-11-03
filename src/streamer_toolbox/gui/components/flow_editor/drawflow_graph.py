@@ -139,7 +139,7 @@ class DrawflowGraph:
     def start_html(self, box: str) -> str:
         """The inside of a Start box or the Input box."""
         title, detail = self._start_text(box)
-        return _html(title, right=[(label, "") for _, label in self._start_outputs(box)], detail=detail)
+        return _html(title, right=[(label, "") for _, label in self._start_outputs(box)], detail=detail, box_id=box)
 
     @staticmethod
     def start_css(box: str) -> str:
@@ -169,8 +169,9 @@ class DrawflowGraph:
         right += [(label, "") for _, label in self._data_outputs_of(node)]
         # a box with extra run dots (Loop: stop, switch) names its own one too: start (his round 55)
         started = any(entry not in lines for entry in self._entries_of(node))
-        return _html(self._title_of(node.action) + ("" if node.enabled else " (off)"), names[0] if names else None,
-                     left, right, self._summary_of(node), node.note, extra, "start" if started else "")
+        title = self._title_of(node.action) + ("" if node.enabled else " (off)") + (" ❄" if node.frozen else "")
+        return _html(title, names[0] if names else None,
+                     left, right, self._summary_of(node), node.note, extra, "start" if started else "", node.id)
 
     def _order_in(self, node: NodeDraft, entries: list[str], data_in: list[str]) -> list[int]:
         """A box with lines: its input numbers in the order they are shown, each line's run dot followed by its
@@ -194,6 +195,7 @@ class DrawflowGraph:
 
     def css(self, node: NodeDraft) -> str:
         return "tb-step" + ("" if node.enabled else " tb-off") + (" tb-data-only" if self._data_only_of(node) else "") \
+            + (" tb-frozen" if node.frozen else "") \
             + (" tb-lines-in" if self._lines_of(node) else "")
 
     def read(self, export: dict[str, Any], draft: FlowDraft) -> None:
@@ -340,12 +342,16 @@ def _port_label(node: NodeDraft, port: str) -> str:
 
 def _html(title: str, head: tuple[str, str] | None = None, left: list[tuple[str, str, str]] | None = None,
           right: list[tuple[str, str]] | None = None, detail: str = "", note: str = "", extra: str = "",
-          run_dot: str = "") -> str:
+          run_dot: str = "", box_id: str = "") -> str:
     """A box's inside: the title's row, then one row per dot. left: (name, css, value) per dot on the left after
     the run dot, which is named `run_dot` in the title's row if given; right: (name, css) per dot on the right
-    after the first one, whose name is `head`."""
+    after the first one, whose name is `head`. box_id shows in front of the title (his round 83: errors and
+    ${box.n3.url} name boxes by it)."""
     left, right = left or [], right or []
     named = f'<span class="tb-run-dot tb-entry-{escape(run_dot)}">{escape(run_dot)}</span>' if run_dot else ""
+    if box_id:
+        named += f'<span class="tb-box-id" title="box {escape(box_id)}">{escape(box_id)}</span>'
+
     parts = [f'<div class="tb-row tb-head">{named}<span class="tb-title" title="{escape(title)}">{escape(title)}'
              f'</span>{_out(head)}</div>']
     for index in range(max(len(left), len(right))):

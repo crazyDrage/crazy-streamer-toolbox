@@ -4,6 +4,7 @@ from pathlib import Path
 
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.data.boxes.add_to_list import AddToList
+from streamer_toolbox.core.data.boxes.field_from_each import FieldFromEach
 from streamer_toolbox.core.data.boxes.find_in_list import FindInList
 from streamer_toolbox.core.data.boxes.get_from_list import GetFromList
 from streamer_toolbox.core.data.boxes.insert_into_list import InsertIntoList
@@ -75,6 +76,16 @@ class TestListActions(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await SortList().run(top, "true", "value"), [top[1], top[0]])
         self.assertEqual(sorted(await ShuffleList().run(names)), sorted(names))
         self.assertEqual(await GetFromList().run(["ll"], 2, default=5), 5)
+
+    async def test_field_from_each(self) -> None:
+        sources = '[{"source": "so-event", "visible": false, "kind": "browser_source"}, {"source": "cam"}, {"x": 1}, 7]'
+        self.assertEqual(await FieldFromEach().run(sources, "source"), ["so-event", "cam"])
+        self.assertEqual(await FieldFromEach().run([{"visible": False}], " visible "), [False])
+        with self.assertRaisesRegex(ValueError, "Which field"):
+            await FieldFromEach().run(sources, "")
+        actions = ActionRegistry()
+        self.lists.add_to(actions)
+        self.assertTrue(actions.get("list.field_from_each").data_only)
 
 if __name__ == "__main__":
     unittest.main()

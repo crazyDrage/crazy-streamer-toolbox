@@ -10,6 +10,12 @@ sub folder named after what uses them.
 
 ```
 __main__.py              the start: arguments, the launcher (runs the toolbox as a child, restarts it), ui.run
+starter/                 the starter (his round 84; start-settings.bat / .sh): a Tkinter window + pystray tray icon to
+                         start the toolbox with (how it opens, Open / Restart / Stop, backups). StarterApp does the
+                         work without the window (ToolboxLauncher in a thread, the daily backup); loads none of
+                         the web code (~30 MB instead of the old launcher's ~80). Its choices: core/system/
+                         starter_settings (starter.json in the settings folder, written atomically); backups:
+                         core/system/settings_backup + backup_policy (newest per day / month, 10 + 10)
 assembly/                putting the toolbox together, without starting it: toolbox_assembly.assemble() (the
                          one place where the pieces are wired: connections, boxes, flows, pages),
                          BuiltInConnections (the list of connections, in the order of their tabs),
@@ -50,10 +56,8 @@ core/                    shared building blocks, no service-specific code. Every
                          the Add box window, the Add trigger window, the Tools page and the Connections page
                          (overview and menu; a hidden connection stays connected, pages are never hidden) ask it. His own flows
                          are always shown; a flow keeps what it already uses.
-                         TestFlows: a numbered flow per box (Start + the box) and per trigger into a settings folder's flows,
-                         for the test toolbox (docs/tested/test-toolbox.bat, also started by test-window.bat: `devtools.tested flows <folder>`,
-                         then the toolbox with `--settings <folder> --port 8855`); TestList.numbers gives the
-                         numbers, the test window shows the same ones; writing again keeps what a flow holds
+                         the test toolbox (docs/tested/test-toolbox.bat, also started by test-window.bat) is the
+                         toolbox with `--settings temp/test_settings --port 8855`; TestList.numbers numbers the rows
   config/                ToolboxConfig + its dataclasses (reads config/toolbox.toml), ConfigTableWriter
   connections/           the framework around Connection: ConnectionBase, ConnectionManager,
                          ConnectionStatus, ConnectionState, SettingField, NotConnectedError
@@ -61,19 +65,40 @@ core/                    shared building blocks, no service-specific code. Every
   media/                 video size + length probing (Mp4HeaderProbe: tkhd / mvhd), VideoActions (video.info:
                          width, height, seconds, orientation); sound: MiniaudioSoundPlayer + SoundActions
   alerts/                Alert, AlertQueue (one alert at a time to every listening overlay page; an alert's
-                         files get one-time names under /overlay/file/), AlertActions (alert.show / alert.clear),
-                         AlertRule + AlertStore (config/alerts.json: per Twitch event on / text / picture / sound),
+                         files get one-time names under /overlay/file/), AlertActions (alert.show / alert.clear;
+                         an alert of the list plays through its event's Send box, core/event_types),
+                         AlertRule + AlertStore (config/alerts.json: his list of alerts, each with a name, inputs
+                         (AlertInput: text / number / picture / sound, the amount), on / text / picture / sound),
+                         alert_starters (the usual ones: follow, sub, ...; their inputs, named like the event
+                         types' values); each alert plays on an event type (AlertRule.event, core/event_types),
+                         AlertBackup (keep the line through a restart),
                          AlertLook (where on the screen, animations, sizes, colours; per rule, sent with the
                          alert), AlertPart (a piece of the words: text line, name, amount, their message; a rule
                          has a list of them, each in the stack or on the picture at its own spot), AlertVariation (another text /
-                         picture / sound from an amount),
-                         AlertRouter (EventBus → the rule → the queue; Test)
+                         picture / sound from an amount)
+  event_types/           Overlay → Events (his round 78): EventType (a name, its EventValues: name, default,
+                         kind, "also known as"; the type's own "also known as"; default / hidden) and
+                         EventTypeStore (config/event_types.json, his order; default_event_types.DEFAULTS are added
+                         once each, hidden until something uses them). EventSender (one event to every widget and
+                         alert that uses it, or "only to" one), EventActions (a box per type: event.send.<name>,
+                         "Send <name>"), EventFlows (a type's own flow in the folder Events: trigger → Send box,
+                         made once), EventUsers (who uses which type; picking one; an alert's inputs follow its
+                         event; renames reach widgets, alerts and flows), EventConversion (once: round 74's widget
+                         inputs and round 65's alerts become events, their boxes in flows Send boxes "only to";
+                         EventsUpgrade = settings version 1; leftovers() every start, flow() for an import)
+  upgrades/              the settings folder's version (next release plan, part 3): SETTINGS_VERSION, SettingsUpgrade
+                         (one step: run() on the folder, flow() on an imported flow), SettingsUpgrades (runs the
+                         steps newer than toolbox.toml's [toolbox] settings_version, in order, once; a newer
+                         toolbox's settings are left as they are; exports carry the number, an older one is
+                         upgraded on import, a newer one refused; newer settings → a HeaderNotice next to
+                         the app name: AppShell.notices)
   widgets/               custom widgets in StreamElements' format (docs/WIDGETS.md): Widget, WidgetStore
                          (config/widgets/<name>/: the four parts, values.json, store.json), widget_events
                          (se_event: a toolbox event as their listener + event), WidgetSession (their "session
-                         data"), WidgetHub (EventBus → every open widget page; Test, reload), WidgetPage (builds
+                         data"), WidgetHub (what flows send a widget's pages; EventBus → only the session data; Test, reload), WidgetPage (builds
                          the page: field values filled in, widget.js, his code); example/ = the example widget;
-                         WidgetActions (widget.send_event: a flow sends widgets any event);
+                         the event types a widget gets (Widget.events, events.json; core/event_types); WidgetInput
+                         = round 74's inputs.json, read once by EventConversion;
                          StreamElementsImport (the custom widgets of one of his StreamElements overlays, through
                          their API, read only); StreamElementsElements (one of his "Elements" = a settings
                          file without code: becomes a widget whose JS hands the settings to
@@ -111,7 +136,17 @@ core/                    shared building blocks, no service-specific code. Every
                          TextActions (text.split / join / replace / length / case / trim)
   system/                ProgramActions (system.run = Run program: output / exit code / timeout, flow only),
                          TimeActions (time.now = Date and time, time.since); ToolboxLauncher, ToolboxRestart,
-                         ParentWatch (see "Starting and restarting")
+                         ParentWatch (see "Starting and restarting"); the toolbox's own update (next release
+                         plan, part 1): ToolboxUpdate (GitHub's newest release once a day, newer than
+                         core/app_version.APP_VERSION → ToolboxRelease; prepare() downloads, checks the SHA-256,
+                         unpacks, writes ready.json), the toolbox ends with UPDATE_EXIT_CODE, the launcher's
+                         UpdateStarter runs update_swap with the NEW Python (src/ and python/ replaced whole, other
+                         files copied over, config/ never touched, the old ones back on a failure) and ends;
+                         the swap starts the toolbox again. gui: UpdatePanel (Settings → General, the header's
+                         "Update x.y.z" HeaderNotice and its window). Only a download installs (python/, no .git).
+                         Test versions: app_version.STAGES (dev < alpha < beta < rc < release), ToolboxUpdate
+                         .channel ([update] channel; anything but "release" reads every release, not "latest");
+                         back_up() zips the settings folder into backups/ before the swap
   web/                   HttpActions: web.request (GET/POST/..., query, JSON body, headers → {status, ok, body},
                          JSON body already read; httpx transport injectable for tests); WebBoxes + WebTarget:
                          boxes that call a web API written as JSON only (target, input, output; plugins without
@@ -130,11 +165,13 @@ core/                    shared building blocks, no service-specific code. Every
                          fills ${var.x} ${input.x} ${event.x} ${get.action} ${box.n3.x}, save_as); box_wire helpers
                          (${box...} data wires); FlowOutline (graph → SAMMI-like list);
                          LogicActions (If, Repeat, For each, Wait, Random, Set / Add to variable, Set field); FlowLibrary (keeps
-                         flow.<name> actions in step with the files; export / import a flow as .toml text); FlowTriggerRouter (EventBus → flows whose
+                         flow.<name> actions in step with the files; export / import a flow as .toml text); DefaultFlows (a connection's default_flows() file or a Learn example: in switched off, only the missing ones); FlowTriggerRouter (EventBus → flows whose
                          triggers match, * wildcards); TimerClock (timer triggers, "every N seconds")
   history/               EventHistory (the toolbox's own dated record of follows, subs, cheers, raids, tips:
                          config/history/events.jsonl; sums per session / week / month / all time, top
                          givers), HistoryActions (boxes)
+  learn/                 the Learn tab's pages: LearnLibrary reads topics/<id>.md (TOML head between +++:
+                         title, section, order) and an example flow topics/<id>.flows.toml next to it
   events/common_events   CommonEvents: each platform's event also as the common one (chat, follow, sub,
                          resub, gift, cheer, raid, redeem, online, offline) with `platform` + `source`
   points/                the toolbox's own currency: PointStore (config/points/points.json, per viewer and
@@ -241,7 +278,7 @@ api/                     the HTTP API (POST /action/<name>), callers, tokens, al
 gui/
   pages/                 one file per page: Live, Flows, Edit flow, Variables, Overlay (the overlay's address,
                          Add it to OBS, a preview frame, tabs: Alerts, Widgets), Tools, Connections, Plugins,
-                         Settings,
+                         Learn (LearnLibrary's pages; "Add to my flows" → DefaultFlows into Examples), Settings,
                          Login (other devices only)
   components/            reusable pieces: AppShell (the frame: main tabs in the header, the side list holds the open area's `sub_items`; before 2026-10-12 a fold-out list under a menu
                          area: the row opens the area's main view, its arrow folds the list; Connections,
@@ -259,11 +296,19 @@ gui/
                          Talks to TwitchConnection through RewardManager (core/interfaces; TwitchReward in
                          connections/twitch). Twitch: only rewards this app made may be changed or refunded
     alerts_tool/         AlertsTool (the Alerts tab of the Overlay page: a short block per event: on / off,
-                         summary, Test, Settings) and AlertSettingsDialog (everything about one alert: the
+                         summary, Test, Settings) and AlertEditor (one alert's own page, &alert=<id>: the
                          overlay page in a frame with ?edit=1, fed by postMessage; dragging a piece or the
                          picture there posts its spot back; Advanced switch for the rest)
-    widgets_tool/        WidgetsTool (the Widgets tab), WidgetDialog (preview, test events, settings, code),
-                         WidgetFieldsForm (settings drawn from FIELDS)
+    widgets_tool/        WidgetsTool (the Widgets tab), WidgetEditor (one widget's own page, &widget=<name>: preview, test events, settings, code;
+                         SplitPanes hides either side),
+                         WidgetFieldsForm (settings drawn from FIELDS), WidgetFieldsList (FIELDS as a list:
+                         core/widgets/FieldList; Code | List switch on the FIELDS tab)
+    events_tool/         EventsTool (Overlay → Events: a block per event type that folds open, its values,
+                         its other names; hidden ones with "Show everything", each with its eye)
+    import_tool/         ImportTool (Overlay → Import: a card per Importer, core/interfaces; plugins add theirs
+                         with ctx.add) and StreamElementsImporter (overlays, Elements, latest names; "Clean out
+                         StreamElements" = core/widgets/StreamElementsCleaner). They hand widgets to an
+                         ImportTarget (gui/services/WidgetImportTarget → the widget store)
     points_tool/         PointsTool (Tools page, Points tab: the switch, name and numbers, the viewers' list)
     live_deck/           LiveDeckView (the Live page's deck: page tabs, button grid, edit mode, presses) and
                          DeckButtonDialog (one button: what it runs + its values, label, colour, icon, page).
@@ -274,11 +319,15 @@ gui/
                          socket: another device gets /login until signed in, and a socket only for a login page;
                          the API keeps its own tokens), OpenPages (every open page; AppShell attaches each one), confirm
                          dialog service and message service (both show on every open page), activity log, UI registry,
-                         plugin context, page openers (window/browser)
+                         plugin context, page openers (window/browser); MessageLog (every message, flow run and box
+                         error; the last 10 kept in cache/messages.json) and NotifyCatcher (replaces ui.notify: each
+                         message goes into the MessageLog and the InfoBar of its page, gui/components/info_bar: the
+                         bar at the bottom, its Debug panel and DebugList, also at /debug, the pop-out window;
+                         his round 81)
 devtools/tested/         `python -m streamer_toolbox.devtools.tested`: makes docs/tested/ (a row for everything, the
                          README's table; ticks and notes stay). It calls `assemble()` of `assembly/toolbox_assembly` (the toolbox put
                          together, not started) with an empty config in a throwaway folder. `checked <row> ...`
-                         sets "AI checked" to today. `window` (docs/tested/test-window.bat / .sh, which start the test toolbox next to it) is the test window:
+                         sets "AI checked" to today. `window` (docs/tested/test-window.bat / .sh) is the test window; with `--toolbox <folder>` it starts the test toolbox itself, tied both ways (TiedToolbox, the toolbox's `--tied`):
                          TestWindow, a small NiceGUI page of its own on port 8849 that only reads and writes
                          docs/tested (one file at a time in the menu's order, Back / Next, search, ticks, notes),
                          so it stays open next to the toolbox and through its restarts
@@ -289,7 +338,13 @@ devtools/box_gen/        class generator for developers: a service spec (JSON wi
                          dataclasses, actions class, fake, test (docs/PLAN_box_maker.md; never overwrites)
 plugins/                 plugin loader, manifest (plugin.json), PluginSettings, WebOnlyPlugin (a folder with
                          boxes/ and no main.py; the plugin interfaces are in core/interfaces/). How to write
-                         one: docs/PLUGINS.md
+                         one: docs/PLUGINS.md. Get plugins (next release plan, part 4): PluginListing (one
+                         listing file, TOML, format 1, a [[plugin]] block per version), ListingAddresses
+                         (plugin_listings.txt: one address per line, # notes; the main one filled in),
+                         PluginListings (reads them all; per plugin the newest version that fits this
+                         toolbox, not broken, of a stage "Which versions" takes), ListedPlugin,
+                         PluginInstaller (download, optional SHA-256, plugin.json id must match, an old one kept
+                         in cache/plugins/kept); gui/components/PluginListingPanel = Plugins → Get plugins
 ```
 
 `tests/` mirrors this folder by folder (`tests/core/actions/test_action_registry.py` tests
@@ -303,7 +358,7 @@ User files live in `config/` (gitignored except `toolbox.example.toml`): `toolbo
 `variables/`, `flows/`, `flow_templates/`.
 
 ## Starting and restarting (2026-10-01)
-- `python -m streamer_toolbox` (also start.bat / start-browser.bat) is the **launcher** (ToolboxLauncher): it runs
+- `python -m streamer_toolbox` (also start.bat / start-headless.bat) is the **launcher** (ToolboxLauncher): it runs
   the toolbox itself as a child (`--child`, stdin = a pipe), opens the page once the child answers, and starts the
   child again when it ends with exit code 3 (`RESTART_EXIT_CODE`). The app window belongs to the launcher, so it
   stays open over a restart and the page reconnects.
@@ -345,6 +400,17 @@ from then on it connects at every start until switched off.
   gets connected by itself (VTS with the saved token only, never the Allow popup).
 
 ## How a flow gets started (2026-10-01)
+
+Canvas sorting (2026-11-03, his round 83). Each box shows its id (n3, t1) in front of its title, as errors
+and ${box.n3.url} name it. Several boxes at once: Ctrl / Shift + click, Shift + drag a frame (flow_boxes.js
+tbFlowMulti; Python gets the picked box numbers as "tb_flow_picked"); dragging one moves all, Copy / Duplicate /
+Delete act on all (FlowDraft.add_copies: the wires among them follow the copies; BoxClipboard keeps several).
+Groups: Flow.groups (core/flows/flow_group.py FlowGroup: id g1, label, color, box, size, folded), saved as
+[[groups]]; only a view, the runner never reads them. A box belongs to a group when its middle is inside the open
+area (computed each time, nothing stored per box). flow_boxes.js draws them in the precanvas behind the boxes
+(tbFlowGroupsDraw), keeps window.tbFlowGroups, FlowBoxView.sync reads it back with the graph. Folded: the
+member boxes stay in the graph, moved onto the small box by a CSS transform (their saved spots don't change), so
+their outside wires end at its edges; the wires among them are hidden.
 
 Start boxes (2026-10-26, his round 63: "Triggers is a bad version of Flows"; custom triggers, the Triggers
 page and Fire custom trigger are gone, docs/PLAN_triggers_canvas.md is history). A flow has a Start box per way
@@ -480,7 +546,7 @@ class attributes are the RegisteredAction options below, `help` / `label` the te
   rainbow_phase 1-6; per round Get from list (which colour, where to: Value lists) → If below? → Choose value
   + / - → Math on variable → Clamp → Set variable → Colour from numbers → Tint model, and If arrived → phase + 1
   → If > 6 → phase 1.
-- `flow_only=True`: not on Live, in the SAMMI deck or GET /actions (If, Wait).
+- `flow_only=True`: not on Live, in the SAMMI deck, GET /actions or POST /action/<name> (If, Wait, Run program).
 - End box (logic.end, 2026-10-02): FlowRunner.register runs a flow used as a box in its own task and goes on
   when the End box is reached (FlowRun.ended) or the flow is done; the rest runs on (a failure there is logged).
   Since 2026-10-18 (his rounds 54 and 55) a flow has **one** End box (FlowDraft.refuses: Add box, list view,

@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 from typing import Any
 
+from streamer_toolbox.core.flows.frozen_box import FrozenBox
+
 
 @dataclass(frozen=True)
 class FlowNode:
@@ -21,3 +23,4 @@ class FlowNode:
     save_as: str = ""
     box: tuple[float, float] | None = None
     outputs: dict[str, str] = field(default_factory=dict)
+    frozen: FrozenBox | None = None  # frozen: gives the value it saved, doesn't run in the flow (FrozenBox)

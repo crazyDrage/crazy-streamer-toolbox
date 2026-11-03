@@ -73,6 +73,10 @@ class VariableStore:
     def on_change(self, listener: Callable[[], None]) -> None:
         self._listeners.append(listener)
 
+    def off_change(self, listener: Callable[[], None]) -> None:
+        if listener in self._listeners:
+            self._listeners.remove(listener)
+
     def _twin(self, name: str) -> str:
         """Another variable whose name is the same but for upper and lower case, or ""."""
         return next((other for other in self._values if other != name and other.casefold() == name.casefold()), "")

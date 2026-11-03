@@ -7,6 +7,7 @@ ANIMATIONS_IN = {"fade": "Fade in", "slide_down": "Slide in from above", "slide_
 ANIMATIONS_OUT = {"fade": "Fade out", "slide_up": "Slide out upwards", "slide_down": "Slide out downwards",
                   "zoom": "Shrink"}
 PLACES = {"top": "Top", "center": "Middle", "bottom": "Bottom", "free": "Where I dragged it"}
+OUTSIDE = 100  # how far (percent of the screen) a dragged alert's middle may be outside it; alerts.js the same
 
 
 @dataclass(frozen=True)
@@ -54,7 +55,8 @@ class AlertLook:
             _between(self.animation_seconds, 0, 3), self.place if self.place in PLACES else start.place,
             _between(self.picture_height, 5, 100), _between(self.text_size, 10, 200),
             self.text_color.strip(), self.accent_color.strip(), self.font.strip(),
-            _between(self.screen_x, 0, 100), _between(self.screen_y, 0, 100))
+            # its middle may be far enough out for the whole alert to be outside the frame (his round 72)
+            _between(self.screen_x, -OUTSIDE, 100 + OUTSIDE), _between(self.screen_y, -OUTSIDE, 100 + OUTSIDE))
 
     def to_dict(self) -> dict[str, Any]:
         """Only what differs from the default: the file stays short, and so does what the overlay gets (a value

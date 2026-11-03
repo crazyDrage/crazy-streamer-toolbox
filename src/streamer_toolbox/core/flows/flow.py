@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field, replace
 
 from streamer_toolbox.core.flows.box_wire import BOX_REF
+from streamer_toolbox.core.flows.flow_group import FlowGroup
 from streamer_toolbox.core.flows.flow_input import FlowInput
 from streamer_toolbox.core.flows.flow_node import FlowNode
 from streamer_toolbox.core.flows.flow_trigger import FlowTrigger
@@ -33,6 +34,8 @@ class Flow:
     as_box: bool = True           # off: the Add box window doesn't offer it in other flows (his round 56)
     start_box: tuple[float, float] | None = None  # where the Manual Start box sits in the box view
     input_box: tuple[float, float] | None = None  # where the Input box sits
+    hidden: bool = False          # on: the Flows page and its side list leave it out until "Show hidden"
+    groups: tuple[FlowGroup, ...] = field(default_factory=tuple)  # coloured areas in the box view (round 83)
 
     def trigger(self, node_id: str) -> FlowTrigger | None:
         """The trigger whose Start box has this id."""
@@ -55,7 +58,7 @@ class Flow:
         Such boxes can never get their value; run wires may loop, data wires may not (like LOGO!'s rule)."""
         needs = {n.id: [m.group(1) for v in n.params.values() if isinstance(v, str) for m in BOX_REF.finditer(v)
                         if self.node(m.group(1)) is not None]  # Start and deleted boxes can't be in a loop
-                 for n in self.nodes}
+                 for n in self.nodes if n.frozen is None}  # a frozen box reads none of its fields
         done: set[str] = set()
 
         def visit(node_id: str, path: list[str]) -> list[str]:

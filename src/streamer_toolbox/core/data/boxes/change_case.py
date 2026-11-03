@@ -5,6 +5,7 @@ from streamer_toolbox.core.interfaces.box import Box
 
 class ChangeCase(Box):
     name = "case"
+    data_only = True  # no run wire: only works out a value from its inputs (his rule, round 62 A / notes 10-29)
     label = "Change case"
     help = "UPPER, lower or Title Case"
     group = "Text"

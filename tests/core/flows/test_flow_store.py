@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 from streamer_toolbox.core.flows.flow import Flow
+from streamer_toolbox.core.flows.flow_group import FlowGroup
 from streamer_toolbox.core.flows.flow_input import FlowInput
 from streamer_toolbox.core.flows.flow_node import FlowNode
 from streamer_toolbox.core.flows.flow_store import FlowStore
@@ -49,7 +50,8 @@ class TestFlowStore(unittest.TestCase):
         ), (FlowWire("start", "out", "a"), FlowWire("t1", "out", "b"), FlowWire("b", "then", "c")),
             (FlowTrigger("twitch.redeem", {"reward": "Big Action"}, "t1", (20, 140)),), "plays it",
             (FlowInput("video"), FlowInput("volume", "80")), "queue", 30, 120.5, True, start_box=(20, 20),
-            input_box=(20, 300))
+            input_box=(20, 300), groups=(FlowGroup("g1", "Clip part", "orange", (280, 40), (500, 260), True),
+                                         FlowGroup("g2")))
         with tempfile.TemporaryDirectory() as tmp:
             store = FlowStore(Path(tmp) / "flows")
             store.save(flow)

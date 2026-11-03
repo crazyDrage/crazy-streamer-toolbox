@@ -15,9 +15,11 @@ from streamer_toolbox.plugins.plugin_manifest import MANIFEST, PluginManifest
 from streamer_toolbox.core.interfaces.toolbox_plugin import ToolboxPlugin
 from streamer_toolbox.plugins.web_only_plugin import WebOnlyPlugin
 
-API_VERSION = 4  # 2 added connections, triggers, events and full boxes; 3 every box option (End, Loop, Wait: his
+API_VERSION = 8  # 2 added connections, triggers, events and full boxes; 3 every box option (End, Loop, Wait: his
 # round 56), box_signals, retrigger, add_field_editor; 4 one class per kind and ctx.add, web boxes in JSON (his
-# round 57); a plugin made for 1 to 3 still loads
+# round 57); 5 importers (Overlay → Import, his round 64); 6 Learn pages (add_learn_folder, round 68); 7 the box option
+# output_names (Run Python, 10-30); 8 the box option lines_from (Set source settings, round 81); a plugin made
+# for 1 to 7 still loads
 WEB_BOXES = "boxes"  # the folder of a plugin without code
 ENTRY_POINT_GROUP = "streamer_toolbox.plugins"
 PACKAGE_ROOT = "toolbox_plugins"

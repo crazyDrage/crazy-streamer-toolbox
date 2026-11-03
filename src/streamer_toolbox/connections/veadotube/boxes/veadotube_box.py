@@ -27,4 +27,4 @@ class VeadotubeBox(Box):
                 (wanted if wanted in states else None)
             if found is not None:
                 return found
-        raise KeyError(f"veadotube has no state named {wanted!r}")
+        raise ValueError(f"veadotube has no state named {wanted!r}")

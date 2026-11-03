@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dataclasses import replace
 from urllib.parse import quote
 
@@ -5,24 +6,27 @@ from nicegui import ui
 
 from streamer_toolbox.core.actions.action_description import required_and_optional_params
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
-from streamer_toolbox.core.deck.deck_button import COLORS, TEXT_COLOR, DeckButton
+from streamer_toolbox.core.deck.deck_button import COLORS, GO_TO_PAGE, PAGE_ICON, TEXT_COLOR, DeckButton
 from streamer_toolbox.core.deck.deck_images import KINDS, DeckImages
 from streamer_toolbox.core.flows.flow_library import FlowLibrary
+from streamer_toolbox.gui.components.flow_editor.action_picker import ActionPicker
 
 ICONS = ("play_arrow", "stop", "bolt", "star", "favorite", "celebration", "music_note", "volume_up", "videocam",
          "movie", "photo_camera", "mic", "face", "pets", "emoji_nature", "local_fire_department", "water_drop",
          "timer", "loop", "swap_horiz", "open_with", "zoom_in", "visibility", "chat", "campaign", "redeem",
-         "sports_esports", "home", "desktop_windows", "vibration", "auto_awesome", "waving_hand")
+         "sports_esports", "home", "desktop_windows", "vibration", "auto_awesome", "waving_hand", "arrow_back",
+         "arrow_forward")
 DELETE = "delete"  # what open() gives when the button was deleted
 
 
 class DeckButtonDialog:
-    """Edits one Live deck button: what it runs (a flow or another action) with fixed values for its fields,
-    its label, colour, text colour, icon or picture, and page. open() gives (button, page name), DELETE, or
-    None (cancelled)."""
+    """Edits one Live deck button: what it does (runs a box, picked in the same window as the flow editor's
+    Add box, with fixed values for its fields; or shows another page of the deck, like his SAMMI buttons; his
+    round 63), its label, colour, text colour, icon or picture, and page. open() gives (button, page name),
+    DELETE, or None (cancelled)."""
 
     def __init__(self, button: DeckButton | None, page: str, pages: list[str], actions: ActionRegistry,
-                 flows: FlowLibrary, images: DeckImages) -> None:
+                 flows: FlowLibrary, images: DeckImages, picker: Callable[[], ActionPicker]) -> None:
         self._button = replace(button, params=dict(button.params)) if button else DeckButton("", "")
         self._new = button is None
         self._page = page
@@ -30,15 +34,14 @@ class DeckButtonDialog:
         self._actions = actions
         self._flows = flows
         self._images = images
+        self._picker = picker
 
     async def open(self) -> tuple[DeckButton, str] | str | None:
         button = self._button
         with ui.dialog() as dialog, ui.card().classes("w-[560px] max-w-[96vw] gap-3"):
             ui.label("New button" if self._new else "Button").classes("text-lg font-semibold")
-            ui.select(self._choices(), value=button.action or None, label="What it runs", with_input=True,
-                      on_change=lambda e: self._picked(e.value, label)) \
-                .props("outlined dense options-dense").classes("w-full")
-            label = ui.input("Label", value=button.label,
+            self._what()
+            self._label = ui.input("Label", value=button.label,
                              on_change=lambda e: setattr(button, "label", e.value)) \
                 .props("outlined dense").classes("w-full")
             self._fields()
@@ -67,24 +70,55 @@ class DeckButtonDialog:
             dialog.delete()
         return result
 
-    def _choices(self) -> dict[str, str]:
-        """Flows first (what a deck button mostly runs), then the other actions."""
-        flows = {f.action_name: f"Flow · {f.label}"
-                 for f in sorted(self._flows.all(), key=lambda f: f.label.casefold())}
-        others = {a.name: f"{a.category_title} · {a.title}" for a in self._actions.all() if a.category != "flow"}
-        current = {self._button.action: self._button.action} if self._button.action and \
-            self._button.action not in flows | others else {}
-        return flows | dict(sorted(others.items(), key=lambda kv: kv[1].casefold())) | current
+    @ui.refreshable_method
+    def _what(self) -> None:
+        """What a press does: run a box or show another page."""
+        going = self._button.action == GO_TO_PAGE
+        ui.toggle({"box": "Runs a box", "page": "Goes to a page"}, value="page" if going else "box",
+                  on_change=lambda e: self._set_kind(e.value)).props("no-caps dense unelevated")
+        if going:
+            ui.select(self._pages, value=self._button.params.get("page"), label="Page it shows",
+                      on_change=lambda e: self._set(GO_TO_PAGE, {"page": e.value} if e.value else {})) \
+                .props("outlined dense").classes("w-full")
+            return
+        action = self._button.action
+        known = self._actions.get(action) if action in self._actions else None
+        with ui.row().classes("w-full items-center no-wrap gap-2"):
+            with ui.column().classes("flex-1 min-w-0 gap-0"):
+                ui.label(f"{known.category_title} · {self._title(action)}" if known else
+                         f"{action} isn't there anymore" if action else "Nothing yet") \
+                    .classes("font-medium" if known else "opacity-60")
+                if known and known.description:
+                    ui.label(known.description).classes("text-xs opacity-60")
+            ui.button("Change" if action else "Choose", icon="search", on_click=self._choose) \
+                .props("outline dense no-caps").classes("px-2 shrink-0")
 
-    def _picked(self, action: str | None, label: ui.input) -> None:
+    async def _choose(self) -> None:
+        name = await self._picker().pick("What the button runs")
+        if name:
+            self._set(name, {})
+
+    def _set_kind(self, kind: str) -> None:
+        if (kind == "page") == (self._button.action == GO_TO_PAGE):
+            return
+        if kind == "page" and self._button.icon == DeckButton("", "").icon:
+            self._button.icon = PAGE_ICON
+            self._icons.refresh()
+        self._set(GO_TO_PAGE if kind == "page" else "", {})
+
+    def _set(self, action: str, params: dict[str, str]) -> None:
+        """What it does changed; a label that was the old one's name follows."""
         old_title = self._title(self._button.action)
-        self._button.action = action or ""
-        self._button.params = {}
+        self._button.action = action
+        self._button.params = params
         if not self._button.label or self._button.label == old_title:
-            label.set_value(self._title(self._button.action))
+            self._label.set_value(self._title(action))
+        self._what.refresh()
         self._fields.refresh()
 
     def _title(self, action: str) -> str:
+        if action == GO_TO_PAGE:
+            return self._button.params.get("page", "")
         if not action or action not in self._actions:
             return ""
         flow = self._flows.get(action[5:]) if action.startswith("flow.") else None
@@ -195,6 +229,9 @@ class DeckButtonDialog:
     def _save(self, dialog: ui.dialog) -> None:
         if not self._button.action:
             ui.notify("Pick what the button runs", type="warning")
+            return
+        if self._button.action == GO_TO_PAGE and not self._button.params.get("page"):
+            ui.notify("Pick the page it shows", type="warning")
             return
         if not self._button.label.strip():
             self._button.label = self._title(self._button.action) or self._button.action

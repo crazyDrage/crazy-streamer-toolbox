@@ -11,6 +11,7 @@ from streamer_toolbox.gui.components.event_recording_panel import EventRecording
 from streamer_toolbox.gui.components.role_loading_panel import RoleLoadingPanel
 from streamer_toolbox.gui.components.secrets_login_panel import SecretsLoginPanel
 from streamer_toolbox.gui.components.test_view_panel import TestViewPanel
+from streamer_toolbox.gui.components.update_panel import UpdatePanel
 from streamer_toolbox.gui.services.ui_registry import UiRegistry
 
 
@@ -18,14 +19,16 @@ class SettingsPage:
     """How the toolbox looks, where its settings file is, Restart, who may open it from other devices, his own
     filters for the Add box window, what he sees by his checks (TestViewPanel), when viewer roles are loaded
     (RoleLoadingPanel), the event recording's switch (EventRecordingPanel), the toolbox's own login
-    (SecretsLoginPanel). A plugin's settings panels are under Plugins → that plugin (since 2026-10-14)."""
+    (SecretsLoginPanel), the toolbox's update (UpdatePanel). A plugin's settings panels are under Plugins →
+    that plugin (since 2026-10-14)."""
 
     def __init__(self, config_path: Path, ui_registry: UiRegistry, access: RemoteAccess, devices: SignedInDevices,
                  port: int, restart: ToolboxRestart | None = None,
                  box_filters: BoxFilterPanel | None = None, seen: TestViewPanel | None = None,
                  roles: RoleLoadingPanel | None = None, recording: EventRecordingPanel | None = None,
-                 login: SecretsLoginPanel | None = None) -> None:
+                 login: SecretsLoginPanel | None = None, update: UpdatePanel | None = None) -> None:
         self._login = login
+        self._update = update
         self._roles = roles
         self._recording = recording
         self._path = config_path
@@ -68,6 +71,9 @@ class SettingsPage:
                     ui.label("Theme for every screen that opens the toolbox").classes("text-sm opacity-80")
                     ui.toggle({"dark": "Dark", "light": "Light", "auto": "Like the device"}, value=AppShell.theme(),
                               on_change=lambda e: self._set_theme(e.value)).props("no-caps unelevated")
+                if self._update is not None:
+                    with self._card():
+                        self._update.build()
                 if self._restart is not None and self._restart.available:
                     with self._card():
                         self._restart_card()

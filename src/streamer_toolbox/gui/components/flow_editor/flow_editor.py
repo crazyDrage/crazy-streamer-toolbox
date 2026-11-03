@@ -59,7 +59,7 @@ class FlowEditor:
         self._library = library
         self._trigger_choices = trigger_choices or {}
         self._switched_off = switched_off
-        self._view = app.storage.general.get("flow_view", "list")
+        self._view = app.storage.general.get("flow_view", "boxes")  # his round 63: boxes first
         self._runner = runner
         self._running = False  # a run of this flow goes on (the Stop button shows)
         self._nodes = NodeEditor(actions, runner, variables, box_files, draft, self._changed, box_filters,
@@ -109,6 +109,9 @@ class FlowEditor:
             ui.switch("Offered as a box", value=draft.as_box, on_change=lambda e: setattr(draft, "as_box", e.value)) \
                 .tooltip("Off: Add box in other flows doesn't list it. Flows that use it already keep their box. "
                          "Saved with the flow")
+            ui.switch("Hidden in the list", value=draft.hidden, on_change=lambda e: setattr(draft, "hidden", e.value)) \
+                .tooltip("On: the Flows page and its side list leave it out until you press Show hidden. It "
+                         "still runs as before. Saved with the flow")
         with ui.row().classes("items-center gap-4 w-full"):
             ui.select(WHEN_BUSY, value=draft.when_busy, label="Started again while it still runs",
                       on_change=lambda e: setattr(draft, "when_busy", e.value)).classes("w-72") \

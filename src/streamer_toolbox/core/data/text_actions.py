@@ -1,4 +1,5 @@
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
+from streamer_toolbox.core.data.boxes.build_text import BuildText
 from streamer_toolbox.core.data.boxes.change_case import ChangeCase
 from streamer_toolbox.core.data.boxes.join_list_to_text import JoinListToText
 from streamer_toolbox.core.data.boxes.replace_in_text import ReplaceInText
@@ -13,5 +14,6 @@ class TextActions:
     One Box class per box, in boxes/."""
 
     def add_to(self, actions: ActionRegistry) -> None:
-        for box in (SplitText(), JoinListToText(), ReplaceInText(), TextLength(), ChangeCase(), TrimText()):
+        for box in (BuildText(), SplitText(), JoinListToText(), ReplaceInText(), TextLength(), ChangeCase(),
+                    TrimText()):
             actions.add_box(box, "text")

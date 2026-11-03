@@ -1,0 +1,215 @@
+# Twitch's default flows: its tab's "Add default flows" puts them, switched off, into the folder "Twitch - default"
+# (DefaultFlows). The same format as Flows → Export folder.
+toolbox_flows = 1
+folder = "Twitch - default"
+
+[[flows]]
+name = "twitch_thank_follow"
+label = "Twitch - default - thank a follow"
+description = "Thanks every new follower in chat. Change the words in the box."
+wires = [
+    {from = "follow", port = "out", to = "thank"},
+]
+
+[[flows.triggers]]
+kind = "twitch.follow"
+id = "follow"
+box = [320, 40]
+
+[[flows.nodes]]
+id = "thank"
+action = "twitch.send_chat"
+box = [620, 40]
+params = {message = "Thanks for the follow, ${box.follow.user}!"}
+
+[[flows]]
+name = "twitch_thank_raid"
+label = "Twitch - default - thank a raid"
+description = "A raid: a thank you in chat, then Twitch's own shoutout for the raider (that one only works while you're live, at most one every 2 minutes)."
+wires = [
+    {from = "raid", port = "out", to = "thank"},
+    {from = "thank", port = "done", to = "shoutout"},
+]
+
+[[flows.triggers]]
+kind = "twitch.raid"
+id = "raid"
+box = [320, 40]
+
+[[flows.nodes]]
+id = "thank"
+action = "twitch.send_chat"
+box = [620, 40]
+params = {message = "${box.raid.user} is raiding with ${box.raid.viewers} viewers! Thank you, and welcome everyone!"}
+
+[[flows.nodes]]
+id = "shoutout"
+action = "twitch.shoutout"
+box = [920, 40]
+params = {user = "${box.raid.user_login}"}
+
+[[flows]]
+name = "twitch_so_command"
+label = "Twitch - default - !so command"
+description = "A mod (or you) writes !so name: a chat message about that channel, then Twitch's own shoutout."
+wires = [
+    {from = "so", port = "out", to = "who"},
+    {from = "who", port = "done", to = "tell"},
+    {from = "tell", port = "done", to = "shoutout"},
+]
+
+[[flows.triggers]]
+kind = "twitch.chat"
+id = "so"
+command = "!so"
+roles = "mod, broadcaster"
+box = [320, 40]
+
+[[flows.nodes]]
+id = "who"
+action = "twitch.get_user"
+note = "finds the channel (a name with @ works too)"
+box = [620, 40]
+params = {user = "${box.so.args}"}
+
+[[flows.nodes]]
+id = "tell"
+action = "twitch.send_chat"
+box = [920, 40]
+params = {message = "Go check out ${box.who.name}: https://twitch.tv/${box.who.name}"}
+
+[[flows.nodes]]
+id = "shoutout"
+action = "twitch.shoutout"
+box = [1220, 40]
+params = {user = "${box.who.name}"}
+
+[[flows]]
+name = "twitch_thank_cheer"
+label = "Twitch - default - thank a cheer"
+description = "Thanks everyone who cheers Bits, in chat."
+wires = [
+    {from = "cheer", port = "out", to = "thank"},
+]
+
+[[flows.triggers]]
+kind = "twitch.cheer"
+id = "cheer"
+box = [320, 40]
+
+[[flows.nodes]]
+id = "thank"
+action = "twitch.send_chat"
+box = [882, 43]
+params = {message = "${box.n1}"}
+
+[[flows.nodes]]
+id = "n1"
+action = "text.build"
+box = [611, 78]
+params = {bits = "${box.cheer.bits}", user = "${box.cheer.user}", text = "Thanks for the {bits} Bits, {user}!"}
+
+[[flows]]
+name = "twitch_uptime_command"
+label = "Twitch - default - !uptime command"
+description = "Anyone writes !uptime: how long you've been live (or that you're not live)."
+wires = [
+    {from = "uptime", port = "out", to = "channel"},
+    {from = "channel", port = "done", to = "live"},
+    {from = "live", port = "then", to = "tell"},
+    {from = "live", port = "else", to = "offline"},
+]
+
+[[flows.triggers]]
+kind = "twitch.chat"
+id = "uptime"
+command = "!uptime"
+box = [320, 40]
+
+[[flows.nodes]]
+id = "channel"
+action = "twitch.get_channel"
+note = "asks Twitch: live or not, since when"
+box = [620, 40]
+params = {}
+
+[[flows.nodes]]
+id = "live"
+action = "logic.if"
+box = [920, 40]
+params = {left = "${box.channel.live}", op = "==", right = true}
+
+[[flows.nodes]]
+id = "time"
+action = "time.duration"
+box = [920, 260]
+params = {seconds = "${box.channel.uptime_seconds}"}
+
+[[flows.nodes]]
+id = "tell"
+action = "twitch.send_chat"
+box = [1220, 40]
+params = {message = "Live for ${box.time}"}
+
+[[flows.nodes]]
+id = "offline"
+action = "twitch.send_chat"
+box = [1220, 260]
+params = {message = "Not live right now."}
+
+[[flows]]
+name = "twitch_clip_command"
+label = "Twitch - default - !clip command"
+description = "A sub, VIP or mod writes !clip: the last 30 seconds become a clip, its link goes to chat. Only while you're live; once every 30 seconds."
+cooldown = 30
+wires = [
+    {from = "clip_cmd", port = "out", to = "clip"},
+    {from = "clip", port = "done", to = "tell"},
+]
+
+[[flows.triggers]]
+kind = "twitch.chat"
+id = "clip_cmd"
+command = "!clip"
+roles = "sub, vip, mod, broadcaster"
+box = [320, 40]
+
+[[flows.nodes]]
+id = "clip"
+action = "twitch.create_clip"
+box = [620, 40]
+params = {}
+
+[[flows.nodes]]
+id = "tell"
+action = "twitch.send_chat"
+box = [920, 40]
+params = {message = "Clipped by ${box.clip_cmd.user}: ${box.clip.url}"}
+
+[[flows]]
+name = "twitch_marker_command"
+label = "Twitch - default - !marker command"
+description = "A mod (or you) writes !marker and a few words: a stream marker with those words, to find the moment later. Only while you're live."
+wires = [
+    {from = "marker_cmd", port = "out", to = "marker"},
+    {from = "marker", port = "done", to = "tell"},
+]
+
+[[flows.triggers]]
+kind = "twitch.chat"
+id = "marker_cmd"
+command = "!marker"
+roles = "mod, broadcaster"
+box = [320, 40]
+
+[[flows.nodes]]
+id = "marker"
+action = "twitch.create_marker"
+box = [620, 40]
+params = {description = "${box.marker_cmd.args}"}
+
+[[flows.nodes]]
+id = "tell"
+action = "twitch.send_chat"
+box = [920, 40]
+params = {message = "Marker set."}

@@ -29,6 +29,10 @@ class BoxValueFiles:
         path.write_text(json.dumps(value, indent=2, ensure_ascii=False), encoding="utf-8")
         return path
 
+    def folder(self, kind: str) -> Path:
+        """Where a kind's files are (made or not yet), e.g. "python" → boxes/python (Run Python's files)."""
+        return self._kind(kind)
+
     def _path(self, kind: str, name: str) -> Path:
         return self._kind(kind) / f"{_checked(name)}.json"
 

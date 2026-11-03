@@ -6,6 +6,7 @@ from streamer_toolbox.core.interfaces.box import Box
 
 class SortList(Box):
     name = "sort"
+    data_only = True  # no run wire: only works out a value from its inputs (his rule, round 62 A / notes 10-29)
     label = "Sort list"
     help = "The list sorted (numbers by value, text A-Z); by = a field to sort objects by, e.g. value for Top " \
            "viewers"

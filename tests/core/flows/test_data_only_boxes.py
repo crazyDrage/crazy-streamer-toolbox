@@ -13,13 +13,15 @@ from streamer_toolbox.core.variables.boxes.get_viewer_value import GetViewerValu
 
 class TestDataOnlyBoxes(unittest.TestCase):
     def test_boxes_that_work_out_a_value_or_read_the_toolboxs_own_need_no_run_wire(self) -> None:  # OPEN 92
-        for box in (Calculate, Clamp, RoundNumber, RandomNumber, GetFromList, GetFromObject, GetVariable,
-                    GetViewerValue):
+        for box in (Calculate, Clamp, RoundNumber, GetFromList, GetFromObject, GetVariable, GetViewerValue):
             with self.subTest(box=box.__name__):
                 self.assertTrue(box.data_only)
 
     def test_what_may_ask_another_program_keeps_its_run_wire(self) -> None:  # his round 62 A
         self.assertFalse(GetPoints.data_only)  # the points can be Mix It Up's
+
+    def test_a_random_pick_keeps_its_run_wire(self) -> None:  # his round 67: two readers, one number
+        self.assertFalse(RandomNumber.data_only)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,6 @@
+from streamer_toolbox.connections.veadotube.boxes.get_push_to_talk import GetPushToTalk
 from streamer_toolbox.connections.veadotube.boxes.get_state import GetState
+from streamer_toolbox.connections.veadotube.boxes.push_to_talk import PushToTalk
 from streamer_toolbox.connections.veadotube.boxes.put_state_on_top import PutStateOnTop
 from streamer_toolbox.connections.veadotube.boxes.set_state import SetState
 from streamer_toolbox.connections.veadotube.boxes.show_state_for_a_while import ShowStateForAWhile
@@ -20,5 +22,6 @@ class VeadotubeActions:
 
     def add_to(self, actions: ActionRegistry) -> None:
         for box in (SetState(self._client), ShowStateForAWhile(self._client), PutStateOnTop(self._client),
-                    TakeStateOff(self._client), StateOnOff(self._client), GetState(self._client)):
+                    TakeStateOff(self._client), StateOnOff(self._client), GetState(self._client),
+                    PushToTalk(self._client), GetPushToTalk(self._client)):
             actions.add_box(box, "veadotube")
