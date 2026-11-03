@@ -92,6 +92,13 @@ jobs:
                       "python/_tkinter.pyd" "python/tkinter/__init__.py" "python/tcl/"; do
             grep -F "crazy-streamer-toolbox-windows/$name" listing.txt > /dev/null || { echo "::error::missing: $name"; exit 1; }
           done
+      # not only there: the download's own Python opens a (hidden) Tk window, as Start settings will
+      - name: The Windows download's Python opens a Tk window
+        if: matrix.target == 'windows'
+        shell: bash
+        run: >
+          build/crazy-streamer-toolbox-windows/python/python.exe -c
+          "import tkinter; r = tkinter.Tk(); r.withdraw(); print('::notice::Tk', r.tk.eval('info patchlevel'), 'opens'); r.destroy()"
       - name: The Linux download has its three start files and tkinter
         if: matrix.target == 'linux'
         run: |

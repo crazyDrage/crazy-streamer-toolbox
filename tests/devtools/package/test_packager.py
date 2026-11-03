@@ -93,8 +93,10 @@ class TestPackager(unittest.TestCase):
         python = self.out / "python"
         python.mkdir(parents=True)
         self.assertTrue(Packager(self.repo, self.out)._tkinter(python))
-        for name in ("_tkinter.pyd", "zlib1.dll", "tkinter/__init__.py", "tcl/tcl8.6/init.tcl"):
+        for name in ("_tkinter.pyd", "zlib1.dll", "tkinter/__init__.py"):
             self.assertTrue((python / name).is_file(), name)
+        # Tcl's own library: tcl/tcl8.6 with Tcl/Tk 8.6, tcl/tcl9.0 with 9 (GitHub's Python 3.14.10)
+        self.assertTrue(list(python.glob("tcl/tcl*/init.tcl")), "tcl/tcl<version>/init.tcl")
 
     def test_a_shell_script_is_runnable_in_the_archive(self) -> None:
         self.out.mkdir()
