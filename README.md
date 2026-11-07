@@ -39,10 +39,10 @@ last year) and plays it in OBS straight from Twitch, without downloading it.
 
 ![A flow that finds a Twitch clip of a channel and plays it in OBS](docs/images/flow_clip.png)
 
-**A VTube Studio model animation:** the model's horns go through the rainbow in small steps until the flow is
-started again.
+**A VTube Studio model animation:** the model sways left and right six times, and its horns change colour
+every round (red, orange, yellow, green, blue, purple). At the end they get their own colour back.
 
-![A flow that tints a VTube Studio model through the rainbow in a loop](docs/images/flow_vts.png)
+![A flow that moves a VTube Studio model left and right and tints its horns every round](docs/images/flow_vts.png)
 
 ### Connections
 
