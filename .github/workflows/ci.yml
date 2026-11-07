@@ -1,8 +1,9 @@
 # GitHub Actions for crazy-streamer-toolbox.
 #
-#   tests      on a push or merge to main, and to a branch named test/<something>. Nowhere else.
+#   tests      on a push or merge to main, to a branch named test/<something>, and for every version tag
+#              (his 2026-11-07: "all tests should be green for a release": no release without them)
 #   package    the Windows and the Linux download, on the same branches and for a version tag (v1.2.3)
-#   release    for a version tag: puts both downloads on the repository's Releases page
+#   release    for a version tag, after the tests and both downloads: puts the downloads on the Releases page
 #
 # The tests run on Linux and on Windows. Each download is built on its own system and has its own Python.
 name: CI
@@ -23,7 +24,6 @@ env:
 
 jobs:
   tests:
-    if: github.ref_type == 'branch'
     strategy:
       fail-fast: false
       matrix:
@@ -118,7 +118,7 @@ jobs:
   #   <repository>/releases/latest/download/crazy-streamer-toolbox-windows.zip  and  ...-linux.tar.gz
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: package
+    needs: [tests, package]
     runs-on: ubuntu-latest
     permissions:
       contents: write
