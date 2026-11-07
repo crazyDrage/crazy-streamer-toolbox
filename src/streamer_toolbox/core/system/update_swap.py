@@ -17,6 +17,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from streamer_toolbox.core.system.update_files import RESULT
+from streamer_toolbox.core.system.update_window import UpdateWindow
 
 log = logging.getLogger(__name__)
 REPLACED = ("src", "python")  # the toolbox's own: replaced whole, so no old file stays behind
@@ -87,17 +88,26 @@ def main() -> None:
     parser.add_argument("restart", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    result = {"version": args.version, "ok": True, "error": ""}
+    restart = [part for part in args.restart if part != "--"]
+    UpdateWindow(args.version).run(lambda: swap(args.new, args.into, args.folder, args.version, restart))
+
+
+def swap(new: Path, into: Path, folder: Path, version: str, restart: list[str]) -> str:
+    """The swap, its result for the toolbox, and the start of the toolbox again; what the update window says."""
+    result = {"version": version, "ok": True, "error": ""}
     try:
-        UpdateSwap(args.new, args.into, args.folder / "old").run()
-        log.info("updated to %s", args.version)
+        UpdateSwap(new, into, folder / "old").run()
+        log.info("updated to %s", version)
     except Exception as e:
         log.exception("the update didn't work; the old version stays")
         result.update(ok=False, error=str(e) or type(e).__name__)
-    (args.folder / RESULT).write_text(json.dumps(result), encoding="utf-8")
-    restart = [part for part in args.restart if part != "--"]
+    (folder / RESULT).write_text(json.dumps(result), encoding="utf-8")
     if restart:
-        start_again(restart, args.into)
+        start_again(restart, into)
+    if result["ok"]:
+        return f"Done. Version {version} is starting, its window opens in a moment."
+    return ("The update didn't work, so the old version stays. It is starting again.\n"
+            "What happened is in cache/update/swap.log in the settings folder.")
 
 
 def start_again(command: list[str], root: Path) -> None:

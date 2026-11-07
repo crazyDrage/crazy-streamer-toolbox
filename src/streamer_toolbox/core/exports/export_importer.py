@@ -98,6 +98,7 @@ class ExportImporter:
         """Imports with his choices (part id → replace / both / skip; a taken part he didn't choose for gets
         the window's first pick). What was done, one line each."""
         rows = self.rows(export)
+        self._deck.keep()  # imported flows get no Live button by themselves, only the buttons in the export
         picked = {row.id: (choices or {}).get(row.id, row.choice) for row in rows}
         entries = {(e["kind"], str(e["key"])): e for e in export.entries}
         files = self._files(export)

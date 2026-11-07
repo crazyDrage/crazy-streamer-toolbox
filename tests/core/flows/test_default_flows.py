@@ -3,6 +3,7 @@ import unittest
 from pathlib import Path
 
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
+from streamer_toolbox.core.deck.deck_store import DeckStore
 from streamer_toolbox.core.flows.default_flows import DefaultFlows
 from streamer_toolbox.core.flows.flow import Flow
 from streamer_toolbox.core.flows.flow_library import FlowLibrary
@@ -82,6 +83,13 @@ class TestDefaultFlows(unittest.TestCase):
     def test_another_folder_can_be_named(self) -> None:
         self.defaults.add(self.file, "Examples")
         self.assertEqual({f.folder for f in self.library.all()}, {"Examples"})
+
+    def test_the_live_deck_stays_as_it_was(self) -> None:
+        self.library.save(Flow("mine", "Mine"))
+        deck = DeckStore(Path(self.tmp.name) / "live_deck.json", self.library.all)
+        DefaultFlows(self.library, deck).add(self.file)
+        actions = [b.action for page in deck.load().pages for b in page.buttons]
+        self.assertEqual(["flow.mine"], actions)  # his round 88: no Live button for the default flows
 
 
 if __name__ == "__main__":

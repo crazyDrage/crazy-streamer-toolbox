@@ -75,12 +75,15 @@ class TestToolboxUpdate(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(is_newer("0.2.1", "0.2.1"))
         self.assertFalse(is_newer("nightly", "0.2.1"))
 
-    async def test_a_newer_release_is_found_and_asked_for_once_a_day(self) -> None:
+    async def test_a_newer_release_is_found_and_asked_for_at_most_once_an_hour(self) -> None:
         release = await self.update().check()
         self.assertEqual((release.version, release.asset, release.notes), ("0.3.0", WINDOWS, "## New\n- Events"))
-        self.now += 3600
+        self.now += 1800
         self.assertEqual((await self.update().check()).version, "0.3.0")
-        self.assertEqual(len(self.asked), 1)  # an hour later: GitHub isn't asked
+        self.assertEqual(len(self.asked), 1)  # half an hour later: GitHub isn't asked
+        self.now += 1800
+        await self.update().check()
+        self.assertEqual(len(self.asked), 2)  # an hour later it is (his round 88: a version of the same day)
         self.assertEqual(self.update().newest.version, "0.3.0")
 
     async def test_the_same_or_an_older_release_is_nothing(self) -> None:

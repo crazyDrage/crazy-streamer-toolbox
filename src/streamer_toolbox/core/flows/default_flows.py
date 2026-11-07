@@ -2,6 +2,7 @@ from collections.abc import Collection
 from dataclasses import replace
 from pathlib import Path
 
+from streamer_toolbox.core.deck.deck_store import DeckStore
 from streamer_toolbox.core.flows.flow_library import FlowLibrary
 from streamer_toolbox.core.flows.flow_pack import FlowPack
 
@@ -13,8 +14,10 @@ class DefaultFlows:
     one he deleted comes back, one he changed stays as it is. A connection's button shows them first and he
     picks which (round 76)."""
 
-    def __init__(self, library: FlowLibrary) -> None:
+    def __init__(self, library: FlowLibrary, deck: DeckStore | None = None) -> None:
+        """deck: the Live deck, kept as it is before flows come in (they get no Live button by themselves)."""
         self._library = library
+        self._deck = deck
 
     def there(self, file: Path, folder: str = "") -> set[str]:
         """The labels of the file's flows that are in the folder already (casefolded)."""
@@ -30,5 +33,7 @@ class DefaultFlows:
         have = self.there(file, folder)
         flows = pack.flows if only is None else tuple(f for f in pack.flows if f.label in only)
         missing = tuple(replace(f, enabled=False, folder=folder) for f in flows if f.label.casefold() not in have)
+        if missing and self._deck is not None:
+            self._deck.keep()
         added = self._library.import_pack(FlowPack(folder, missing), as_is=True) if missing else []
         return [f.label for f in added], [f.label for f in flows if f.label.casefold() in have]

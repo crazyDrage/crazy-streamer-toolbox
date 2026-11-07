@@ -1,9 +1,10 @@
+import json
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
-from streamer_toolbox.core.system.update_swap import UpdateSwap
+from streamer_toolbox.core.system.update_swap import UpdateSwap, swap
 
 
 class TestUpdateSwap(unittest.TestCase):
@@ -64,6 +65,14 @@ class TestUpdateSwap(unittest.TestCase):
         self.assertEqual(self.read("src", "streamer_toolbox", "__init__.py"), "old")
         self.assertEqual(self.read("src", "streamer_toolbox", "gone.py"), "old")
         self.assertEqual(self.read("python", "python.exe"), "old")
+
+    def test_the_swap_says_what_the_update_window_shows_and_writes_the_result(self) -> None:
+        folder = self.old.parent
+        with mock.patch("streamer_toolbox.core.system.update_swap.start_again") as started:
+            said = swap(self.new, self.into, folder, "0.4.0", ["python", "-m", "streamer_toolbox"])
+        self.assertIn("Version 0.4.0 is starting", said)
+        self.assertTrue(json.loads((folder / "result.json").read_text())["ok"])
+        started.assert_called_once()
 
 
 if __name__ == "__main__":

@@ -145,7 +145,7 @@ core/                    shared building blocks, no service-specific code. Every
   system/                ProgramActions (system.run = Run program: output / exit code / timeout, flow only),
                          TimeActions (time.now = Date and time, time.since); ToolboxLauncher, ToolboxRestart,
                          ParentWatch (see "Starting and restarting"); the toolbox's own update (next release
-                         plan, part 1): ToolboxUpdate (GitHub's newest release once a day, newer than
+                         plan, part 1): ToolboxUpdate (GitHub's newest release at every start and every 6 hours, newer than
                          core/app_version.APP_VERSION → ToolboxRelease; prepare() downloads, checks the SHA-256,
                          unpacks, writes ready.json), the toolbox ends with UPDATE_EXIT_CODE, the launcher's
                          UpdateStarter runs update_swap with the NEW Python (src/ and python/ replaced whole, other

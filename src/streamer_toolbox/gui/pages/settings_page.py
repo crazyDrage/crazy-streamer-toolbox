@@ -95,7 +95,18 @@ class SettingsPage:
                                 ("export", self._export)):
                 if shown(part) and panel is not None:
                     with self._card():
-                        panel() if part == "devices" else panel.build()
+                        if part == "export" and show != "export":
+                            self._export_button()  # his round 88: a page of its own, for more space
+                        else:
+                            panel() if part == "devices" else panel.build()
+
+    @staticmethod
+    def _export_button() -> None:
+        ui.label("Export / Import").classes("text-lg font-semibold")
+        ui.label("Alerts, widgets and flows with everything connected, as one file to keep or give away, and "
+                 "such a file into this toolbox.").classes("text-sm opacity-80")
+        ui.button("Open Export / Import", icon="import_export",
+                  on_click=lambda: ui.navigate.to("/settings?show=export")).props("no-caps unelevated")
 
     @staticmethod
     def _card() -> ui.card:

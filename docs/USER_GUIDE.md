@@ -248,9 +248,10 @@ Everything you set up is in the `config` folder inside the toolbox's folder: `to
 
 - **Backup**: copy the `config` folder.
 - **Move to a new version**: when one is out, a button "Update x.y.z" shows next to the toolbox's name. Press
-  it, read what's new, then **Download and install**: the toolbox stops, puts the new version in and starts
-  again by itself. Your `config` folder stays as it is. Settings → General: "Look for updates once a day" and
-  "Look now". By hand still works: unpack the new archive and copy your old `config` folder into it.
+  it, read what's new, then **Download and install**: the toolbox stops, a small window with a moving bar shows
+  while the new version goes in (don't start the toolbox yourself then), and it starts again by itself with
+  "Updated to x.y.z" next to its name. Your `config` folder stays as it is. Settings → General: "Look for
+  updates by itself" (at every start and every 6 hours) and "Look now". By hand still works: unpack the new archive and copy your old `config` folder into it.
 - **Before every update** a copy of your settings goes into `config/backups/` (a zip, named with the version
   and the date). To go back: unpack it over the `config` folder.
 - **Test versions** (`0.5.0-dev.1`, `-alpha.1`, `-beta.1`, `-rc.1`, before `0.5.0`): only offered when you pick
