@@ -23,6 +23,7 @@ from streamer_toolbox.gui.components.role_picker import RolePicker
 from streamer_toolbox.core.flows.flow_gate import WHEN_BUSY
 from streamer_toolbox.core.flows.flow_trigger import ACCOUNTS, ALL, MAIN, FlowTrigger
 from streamer_toolbox.core.flows.flow_wire import INPUT, START
+from streamer_toolbox.core.testing.test_item import TRIGGER
 from streamer_toolbox.core.testing.test_view import TestView
 from streamer_toolbox.core.variables.variable_store import VariableStore
 from streamer_toolbox.gui.components.folder_field import FolderField
@@ -230,7 +231,8 @@ class FlowEditor:
         hidden = len(offered_triggers(self._switched_off)) - len(kinds)
         note = (f"{hidden} triggers hidden: {self._test_view.why()}. Change it in Settings → What "
                 "you see") if hidden else ""
-        picked = await TriggerPicker(kinds, note).pick()
+        works = (lambda kind: self._test_view.works(f"{TRIGGER}:{kind}")) if self._test_view else None
+        picked = await TriggerPicker(kinds, note, works).pick()
         if picked is None:
             return
         trigger = FlowTrigger(picked.kind, {picked.match: picked.example} if picked.match else {})

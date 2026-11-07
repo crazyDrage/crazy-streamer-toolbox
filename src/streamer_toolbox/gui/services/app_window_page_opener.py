@@ -1,6 +1,7 @@
 import shutil
 import subprocess
 import threading
+import time
 from pathlib import Path
 from typing import Callable, Sequence
 
@@ -28,6 +29,9 @@ LEAN_FLAGS = ("--disable-extensions", "--disable-sync", "--disable-background-ne
               "--disable-component-update", "--disable-default-apps", "--no-pings",
               "--disable-features=msEdgeSidebarV2,msImplicitSignin,Translate,EdgeCollections,msShoppingTrigger",
               "--renderer-process-limit=1")
+# his v0.4.0-dev.1 start (2026-11-07): with a new profile, Edge's very first start closed the window "short after"
+# and the toolbox took it for his X. A new profile's window that closes this soon is opened once more
+FIRST_START_SECONDS = 15.0
 
 
 class AppWindowPageOpener(PageOpener):
@@ -60,10 +64,16 @@ class AppWindowPageOpener(PageOpener):
         if self._profile_dir is not None:
             command += [f"--user-data-dir={self._profile_dir}", "--no-first-run", "--no-default-browser-check"]
         command += self._flags
+        new_profile = self._profile_dir is not None and not self._profile_dir.exists()
         process = self._launch(command)
         if self._profile_dir is not None and self._on_closed is not None and hasattr(process, "wait"):
-            threading.Thread(target=self._wait_then_close, args=(process,), daemon=True).start()
+            threading.Thread(target=self._wait_then_close, args=(command, process, new_profile),
+                             daemon=True).start()
 
-    def _wait_then_close(self, process) -> None:
+    def _wait_then_close(self, command: list[str], process, new_profile: bool) -> None:
+        started = time.monotonic()
         process.wait()
+        if new_profile and time.monotonic() - started < FIRST_START_SECONDS:
+            self._wait_then_close(command, self._launch(command), False)  # the browser's first start, not his X
+            return
         self._on_closed()

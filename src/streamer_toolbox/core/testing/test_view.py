@@ -104,6 +104,10 @@ class TestView:
             return True
         return self.shows(self._tested.checks(key))
 
+    def works(self, key: str) -> bool:
+        """Whether a row of the test record has a yes under Works (a thing without it gets a "not tested" mark)."""
+        return bool(self._tested.checks(key).get("works"))
+
     def shown(self, items: Iterable[TestItem]) -> dict[str, tuple[int, int]]:
         """How many of the boxes, triggers, tools and connections are shown now: kind → (shown, of)."""
         counts = {kind: [0, 0] for kind in (BOX, TRIGGER, TOOL, CONNECTION)}
