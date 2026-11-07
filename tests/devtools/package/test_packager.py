@@ -70,7 +70,9 @@ class TestPackager(unittest.TestCase):
             script = packed.extractfile(root + "start-linux.sh").read()
             self.assertEqual(packed.getmember(root + "start-linux.sh").mode, 0o755)
         self.assertIn(root + "python/bin/python3", names)
-        self.assertFalse([name for name in names if name.endswith(".bat") or "__pycache__" in name])
+        self.assertFalse([name for name in names if name.endswith(".bat")])
+        # ready-compiled: the first start doesn't compile (his v0.4.0-dev.3 update)
+        self.assertIn(f"{root}src/streamer_toolbox/__pycache__/__main__.{sys.implementation.cache_tag}.pyc", names)
         self.assertIn(b'exec python/bin/python3 -m streamer_toolbox --open window "$@"', script)
         self.assertNotIn(b"venv", script)  # nothing is got or installed at the first start
         self.assertNotIn(b"\r", script)
