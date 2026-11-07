@@ -133,6 +133,9 @@ class RegisteredAction:
     alongside: str = ""
     freeze: bool | None = False  # None: the box can't be frozen (see freezable)
     lines_from: str = ""
+    # set by the registry for a connection with several accounts (ActionRegistry.accounts_for): is its Multiple
+    # accounts switch on; the box then has an Account field (AccountHandler)
+    accounts: Callable[[], bool] | None = None
     is_tested: bool = False
     is_understandable: bool = False
     is_usable: bool = False
@@ -161,6 +164,8 @@ class RegisteredAction:
     def shows(self, name: str, params: Mapping[str, Any]) -> bool:
         """False for a field that `shown` hides with the box's values as they are. A chooser that is empty counts
         as its default; one that is only known when the box runs (a variable, a wire) hides nothing."""
+        if name == "account" and self.accounts is not None:  # his switch, or a box that names one (rule 29)
+            return self.accounts() or params.get(name) not in ("", None)
         if name not in self.shown:
             return True
         chooser, values = self.shown[name]

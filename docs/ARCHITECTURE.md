@@ -91,7 +91,8 @@ core/                    shared building blocks, no service-specific code. Every
                          steps newer than toolbox.toml's [toolbox] settings_version, in order, once; a newer
                          toolbox's settings are left as they are; exports carry the number, an older one is
                          upgraded on import, a newer one refused; newer settings → a HeaderNotice next to
-                         the app name: AppShell.notices)
+                         the app name: AppShell.notices). Every version's changes: docs/SETTINGS_CHANGES.md;
+                         AccountsUpgrade = version 2 (Twitch accounts folder, chat_deleted + delete-messages)
   widgets/               custom widgets in StreamElements' format (docs/WIDGETS.md): Widget, WidgetStore
                          (config/widgets/<name>/: the four parts, values.json, store.json), widget_events
                          (se_event: a toolbox event as their listener + event), WidgetSession (their "session
@@ -117,6 +118,13 @@ core/                    shared building blocks, no service-specific code. Every
                          sent), ValueKinds (the global ones: text, number, whole_number, yes_no, color, list,
                          object, file, folder, image, sound, video, media; a connection or plugin adds its
                          special ones, e.g. "obs.scene"). Used by the boxes written as JSON
+  exports/               Settings → Export / Import (his round 86: "export with everything connected"):
+                         ExportFinder (from what he picks, everything connected: an alert's event, the flows
+                         that send it, the flows those run as boxes, their global variables and files; Live
+                         buttons and other users of the event offered, not ticked), ToolboxExport (the .toolbox
+                         file: a zip with manifest.json + files; never secrets/), ExportImporter (each part new /
+                         the same / taken → Replace, Keep both, Skip; what it needs but can't bring; files into
+                         media/<export title>/), ExportPart, ImportRow. GUI: gui/components/export_panel.py
   files/                 FileActions (file.write_text / read_text, flow only); FileBrowser (a folder's sub
                          folders and files by ending → FolderListing, where the file window opens, places to jump
                          to), file_types (VIDEO / AUDIO / IMAGE / MEDIA_TYPES, ANY_FILE, FOLDER)

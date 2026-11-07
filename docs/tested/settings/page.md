@@ -10,6 +10,7 @@
 | What you see | `/settings?show=seen` | 2026-10-10 | - | - | - | - |  |
 | Viewer roles | `/settings?show=roles` | - | - | - | - | - |  |
 | Event recording | `/settings?show=recording` | - | - | - | - | - |  |
+| Export / Import | `/settings?show=export` | 2026-11-07 | - | - | - | - |  |
 | Settings version: older settings upgraded once at start (toolbox.toml `[toolbox] settings_version`) | `SettingsUpgrades` | 2026-11-01 | - | - | - | 2026-11-01 |  |
 | Newer settings warning next to the toolbox name (press: what it means; phone: icon only) | `HeaderNotice` | 2026-11-01 | - | - | - | 2026-11-01 |  |
 | Update: Settings → General (version, Look for updates once a day, Look now), "Update x.y.z" next to the name, its window | `UpdatePanel` | 2026-11-01 | - | - | - | 2026-11-01 | Download and install not tried with a real release yet |

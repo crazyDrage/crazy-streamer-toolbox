@@ -7,7 +7,11 @@ PARTS: dict[str, tuple[str, str]] = {
     "name": ("Name", "{user}"),
     "amount": ("Amount", "{amount}"),
     "message": ("Their message", "{message}"),
+    "picture": ("Picture or video", ""),  # its `file`, not words (his round 85)
 }
+# what "Add a piece" offers; a Name piece an alert already has stays (his round 85: the text line says the name)
+ADDABLE = ("text", "amount", "message", "picture")
+PICTURE_HEIGHT = 150  # pixels on a 1080 high canvas, a picture piece without a size of its own
 ALIGNS = {"left": "Left", "center": "Middle", "right": "Right"}
 
 
@@ -21,7 +25,10 @@ class AlertPart:
     width it may use before it wraps (0 = as wide as it needs), size = pixels (0 = the alert's text size),
     color = "" for the alert's own, lines = how many lines it may have before the rest is cut with "…" (0 = as
     many as it needs; his round 77: "to not have it go unlimited size"). `text` is what it says, with {user},
-    {amount}, ... ("" = its default)."""
+    {amount}, ... ("" = its default).
+
+    A picture piece (kind "picture") shows `file` instead of words: a picture, gif or video of this PC, or
+    {name} of a picture input. Its size is its height in pixels (0 = PICTURE_HEIGHT)."""
 
     kind: str
     text: str = ""
@@ -33,20 +40,25 @@ class AlertPart:
     color: str = ""
     align: str = "center"
     lines: int = 0
+    file: str = ""
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "AlertPart":
         return cls(str(data["kind"]), str(data.get("text", "")),
                    bool(data.get("on_picture", False)), _between(data.get("x", 50), 0, 100),
                    _between(data.get("y", 50), 0, 100), _between(data.get("width", 0), 0, 100),
-                   _between(data.get("size", 0), 0, 300), str(data.get("color", "")).strip(),
+                   _between(data.get("size", 0), 0, 1080 if data["kind"] == "picture" else 300),
+                   str(data.get("color", "")).strip(),
                    data.get("align") if data.get("align") in ALIGNS else "center",
-                   int(_between(data.get("lines", 0), 0, 50)))
+                   int(_between(data.get("lines", 0), 0, 50)), str(data.get("file", "")).strip())
 
     def to_dict(self) -> dict[str, Any]:
-        return {"kind": self.kind, "text": self.text, "on_picture": self.on_picture,
+        data = {"kind": self.kind, "text": self.text, "on_picture": self.on_picture,
                 "x": self.x, "y": self.y, "width": self.width, "size": self.size, "color": self.color,
                 "align": self.align, "lines": self.lines}
+        if self.file:
+            data["file"] = self.file
+        return data
 
     @property
     def title(self) -> str:
@@ -63,7 +75,7 @@ class AlertPart:
         list (the editor's frame names a dragged piece by it)."""
         return {"kind": self.kind, "index": index, "text": text, "on_picture": self.on_picture, "x": self.x,
                 "y": self.y, "width": self.width, "size": self.size, "color": self.color, "align": self.align,
-                "lines": self.lines}
+                "lines": self.lines, "file": self.file}
 
 
 def _between(value: Any, lowest: float, highest: float) -> float:

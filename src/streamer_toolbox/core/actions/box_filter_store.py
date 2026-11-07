@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from streamer_toolbox.core.actions.box_filter import BoxFilter
+from streamer_toolbox.core.files.write_whole import write_whole
 
 # always there, before his own ones
 BASIC_FILTERS = (
@@ -53,5 +54,5 @@ class BoxFilterStore:
 
     def _write(self) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._path.write_text(json.dumps({"filters": [f.to_dict() for f in self._custom]}, indent=2,
-                                         ensure_ascii=False), encoding="utf-8")
+        write_whole(self._path, json.dumps({"filters": [f.to_dict() for f in self._custom]}, indent=2,
+                                           ensure_ascii=False))

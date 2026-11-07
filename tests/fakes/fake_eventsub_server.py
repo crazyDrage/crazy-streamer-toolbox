@@ -32,6 +32,16 @@ class FakeEventSubServer:
         await self._send({"metadata": {"message_id": message_id, "message_type": "notification"},
                           "payload": {"subscription": {"type": kind}, "event": event}})
 
+    async def notify_all(self, kind: str, event: dict[str, Any], message_id: str = "m1") -> None:
+        """The same event to every listener still connected (several accounts that listen)."""
+        message = json.dumps({"metadata": {"message_id": message_id, "message_type": "notification"},
+                              "payload": {"subscription": {"type": kind}, "event": event}})
+        for client in list(self._clients):
+            try:
+                await client.send(message)
+            except Exception:  # a listener that was stopped
+                pass
+
     async def reconnect_to(self, url: str) -> None:
         await self._send({"metadata": {"message_id": "rc", "message_type": "session_reconnect"},
                           "payload": {"session": {"id": "old", "reconnect_url": url}}})

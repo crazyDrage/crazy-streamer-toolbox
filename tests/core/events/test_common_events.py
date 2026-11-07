@@ -2,10 +2,13 @@ import unittest
 
 from streamer_toolbox.core.events.common_events import SAME, CommonEvents, common
 from streamer_toolbox.core.events.event_bus import EventBus
-from streamer_toolbox.core.events.event_fields import EVENT_FIELDS
+from streamer_toolbox.core.events.event_fields import COMMON_KINDS, EVENT_FIELDS
 
 
 class TestCommonEvents(unittest.IsolatedAsyncioTestCase):
+    def test_the_common_kinds_are_the_ones_with_an_account_dot(self) -> None:
+        self.assertEqual(set(COMMON_KINDS), set(SAME.values()))
+
     def test_every_platforms_event_has_the_common_ones_fields(self) -> None:
         for kind, same in SAME.items():
             data = {key: "x" for key in EVENT_FIELDS[kind]}
@@ -14,7 +17,7 @@ class TestCommonEvents(unittest.IsolatedAsyncioTestCase):
     def test_what_a_platform_doesnt_know_is_empty_and_the_platform_is_said(self) -> None:
         self.assertEqual(common("rumble.follow", {"user": "Ann", "platform": "rumble"}), {
             "user": "Ann", "user_login": "ann", "user_id": "", "followed_at": "", "role": "viewer",
-            "platform": "rumble", "source": "rumble.follow"})
+            "platform": "rumble", "source": "rumble.follow", "account": ""})
         chat = common("youtube.chat", {"user": "Kit", "message": "!hi there", "command": "!hi", "args": "there",
                                        "role": "mod", "user_id": "UC2", "message_id": "m1", "platform": "youtube"})
         self.assertEqual((chat["command"], chat["role"], chat["emotes"], chat["color"], chat["platform"]),

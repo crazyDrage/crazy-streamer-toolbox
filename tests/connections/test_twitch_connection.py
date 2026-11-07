@@ -1,26 +1,25 @@
 import asyncio
-import socket
 import tempfile
 import time
 import unittest
 from dataclasses import replace
 from pathlib import Path
-from urllib.parse import parse_qs, urlsplit
-
-import httpx
+from unittest.mock import patch
+from urllib.parse import parse_qs
 
 from streamer_toolbox.connections.twitch.twitch_api_error import TwitchApiError
 from streamer_toolbox.connections.twitch.twitch_reward import TwitchReward
 from streamer_toolbox.connections.oauth.oauth_token import OAuthToken
-from streamer_toolbox.connections.oauth.oauth_token_store import OAuthTokenStore
+from streamer_toolbox.connections.oauth.account_tokens import AccountTokens
 from streamer_toolbox.connections.twitch_connection import TwitchConnection
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.connections.connection_state import ConnectionState
+from streamer_toolbox.core.connections.current_account import ACCOUNT
 from streamer_toolbox.core.events.event_bus import EventBus
 from streamer_toolbox.core.flows.flow_trigger import REWARDS
 from tests.fakes.fake_eventsub_server import FakeEventSubServer
 from tests.fakes.fake_twitch import SCOPES, FakeTwitch
-from streamer_toolbox.connections.twitch.twitch_auth import BUILT_IN_CLIENT_ID, EXTRA_SCOPES
+from streamer_toolbox.connections.twitch.twitch_auth import BOT_SCOPES, BUILT_IN_CLIENT_ID, EXTRA_SCOPES
 
 REDEMPTION = "channel.channel_points_custom_reward_redemption.add"
 EVENT = {"id": "red1", "user_login": "vexfan", "user_name": "VexFan", "user_input": "hi",
@@ -35,16 +34,13 @@ async def until(check, timeout: float = 3.0) -> None:
         await asyncio.sleep(0.02)
 
 
-def free_port() -> int:
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
-
 class TestTwitchConnection(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
-        self.store = OAuthTokenStore(Path(self.tmp.name) / "twitch_token.json")
+        self.main = {"name": ""}  # [twitch] main_account
+        folder = Path(self.tmp.name) / "twitch"
+        self.store = AccountTokens(folder, lambda file: folder / file, lambda: self.main["name"],
+                                   lambda name: self.main.update(name=name))
         self.twitch = FakeTwitch()
         self.events = EventBus()
         self.seen: list[tuple[str, dict]] = []
@@ -63,7 +59,7 @@ class TestTwitchConnection(unittest.IsolatedAsyncioTestCase):
         self.tmp.cleanup()
 
     def connection(self, url: str = "ws://127.0.0.1:9", **settings) -> TwitchConnection:
-        return TwitchConnection({"enabled": True, "client_id": "cid", "client_secret": "secret", **settings},
+        return TwitchConnection({"enabled": True, **settings},
                                 self.store, self.events,
                                 self.twitch.transport, eventsub_url=url, login_timeout=5,
                                 raw=lambda kind, message: self.raw.append((kind, message)))
@@ -104,7 +100,7 @@ class TestTwitchConnection(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(self.seen.pop(), ("twitch.chat", {
                 "message": "!QA how are you?", "command": "!qa", "args": "how are you?", "user": "Kit",
                 "user_login": "kit", "message_id": "c1", "role": "viewer", "user_id": "", "color": "", "emotes": [],
-                "platform": "twitch"}))
+                "platform": "twitch", "account": "crazydrage", "main_account": "crazydrage"}))
             await first.reconnect_to(second.url)
             await until(lambda: second.sessions == 1)
             await second.notify(REDEMPTION, {**EVENT, "user_name": "Kit"}, message_id="m2")
@@ -112,7 +108,8 @@ class TestTwitchConnection(unittest.IsolatedAsyncioTestCase):
             await twitch.stop()
         self.assertEqual(self.seen[0], ("twitch.redeem", {
             "reward": "Big Action: clean screen", "reward_id": "r1", "cost": 500, "user": "VexFan",
-            "user_login": "vexfan", "user_id": "", "input": "hi", "redemption_id": "red1", "platform": "twitch"}))
+            "user_login": "vexfan", "user_id": "", "input": "hi", "redemption_id": "red1", "platform": "twitch",
+            "account": "crazydrage", "main_account": "crazydrage"}))
         self.assertEqual(self.seen[1][1]["user"], "Kit")
         self.assertEqual(self.seen[0][1]["user"], "VexFan")
         types = [s["type"] for s in self.twitch.subscriptions]
@@ -136,32 +133,7 @@ class TestTwitchConnection(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(twitch.status.state, ConnectionState.ERROR)
         self.assertIn("press Connect", twitch.status.detail)
 
-    async def test_connect_logs_in_through_the_browser(self) -> None:
-        port = free_port()
-        opened = []
-
-        def browser(url: str) -> None:  # stands in for the streamer clicking "Authorize"
-            opened.append(url)
-            state = parse_qs(urlsplit(url).query)["state"][0]
-            asyncio.get_running_loop().create_task(visit(f"http://localhost:{port}/?code=the-code&state={state}"))
-
-        async def visit(url: str) -> None:
-            async with httpx.AsyncClient() as client:
-                await client.get(url)
-
-        twitch = TwitchConnection({"enabled": True}, self.store, self.events, self.twitch.transport, open_browser=browser,
-                                  login_timeout=5)
-        status = await twitch.test({"client_id": "cid", "client_secret": "secret",
-                                    "redirect_url": f"http://localhost:{port}"})
-        self.assertEqual(status.state, ConnectionState.CONNECTED, status.detail)
-        self.assertEqual(status.facts, (("Account", "crazydrage"),))
-        query = parse_qs(urlsplit(opened[0]).query)
-        self.assertEqual(query["scope"][0].split(), SCOPES + list(EXTRA_SCOPES))  # the extra ones are asked for
-        # ... and a login without them (the fake grants only the basic ones) still connects
-        self.assertEqual(self.store.load().access_token, "access-2")
-
     async def test_connect_logs_in_again_when_the_saved_login_lacks_a_newer_permission(self) -> None:
-        self.twitch.client_id = BUILT_IN_CLIENT_ID
         self.save_token()  # works, but from before the extra permissions
         opened = []
         twitch = TwitchConnection({"enabled": True}, self.store, self.events, self.twitch.transport,
@@ -174,13 +146,12 @@ class TestTwitchConnection(unittest.IsolatedAsyncioTestCase):
         await twitch.test(twitch.settings)
         self.assertEqual(len(opened), 1)
 
-    async def test_without_an_own_app_connect_logs_in_with_a_code_and_no_secret(self) -> None:
-        self.twitch.client_id = BUILT_IN_CLIENT_ID
+    async def test_connect_logs_in_with_a_code_and_no_secret(self) -> None:
         self.twitch.device_asks_until_confirmed = 2
         opened = []
         twitch = TwitchConnection({"enabled": True}, self.store, self.events, self.twitch.transport, open_browser=opened.append,
                                   login_timeout=5, code_wait=0.01)
-        status = await twitch.test(twitch.settings)  # nothing typed: the toolbox's own app
+        status = await twitch.test(twitch.settings)  # the toolbox's own app, nothing to type
         self.assertEqual(status.state, ConnectionState.CONNECTED, status.detail)
         self.assertEqual(opened, ["https://www.twitch.tv/activate?device-code=ABCDEFGH"])
         self.assertEqual(self.twitch.device_scopes.split(), SCOPES + list(EXTRA_SCOPES))
@@ -203,7 +174,7 @@ class TestTwitchConnection(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.twitch.requests[-1].headers["Client-Id"], BUILT_IN_CLIENT_ID)
         await twitch.stop()
 
-    async def test_a_code_nobody_confirms_and_a_secret_without_its_id(self) -> None:
+    async def test_a_code_nobody_confirms_and_a_login_of_another_app(self) -> None:
         self.twitch.device_asks_until_confirmed = 10_000
         twitch = TwitchConnection({"enabled": True}, self.store, self.events, self.twitch.transport, open_browser=lambda url: None,
                                   login_timeout=0.1, code_wait=0.02)
@@ -211,9 +182,8 @@ class TestTwitchConnection(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(status.state, ConnectionState.ERROR)
         self.assertIn("in time", status.detail)
         self.assertIsNone(self.store.load())
-        status = await twitch.test({**twitch.settings, "client_secret": "secret"})
-        self.assertIn("needs its Client ID", status.detail)
-        # a login made with his own app isn't the built-in app's: Connect is asked for
+        # a login made with an app of his own (before 2026-11-05) isn't the toolbox's: Connect is asked for
+        self.twitch.client_id = "his-own-app"
         self.save_token()
         await twitch.start()
         self.assertIn("another Twitch app", twitch.status.detail)
@@ -247,6 +217,39 @@ class TestTwitchConnection(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([r.title for r in await twitch.list_rewards()], ["Big Action: clean screen"])
         await twitch.stop()
 
+    async def test_the_follower_check_finds_missed_follows_and_each_follow_comes_once(self) -> None:
+        """His failsafe of 2026-11-05: "sometimes twitch doesn't see new followers"."""
+        def follower(user_id: str, name: str) -> dict:
+            return {"user_id": user_id, "user_login": name.casefold(), "user_name": name,
+                    "followed_at": "2026-11-06T10:00:00Z"}
+
+        def follows() -> list[str]:
+            return [data["user"] for kind, data in self.seen if kind == "twitch.follow"]
+
+        def asked() -> int:
+            return sum(r.url.path == "/helix/channels/followers" for r in self.twitch.requests)
+
+        self.save_token()
+        self.twitch.followers = [follower("1", "Ann")]
+        with patch("streamer_toolbox.core.followers.follower_check.FASTEST", 0.01):
+            async with FakeEventSubServer() as server:
+                twitch = self.connection(server.url, follower_check="0.01")
+                await twitch.start()
+                await until(lambda: dict(twitch.status.facts).get("Events") == "listening" and asked() >= 1)
+                await server.notify("channel.follow", {"user_id": "2", "user_login": "bee", "user_name": "Bee",
+                                                       "followed_at": "x"}, message_id="f1")
+                await until(lambda: follows() == ["Bee"])
+                self.twitch.followers = [follower("3", "Cat"), follower("2", "Bee"), follower("1", "Ann")]
+                await until(lambda: follows() == ["Bee", "Cat"])  # Twitch's live event missed Cat
+                await server.notify("channel.follow", {"user_id": "3", "user_login": "cat", "user_name": "Cat",
+                                                       "followed_at": "x"}, message_id="f2")
+                await until(lambda: asked() >= 5)
+                await twitch.stop()
+        self.assertEqual(follows(), ["Bee", "Cat"])  # Ann followed before: not news; Cat only once
+        self.assertEqual(next(d for k, d in self.seen if d.get("user") == "Cat"), {
+            "user": "Cat", "user_login": "cat", "user_id": "3", "followed_at": "2026-11-06T10:00:00Z",
+            "platform": "twitch", "account": "crazydrage", "main_account": "crazydrage"})
+
     async def test_going_live_and_ending_say_the_title_and_the_category(self) -> None:
         self.save_token()
         async with FakeEventSubServer() as server:
@@ -257,7 +260,8 @@ class TestTwitchConnection(unittest.IsolatedAsyncioTestCase):
             await server.notify("stream.offline", {}, message_id="off1")
             await until(lambda: len(self.seen) == 2)
             await twitch.stop()
-        topic = {"title": "Lizard time", "category": "Just Chatting", "platform": "twitch"}
+        topic = {"title": "Lizard time", "category": "Just Chatting", "platform": "twitch", "account": "crazydrage",
+                 "main_account": "crazydrage"}
         self.assertEqual(self.seen, [("twitch.online", {"type": "live", **topic}), ("twitch.offline", topic)])
 
     async def test_refused_subscriptions_are_skipped_and_shown(self) -> None:
@@ -273,7 +277,8 @@ class TestTwitchConnection(unittest.IsolatedAsyncioTestCase):
             await until(lambda: self.seen)
             await twitch.stop()
         self.assertEqual(self.seen, [("twitch.raid", {"user": "Vex", "user_login": "vex", "user_id": "9",
-                                                     "viewers": 12, "platform": "twitch"})])
+                                                     "viewers": 12, "platform": "twitch", "account": "crazydrage",
+                                                     "main_account": "crazydrage"})])
         self.assertEqual(self.raw, [("twitch.raid", {  # as Twitch sent it, for the last trigger's file
             "from_broadcaster_user_name": "Vex", "from_broadcaster_user_login": "vex",
             "from_broadcaster_user_id": "9", "viewers": 12})])
@@ -298,6 +303,97 @@ class TestTwitchConnection(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([(p["id"], b["status"]) for p, b in self.twitch.redemptions],
                          [("red9", "CANCELED"), ("red10", "FULFILLED")])
         self.assertEqual((marker, self.twitch.markers), ("mk1", [{"user_id": "42", "description": "lizard moment"}]))
+
+    async def _with_bot(self) -> TwitchConnection:
+        """His channel crazydrage (main, logged in with Connect) plus the bot account crazydrage_bot."""
+        self.save_token()
+        twitch = self.connection()
+        await twitch.start()
+        self.twitch.next_login = ("crazydrage_bot", "77")
+        shown: list[tuple[str, str]] = []
+        opened = []
+        twitch._open_browser = opened.append
+        name = await twitch.add_account(True, lambda page, code: shown.append((page, code)))
+        self.assertEqual(name, "crazydrage_bot")
+        self.assertEqual(shown, [("https://www.twitch.tv/activate?device-code=ABCDEFGH", "ABCDEFGH")])
+        self.assertEqual(opened, [])  # the link is for another browser: nothing opens on this PC
+        return twitch
+
+    async def test_an_added_bot_account_asks_only_for_the_bot_permissions(self) -> None:
+        twitch = await self._with_bot()
+        self.assertEqual(self.twitch.device_scopes.split(), list(BOT_SCOPES))
+        self.assertEqual((twitch.account_names(), twitch.main_account()), (["crazydrage", "crazydrage_bot"],
+                                                                          "crazydrage"))
+        self.assertTrue(twitch.is_bot("crazydrage_bot"))
+        self.assertEqual(twitch.account_state("crazydrage_bot"), "connected")
+        self.assertIn(("Other accounts", "crazydrage_bot"), twitch.status.facts)
+        await twitch.stop()
+
+    async def test_the_bot_writes_and_moderates_in_his_channel(self) -> None:
+        twitch = await self._with_bot()
+        actions = ActionRegistry()
+        twitch.add_actions(actions)
+        self.twitch.scopes = SCOPES + list(EXTRA_SCOPES)
+        await twitch.stop()
+        await twitch.start()  # both logins again, now with every permission
+        mark = ACCOUNT.set("crazydrage_bot")
+        try:
+            await actions.run("twitch.send_chat", message="beep")
+        finally:
+            ACCOUNT.reset(mark)
+        await actions.run("twitch.send_chat", message="from me")  # nothing set: the main account
+        self.assertEqual([(c["broadcaster_id"], c["sender_id"], c["message"]) for c in self.twitch.chat],
+                         [("42", "77", "beep"), ("42", "42", "from me")])
+        await twitch.stop()
+
+    async def test_an_account_that_is_gone_says_so(self) -> None:
+        twitch = await self._with_bot()
+        actions = ActionRegistry()
+        twitch.add_actions(actions)
+        await twitch.remove_account("crazydrage_bot")
+        self.assertEqual(twitch.account_names(), ["crazydrage"])
+        self.assertFalse(twitch.is_bot("crazydrage_bot"))
+        mark = ACCOUNT.set("crazydrage_bot")
+        try:
+            with self.assertRaisesRegex(Exception, "no account 'crazydrage_bot'"):
+                await actions.run("twitch.send_chat", message="beep")
+        finally:
+            ACCOUNT.reset(mark)
+        await twitch.stop()
+
+    async def test_a_second_channel_that_listens_says_which_account_heard_it(self) -> None:
+        """His answer 120: another account's own channel, switched on; every event says its account."""
+        self.save_token()
+        async with FakeEventSubServer() as server:
+            twitch = self.connection(server.url)
+            await twitch.start()
+            self.twitch.next_login = ("second_channel", "77")
+            await twitch.add_account(False, lambda page, code: None)
+            await twitch.set_listening("second_channel", True)  # starts again with both listening
+            self.assertEqual(twitch.listening_accounts(), ["crazydrage", "second_channel"])
+            await until(lambda: server.sessions == 2)
+            await until(lambda: {s["condition"].get("broadcaster_user_id") for s in self.twitch.subscriptions}
+                        >= {"42", "77"})
+            await server.notify_all(REDEMPTION, EVENT)
+            await until(lambda: len(self.seen) == 2)
+            await twitch.stop()
+        self.assertEqual(sorted(data["account"] for _, data in self.seen), ["crazydrage", "second_channel"])
+
+    async def test_a_bot_account_never_listens(self) -> None:
+        twitch = await self._with_bot()
+        await twitch.set_listening("crazydrage_bot", True)
+        self.assertEqual(twitch.listening_accounts(), ["crazydrage"])
+        await twitch.stop()
+
+    async def test_another_main_account_restarts_on_it(self) -> None:
+        twitch = await self._with_bot()
+        self.twitch.scopes = SCOPES + list(EXTRA_SCOPES)
+        await twitch.set_listening("crazydrage_bot", True)
+        self.assertTrue(twitch.listens("crazydrage_bot"))
+        await twitch.set_main_account("crazydrage_bot")
+        self.assertEqual(self.main["name"], "crazydrage_bot")
+        self.assertEqual(dict(twitch.status.facts)["Account"], "crazydrage_bot")
+        await twitch.stop()
 
     async def test_the_chat_reward_and_marker_boxes_reach_twitch(self) -> None:
         """The Box classes run by name, as a flow runs them (the connection's methods are tested above)."""

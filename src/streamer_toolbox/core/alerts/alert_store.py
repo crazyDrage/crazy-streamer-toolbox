@@ -7,6 +7,7 @@ from typing import Any
 from streamer_toolbox.core.alerts import alert_starters
 from streamer_toolbox.core.alerts.alert_input import AlertInput
 from streamer_toolbox.core.alerts.alert_rule import AlertRule, default_parts
+from streamer_toolbox.core.files.write_whole import write_whole
 
 PLACEHOLDER = re.compile(r"\{([a-z_]+)\}")
 
@@ -79,14 +80,14 @@ class AlertStore:
         self.unstarted = []
         old = self._path.with_name("alerts.before_round_65.json")
         if self._before and not old.exists():
-            old.write_text(self._before, encoding="utf-8")
+            write_whole(old, self._before)
         self._write()
 
     def keep_copy(self, name: str) -> None:
         """The file as it is now, kept next to it under that name (once: a copy that is there stays)."""
         copy = self._path.with_name(name)
         if self._path.is_file() and not copy.exists():
-            copy.write_text(self._path.read_text(encoding="utf-8"), encoding="utf-8")
+            write_whole(copy, self._path.read_text(encoding="utf-8"))
 
     def set_keep_through_restart(self, on: bool) -> None:
         self.keep_through_restart = on
@@ -97,7 +98,7 @@ class AlertStore:
         data: dict[str, Any] = {"alerts": [r.to_dict() for r in self._rules.values()]}
         if self.keep_through_restart:
             data["keep_through_restart"] = True
-        self._path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+        write_whole(self._path, json.dumps(data, indent=2, ensure_ascii=False))
         if self.on_change is not None:
             self.on_change()
 

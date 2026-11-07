@@ -42,6 +42,17 @@ class TestSettingsBackup(unittest.TestCase):
         self.assertEqual([p.name for p in gone], ["settings-3.zip"])
         self.assertEqual([p.name for p in backup.all()], ["settings-1.zip", "settings-2.zip"])
 
+    def test_upgrade_backups_have_their_own_folder_the_starters_prune_leaves_alone(self) -> None:
+        upgrade = SettingsBackup(self.settings, sub="upgrades").make("settings-v1-before-v2")
+        self.assertEqual(upgrade.parent, self.settings / "backups" / "upgrades")
+        starter = SettingsBackup(self.settings)
+        starter.make()
+        self.assertEqual(len(starter.all()), 1)  # only its own
+        starter.prune(BackupPolicy(daily=0, monthly=0))
+        self.assertTrue(upgrade.is_file())
+        with zipfile.ZipFile(SettingsBackup(self.settings, sub="upgrades").make("again")) as packed:
+            self.assertFalse(any(name.startswith("backups/") for name in packed.namelist()))
+
     def test_starter_settings_are_written_whole_and_read_back(self) -> None:
         self.assertEqual(StarterSettings.read(self.settings), StarterSettings())
         settings = StarterSettings(open_mode="lean-window", start_without_asking=True, daily=3, monthly=4)

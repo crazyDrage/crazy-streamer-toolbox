@@ -14,7 +14,12 @@ from streamer_toolbox.core.flows.flow_node import FlowNode
 from streamer_toolbox.core.flows.flow_runner import FlowRunner
 from streamer_toolbox.core.flows.flow_pack import FlowPack
 from streamer_toolbox.core.flows.flow_store import FlowStore
+from streamer_toolbox.core.config.config_table_writer import ConfigTableWriter
+from streamer_toolbox.core.upgrades.accounts_upgrade import AccountsUpgrade
+from streamer_toolbox.core.upgrades.youtube_accounts_upgrade import YouTubeAccountsUpgrade
+from streamer_toolbox.core.upgrades.rumble_accounts_upgrade import RumbleAccountsUpgrade
 from streamer_toolbox.core.upgrades.settings_upgrades import SettingsUpgrades
+from streamer_toolbox.core.upgrades.settings_version import SETTINGS_VERSION
 from streamer_toolbox.core.variables.variable_store import VariableStore
 from streamer_toolbox.core.widgets.widget import Widget
 from streamer_toolbox.core.widgets.widget_store import WidgetStore
@@ -96,14 +101,17 @@ class TestEventConversion(unittest.TestCase):
         """His next release plan, part 3: exports carry the settings version; an older one is upgraded."""
         alerts = AlertStore(self.folder / "alerts.json")
         conversion = EventConversion(self.events, self.widgets, alerts, self.flows)
-        self.flows.upgrade = SettingsUpgrades(self.folder / "toolbox.toml", [EventsUpgrade(conversion)]).flow
+        self.flows.upgrade = SettingsUpgrades(self.folder / "toolbox.toml", [
+            EventsUpgrade(conversion),
+            AccountsUpgrade(lambda: "", self.events, ConfigTableWriter(self.folder / "toolbox.toml")),
+            YouTubeAccountsUpgrade(lambda: ""), RumbleAccountsUpgrade(lambda: "")]).flow
         old = 'label = "Old"\n[[nodes]]\nid = "n1"\naction = "alert.play.follow"\nparams = { user = "x" }\n'
         node = self.flows.import_file(old, "old.toml")[0].nodes[0]
         self.assertEqual((node.action, node.params), ("event.send.follow", {"user": "x", "only_to": "alert follow"}))
         pack = FlowPack("Old", (Flow("p", "P", (FlowNode("n1", "alert.play.raid", {}),)),), settings_version=0)
         self.assertEqual(self.flows.import_pack(pack)[0].nodes[0].action, "event.send.raid")
-        self.assertIn("settings_version = 1", self.flows.export_text(self.flows.all()[0].name))
-        self.assertIn("settings_version = 1", self.flows.folder_pack("Old").to_text())
+        self.assertIn(f"settings_version = {SETTINGS_VERSION}", self.flows.export_text(self.flows.all()[0].name))
+        self.assertIn(f"settings_version = {SETTINGS_VERSION}", self.flows.folder_pack("Old").to_text())
         with self.assertRaisesRegex(ValueError, "newer toolbox"):
             self.flows.import_file("settings_version = 99\n" + old, "new.toml")
 

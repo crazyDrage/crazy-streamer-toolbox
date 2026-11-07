@@ -9,6 +9,9 @@ WORDS = "words"
 WHO = "who"  # {"who": "mod"}: only mods and the broadcaster (the event's "role" must be at least this)
 WHO_MAX = "who_max"  # {"who_max": "vip"}: VIPs and down, so no mods (the "role" must be at most this)
 ROLES = "roles"  # {"roles": "viewer, sub, vip"}: the "role" must be one of these (what the editor saves)
+ACCOUNTS = "accounts"  # {"accounts": "crazydrage, second"}: heard by one of these accounts (its "account")
+MAIN = "main account"  # in "accounts": the main account at the time (no login has a space, so no name clash)
+ALL = "all accounts"  # in "accounts": every account that listens
 # an id key stands in for its name key: a redeem trigger with reward_id matches by id (a renamed reward still fits)
 ID_KEYS = {"reward_id": "reward"}
 REWARDS = "twitch.rewards"  # the toolbox's own event when Twitch connects: {"rewards": [{"id", "title"}, ...]}
@@ -25,7 +28,12 @@ class FlowTrigger:
     The key "words" is special: {"words": "gay, bl"} matches a message that has one of those as a whole word;
     so are the role keys, on every event with a viewer's "role": {"roles": "vip, mod"} matches a VIP or a mod
     (the editor's checkboxes save this one), {"who": "vip"} a VIP, a mod or the broadcaster, {"who_max": "vip"}
-    a VIP, a sub or a plain viewer.
+    a VIP, a sub or a plain viewer. {"accounts": "crazydrage, second"}: an event heard by one of those accounts
+    (Twitch, when several listen: his plan of 2026-11-05); "main account" in it is whichever account is the main
+    one when the event comes (the event's "main_account"), so it follows a change of the main account; an
+    event that names no account (a platform without several) counts as the main account's.
+    A common trigger (any platform: "follow", "chat", ...) has "main account" (the default, nothing saved) or
+    "all accounts" (his ask of 2026-11-05: names can change, so a finer check goes in the flow).
     A number in the event can be compared: {"bpm": ">120"} matches a heart rate above 120 ("<" lower, "=" equal;
     ">>" / "<<" only when it rises above / falls below, by the event's previous_bpm).
     A redeem trigger saved with reward_id matches by that id only (its "reward" name is kept for showing and is
@@ -39,6 +47,8 @@ class FlowTrigger:
 
     def matches(self, kind: str, data: dict[str, Any]) -> bool:
         skipped = {ID_KEYS[k] for k, v in self.match.items() if k in ID_KEYS and v}
+        if "." not in self.kind and ACCOUNTS not in self.match and not _fits(ACCOUNTS, MAIN, data):
+            return False
         return kind == self.kind and all(_fits(k, str(v), data) for k, v in self.match.items()
                                          if k not in skipped and (k not in ID_KEYS or v))
 
@@ -68,6 +78,11 @@ def _fits(key: str, wanted: str, data: dict[str, Any]) -> bool:
         return str(data.get("role", "viewer")) in {role.strip().casefold() for role in wanted.split(",")}
     if key == WHO_MAX:
         return _rank(str(data.get("role", "viewer"))) <= _rank(wanted)
+    if key == ACCOUNTS:
+        picked = {name.strip().casefold() for name in wanted.split(",") if name.strip()}
+        account = str(data.get("account", "")).casefold()
+        main = MAIN in picked and account in ("", str(data.get("main_account", "")).casefold())
+        return not picked or ALL in picked or account in picked or main
     by_number = fits_number(data.get(key), wanted, data.get(f"previous_{key}"))  # {"bpm": ">120"}
     return _same(str(data.get(key, "")), wanted) if by_number is None else by_number
 

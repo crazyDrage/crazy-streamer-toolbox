@@ -5,7 +5,7 @@ from streamer_toolbox.core.events.event_bus import EventBus
 # a platform's event → the event that means the same on every platform
 SAME = {
     "twitch.chat": "chat", "youtube.chat": "chat", "rumble.chat": "chat", "fansly.chat": "chat",
-    "twitch.follow": "follow", "rumble.follow": "follow",
+    "twitch.follow": "follow", "rumble.follow": "follow", "youtube.follow": "follow",
     "twitch.sub": "sub", "rumble.sub": "sub", "youtube.member": "sub", "fansly.sub": "sub",
     "twitch.resub": "resub", "youtube.member_milestone": "resub",
     "twitch.gift": "gift", "rumble.gift": "gift", "youtube.gift_members": "gift",
@@ -64,4 +64,6 @@ def common(kind: str, data: dict[str, Any]) -> dict[str, Any]:
     found = {key: given.get(key, empty) for key, empty in FIELDS[same].items()}
     if "user_login" in found and not found["user_login"]:
         found["user_login"] = str(found.get("user") or "").casefold()  # platforms without a separate login
-    return {**found, "platform": str(data.get("platform") or kind.partition(".")[0]), "source": kind}
+    main = {"main_account": data["main_account"]} if "main_account" in data else {}  # for "main account" triggers
+    return {**found, "platform": str(data.get("platform") or kind.partition(".")[0]), "source": kind,
+            "account": str(data.get("account", "")), **main}

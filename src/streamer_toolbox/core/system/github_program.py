@@ -12,6 +12,7 @@ from typing import Any
 
 import httpx
 
+from streamer_toolbox.core.files.write_whole import write_whole
 from streamer_toolbox.core.web.web_client import web_client
 
 log = logging.getLogger(__name__)
@@ -87,7 +88,7 @@ class GithubProgram:
 
     def _write(self, state: dict[str, Any]) -> None:
         self._folder.mkdir(parents=True, exist_ok=True)
-        (self._folder / STATE).write_text(json.dumps(state, indent=1), encoding="utf-8")
+        write_whole(self._folder / STATE, json.dumps(state, indent=1))
 
     async def _take_newest(self) -> None:
         """Installs the newest release unless it is the one that is there; notes the time of the check."""

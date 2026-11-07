@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -66,6 +67,17 @@ class Connection(ABC):
         """A file of ready-made flows for it (the format of Flows → Export folder, `*.flows.toml`): its tab's
         "Add default flows" puts them into the folder the file names, switched off. None: it has none."""
         return None
+
+    def account_choice(self) -> tuple[Callable[[], bool], Callable[[], list[str]]] | None:
+        """For a connection with several accounts (his plan of 2026-11-05): (is its Multiple accounts switch on,
+        the accounts' names). Its boxes then get an Account field (ActionRegistry.accounts_for) and run as that
+        account (current_account.ACCOUNT, "" = its main one). None: one account only."""
+        return None
+
+    def listening_accounts(self) -> list[str]:
+        """The accounts whose events come in now (each event says it as "account"). With more than one, its
+        triggers get an Account select (one or more; his answer 120). Empty: one account only."""
+        return []
 
     def add_gui_settings(self) -> None:
         """Extra NiceGUI content under the standard fields on its tab (e.g. OBS fit targets, the SAMMI deck)."""

@@ -3,6 +3,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from streamer_toolbox.core.deck.deck import Deck
+from streamer_toolbox.core.files.write_whole import write_whole
 from streamer_toolbox.core.flows.flow import Flow
 
 
@@ -22,5 +23,5 @@ class DeckStore:
 
     def save(self, deck: Deck) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._path.write_text(json.dumps(deck.to_dict(), indent=2, ensure_ascii=False), encoding="utf-8")
+        write_whole(self._path, json.dumps(deck.to_dict(), indent=2, ensure_ascii=False))
         self.version += 1

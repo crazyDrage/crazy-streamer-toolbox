@@ -28,6 +28,15 @@ CHAT_JS = """window.addEventListener('onEventReceived', obj => {
 });"""
 
 
+def _next_event(page) -> dict | None:
+    """The next event a widget page got, past the session data that follows a ...-latest one."""
+    while not page.empty():
+        told = page.get_nowait()
+        if told["type"] == "event":
+            return told
+    return None
+
+
 class TestEventUsers(unittest.IsolatedAsyncioTestCase):
     """His round 78: widgets and alerts pick event types; one flow per type sends it to all of them."""
 
@@ -108,6 +117,47 @@ class TestEventUsers(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(self.events.get("chat").hidden)
         self.assertEqual(self.users.give_events("chat_box"), [])  # once
         self.assertEqual(self.users.users("chat"), ["Widget chat_box"])
+
+    async def test_imported_widgets_get_the_newer_streamelements_events_with_their_flows(self) -> None:
+        """His "add the missing events" (2026-11-05): a gift bomb, YouTube's Super Chat and StreamElements'
+        charity, each with its flow, in StreamElements' words."""
+        self.widgets.save(Widget("se", js="""const on = {'communityGiftPurchase-latest': gift,
+            'superchat-latest': chat, 'charityCampaignDonation-latest': charity};"""))
+        self.assertEqual(len(self.users.give_events("se")), 3)
+        self.assertEqual(self.users.events_of("se"), ("community_gift", "superchat", "charity"))
+        page = self.hub.listen("se")
+
+        await self._event("twitch.gift", {"user": "Kit", "amount": 5, "tier": 1, "platform": "twitch"})
+        got = _next_event(page)
+        self.assertEqual(got["listener"], "communityGiftPurchase-latest")
+        self.assertEqual((got["event"]["sender"], got["event"]["amount"], got["event"]["isCommunityGift"]),
+                         ("Kit", 5, True))
+
+        await self._event("youtube.superchat", {"user": "Ann", "amount": 10, "currency": "EUR", "message": "hi",
+                                                "platform": "youtube"})
+        got = _next_event(page)
+        self.assertEqual((got["listener"], got["event"]["name"], got["event"]["userCurrency"]),
+                         ("superchat-latest", "Ann", "EUR"))
+
+        await self._event("streamelements.activity", {"type": "merch", "user": "Bo", "amount": 1})
+        self.assertIsNone(_next_event(page))  # merch isn't charity
+        await self._event("streamelements.activity", {"type": "charityCampaignDonation", "user": "Bo", "amount": 7,
+                                                      "platform": "twitch"})
+        got = _next_event(page)
+        self.assertEqual((got["listener"], got["event"]["name"], got["event"]["amount"]),
+                         ("charityCampaignDonation-latest", "Bo", 7))
+
+    async def test_a_chatters_deleted_messages_are_heard_as_delete_messages(self) -> None:
+        self.widgets.save(Widget("chat_box", js="if (listener === 'delete-messages') wipe(event.userId);"))
+        self.users.give_events("chat_box")
+        self.assertEqual(self.users.events_of("chat_box"), ("chat_deleted",))
+        page = self.hub.listen("chat_box")
+        await self._event("twitch.chat_deleted", {"user_id": "42"})
+        got = _next_event(page)
+        self.assertEqual((got["listener"], got["event"]["userId"]), ("delete-messages", "42"))
+        await self._event("twitch.chat_deleted", {"message_id": "m1", "user_id": "42"})
+        got = _next_event(page)
+        self.assertEqual((got["listener"], got["event"]["msgId"]), ("delete-message", "m1"))
 
     async def test_an_alert_on_an_event_has_its_values_and_follows_a_renamed_one(self) -> None:
         kind = self.events.add("lizard")

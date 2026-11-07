@@ -31,6 +31,17 @@ class TestSecretsFolder(unittest.TestCase):
         if os.name == "posix":
             self.assertEqual(0o700, stat.S_IMODE(path.parent.stat().st_mode))
 
+    def test_a_secret_is_written_whole_and_stays_encrypted(self) -> None:
+        secrets = SecretsFolder(self.settings)
+        secrets.vault.set_login("correct horse battery")
+        path = secrets.path("thing_token.txt")
+
+        path.write_text("abc", encoding="utf-8")
+
+        self.assertEqual("abc", path.read_text(encoding="utf-8"))
+        self.assertNotIn(b"abc", Path(path).read_bytes())
+        self.assertEqual([], list(secrets.folder.glob("*.tmp")))
+
     def test_a_file_from_the_old_place_is_moved_over_once(self) -> None:
         (self.settings / "thing_token.txt").write_text("abc\n", encoding="utf-8")
         secrets = SecretsFolder(self.settings)

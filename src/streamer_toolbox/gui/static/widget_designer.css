@@ -1,0 +1,51 @@
+/* The widget editor's canvas (widget_designer.js) */
+.tb-design-stage {
+  position: relative;
+  overflow: hidden;
+  border-radius: 4px;
+  border: 1px solid rgba(128, 128, 128, 0.3);
+  background: repeating-conic-gradient(#2a2a2a 0% 25%, #1c1c1c 0% 50%) 0 0 / 24px 24px;
+  touch-action: none;
+}
+/* the add list on the left and the layers / pieces on the right scroll on their own next to the canvas */
+@media (min-width: 1024px) {
+  .tb-design-side { max-height: calc(100vh - 150px); overflow-y: auto; flex-wrap: nowrap; }
+}
+.tb-design-piece.other { pointer-events: none; }
+.tb-design-piece.editable { cursor: move; touch-action: none; user-select: none; }
+/* --tb-px is one screen pixel in canvas pixels (widget_designer.js): lines and the handle keep their size on
+   screen however small the canvas is shrunk (a phone) */
+.tb-design-piece.editable:hover {
+  outline: calc(var(--tb-px) * 1.5) dashed rgba(100, 170, 255, 0.7);
+  outline-offset: var(--tb-px);
+}
+.tb-design-piece.picked, .tb-design-piece.picked:hover {
+  outline: calc(var(--tb-px) * 2) solid #4aa3ff;
+  outline-offset: var(--tb-px);
+}
+.tb-design-piece.empty {
+  min-height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 4px dashed rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.7);
+  font: 600 32px sans-serif;
+}
+/* big enough to grab with a finger on a phone */
+.tb-design-handle {
+  position: absolute;
+  right: calc(var(--tb-px) * -11);
+  bottom: calc(var(--tb-px) * -11);
+  width: calc(var(--tb-px) * 22);
+  height: calc(var(--tb-px) * 22);
+  border-radius: 50%;
+  background: #4aa3ff;
+  border: calc(var(--tb-px) * 2) solid #fff;
+  box-sizing: border-box;
+  cursor: nwse-resize;
+  touch-action: none;
+}
+.tb-design-guide { position: absolute; background: #ff4fa3; pointer-events: none; z-index: 10; }
+.tb-design-guide-x { top: 0; bottom: 0; width: var(--tb-px); }
+.tb-design-guide-y { left: 0; right: 0; height: var(--tb-px); }

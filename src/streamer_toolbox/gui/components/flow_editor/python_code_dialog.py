@@ -4,6 +4,7 @@ from typing import Any
 
 from nicegui import app, ui
 
+from streamer_toolbox.core.files.write_whole import write_whole
 from streamer_toolbox.core.system.boxes.run_python import RunPython
 from streamer_toolbox.core.system.python_syntax import syntax_problem
 
@@ -49,7 +50,7 @@ class PythonCodeDialog:
     def _save(self) -> None:
         text = self._code.value
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._path.write_text(text, encoding="utf-8")
+        write_whole(self._path, text)
         self._saved = text
         self._new.set_visibility(False)
         problem = syntax_problem(text)

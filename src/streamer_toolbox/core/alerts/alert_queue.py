@@ -122,8 +122,7 @@ class AlertQueue:
         """The line for a backup file: the alerts still waiting, the messages of the last minute (with the
         files their random names stand for) and the numbers."""
         sent = self.sent.state()
-        named = {url[len(FILE_URL):] for _, _, message in sent["kept"] for url in
-                 (message.get("alert", {}).get("image"), message.get("alert", {}).get("sound"))
+        named = {url[len(FILE_URL):] for _, _, message in sent["kept"] for url in _urls(message.get("alert", {}))
                  if url and url.startswith(FILE_URL)}
         return {"waiting": [alert.to_dict() for alert, _ in self._waiting], "sent": sent,
                 "files": {token: str(file) for token, file in self._files.items() if token in named}}
@@ -175,12 +174,13 @@ class AlertQueue:
         """What an overlay page gets for one alert (also the look editor's frame, without the line): its files
         under their random names, never a path of this PC."""
         _check_files(alert)
-        video = Path(alert.image).suffix.casefold() in VIDEO_TYPES and not alert.image.casefold().endswith(".gif")
-        parts = list(alert.parts) or [{"kind": kind, "text": text} for kind, text in
-                                      (("text", alert.text), ("message", alert.message)) if text]
+        parts = [{**part, "file": self._url(part["file"]), "video": _is_video(part["file"])} if part.get("file")
+                 else part for part in alert.parts] \
+            or [{"kind": kind, "text": text} for kind, text in (("text", alert.text), ("message", alert.message))
+                if text]
         return {"id": uuid.uuid4().hex[:8], "text": alert.text, "message": alert.message, "parts": parts,
                 "highlights": [h for h in alert.highlights if h],
-                "image": self._url(alert.image), "video": bool(alert.image) and video,
+                "image": self._url(alert.image), "video": _is_video(alert.image),
                 "sound": self._url(alert.sound), "seconds": alert.shown_seconds,
                 "volume": max(0.0, min(float(alert.volume), 1.0)), "look": alert.look.to_dict()}
 
@@ -201,6 +201,17 @@ class AlertQueue:
 
 
 def _check_files(alert: Alert) -> None:
-    for what, file in (("picture", alert.image), ("sound", alert.sound)):
+    pieces = [("picture piece", str(part.get("file") or "")) for part in alert.parts]
+    for what, file in (("picture", alert.image), ("sound", alert.sound), *pieces):
         if file and not Path(file).is_file():
             raise FileNotFoundError(f"the alert's {what} isn't there: {file}")
+
+
+def _urls(payload: dict[str, Any]) -> list[str]:
+    """The file names a sent alert uses: its picture, sound and picture pieces."""
+    return [payload.get("image", ""), payload.get("sound", ""),
+            *(str(part.get("file") or "") for part in payload.get("parts", []) if isinstance(part, dict))]
+
+
+def _is_video(file: str) -> bool:
+    return bool(file) and Path(file).suffix.casefold() in VIDEO_TYPES and not file.casefold().endswith(".gif")

@@ -40,6 +40,15 @@ class TestConfigTableWriter(unittest.TestCase):
         writer.save("sammi", {"url": "http://b", "password": None})
         self.assertEqual(ToolboxConfig.read(self.path).tables["sammi"], {"url": "http://b", "password": "pw"})
 
+    def test_remove_takes_keys_out_and_says_what_they_held(self) -> None:
+        writer = ConfigTableWriter(self.path)
+        writer.save("twitch", {"enabled": True, "client_id": "his-app", "client_secret": ""})
+        self.assertEqual(writer.remove("twitch", ("client_id", "client_secret", "redirect_url")),
+                         {"client_id": "his-app", "client_secret": ""})
+        self.assertEqual(ToolboxConfig.read(self.path).tables["twitch"], {"enabled": True})
+        self.assertEqual(writer.remove("twitch", ("client_id",)), {})
+        self.assertEqual(writer.remove("nothing", ("x",)), {})
+
 
 if __name__ == "__main__":
     unittest.main()

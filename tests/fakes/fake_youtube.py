@@ -22,6 +22,7 @@ class FakeYouTube:
         self.refresh_ok = True
         self.calls: list[tuple[str, str, dict[str, str]]] = []
         self.sent: list[dict[str, Any]] = []
+        self.subscribers: list[tuple[str, str]] = []  # (channel id, name), newest first
         self.transport = httpx.MockTransport(self._answer)
 
     def _answer(self, request: httpx.Request) -> httpx.Response:
@@ -49,6 +50,10 @@ class FakeYouTube:
                                                        "errors": [{"reason": "liveStreamingNotEnabled"}]}})
         if name == "liveBroadcasts":
             return httpx.Response(200, json={"items": [self.broadcast] if self.broadcast else []})
+        if name == "subscriptions":
+            return httpx.Response(200, json={"items": [
+                {"snippet": {"publishedAt": "2026-11-06T10:00:00Z"},
+                 "subscriberSnippet": {"channelId": channel, "title": title}} for channel, title in self.subscribers]})
         if name == "liveChat/messages" and request.method == "POST":
             self.sent.append(__import__("json").loads(request.content))
             return httpx.Response(200, json={"id": "m-sent"})

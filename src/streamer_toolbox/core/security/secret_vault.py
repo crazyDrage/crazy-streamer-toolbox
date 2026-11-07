@@ -115,8 +115,9 @@ class SecretVault:
     def _files(self) -> list[Path]:
         if not self._folder.is_dir():
             return []
-        return [file for file in sorted(self._folder.iterdir())
-                if file.is_file() and file.name != LOGIN_FILE and not file.name.endswith(".tmp")]
+        # sub folders too: a connection's accounts lie in their own (secrets/twitch/<login>.json)
+        return [file for file in sorted(self._folder.rglob("*"))
+                if file.is_file() and file != self._folder / LOGIN_FILE and not file.name.endswith(".tmp")]
 
 
 def _key(password: str, salt: bytes, n: int = SCRYPT_N, r: int = SCRYPT_R, p: int = SCRYPT_P) -> Fernet:

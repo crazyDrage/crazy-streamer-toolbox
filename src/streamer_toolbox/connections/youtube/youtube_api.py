@@ -19,11 +19,13 @@ class YouTubeApi:
         self._transport = transport
 
     async def channel(self) -> dict[str, str]:
-        """His channel: {"id", "title"}."""
+        """His channel: {"id", "title", "handle"} (handle: "@name", "" when it has none)."""
         items = (await self._call("GET", "channels", params={"part": "snippet", "mine": "true"})).get("items") or []
         if not items:
             raise YouTubeApiError(404, "this Google account has no YouTube channel")
-        return {"id": str(items[0].get("id", "")), "title": str(items[0].get("snippet", {}).get("title", ""))}
+        snippet = items[0].get("snippet", {})
+        return {"id": str(items[0].get("id", "")), "title": str(snippet.get("title", "")),
+                "handle": str(snippet.get("customUrl", ""))}
 
     async def live_chat(self) -> dict[str, str] | None:
         """The stream that is live right now: {"chat", "title", "video"}; None when he isn't live."""
@@ -42,6 +44,18 @@ class YouTubeApi:
         return await self._call("GET", "liveChat/messages", params={
             "liveChatId": chat, "part": "snippet,authorDetails", "maxResults": "200",
             **({"pageToken": page} if page else {})})
+
+    async def newest_subscribers(self) -> list[dict[str, str]]:
+        """His newest subscribers (YouTube's free "follow"), newest first, as follow event fields. Only those whose
+        subscriptions are public; YouTube may limit how many it gives. 1 quota point."""
+        answer = await self._call("GET", "subscriptions", params={
+            "part": "snippet,subscriberSnippet", "myRecentSubscribers": "true", "maxResults": "50"})
+        found = []
+        for item in answer.get("items") or []:
+            who = item.get("subscriberSnippet") if isinstance(item.get("subscriberSnippet"), dict) else {}
+            found.append({"user": str(who.get("title") or ""), "user_id": str(who.get("channelId") or ""),
+                          "followed_at": str((item.get("snippet") or {}).get("publishedAt") or "")})
+        return found
 
     async def send_chat(self, chat: str, message: str) -> None:
         await self._call("POST", "liveChat/messages", params={"part": "snippet"}, json={"snippet": {

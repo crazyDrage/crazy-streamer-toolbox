@@ -84,10 +84,6 @@ code, pre, .font-mono, .tb-value { font-family: var(--tb-mono); }
 .tb-menu-danger { color: var(--tb-bad); }
 .tb-menu-line { height: 1px; margin: 4px 0; background: var(--tb-line); }
 
-/* an editor page with a preview and its settings side by side (SplitPanes) uses the whole window, not the
-   other pages' reading width (his round 76: "I have the window in full screen, and I have a border left and right") */
-.tb-main:has(.tb-split) { max-width: none; }
-
 /* a release's text in the update window (UpdatePanel): its headings as small as a line, not page titles */
 .tb-notes h1, .tb-notes h2, .tb-notes h3, .tb-notes h4 { font-size: 1rem; font-weight: 600; line-height: 1.4; margin: 0.6em 0 0.2em; }
 

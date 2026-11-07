@@ -1,6 +1,7 @@
 import json
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import replace
 from typing import Any
 
@@ -8,7 +9,7 @@ from nicegui import Client, app, context, ui
 
 from streamer_toolbox.core.alerts.boxes.alert_box import PICTURE_TYPES
 from streamer_toolbox.core.alerts.alert_look import ANIMATIONS_IN, ANIMATIONS_OUT, PLACES, TEXT_PLACES, AlertLook
-from streamer_toolbox.core.alerts.alert_part import ALIGNS, PARTS, AlertPart
+from streamer_toolbox.core.alerts.alert_part import ADDABLE, ALIGNS, PARTS, PICTURE_HEIGHT, AlertPart
 from streamer_toolbox.core.alerts.alert_input import KINDS
 from streamer_toolbox.core.alerts.alert_queue import AlertQueue
 from streamer_toolbox.core.alerts.alert_rule import AlertRule, default_parts
@@ -21,7 +22,7 @@ from streamer_toolbox.gui.components.file_dialog import FileDialog
 from streamer_toolbox.gui.components.split_panes import SplitPanes
 
 FIELD = "outlined dense options-dense"
-ADVANCED_KEY = "alert_look_advanced"  # app.storage.general: whether the page shows the advanced options
+CLOSED_KEY = "alert_editor_closed"  # app.storage.general: the parts of the settings he folded
 PANES_KEY = "alert_editor_panes"  # app.storage.general: which side of the page shows (SplitPanes)
 
 
@@ -30,13 +31,14 @@ class AlertEditor:
     Either side can be hidden (SplitPanes). On the left the alert as it will be on stream (a frame of the
     overlay page in edit mode: it stays; a piece of the words that is "on the picture" is dragged there to where
     it fits, and the picture itself drags the whole alert across the screen). On the right its settings: the
-    text, picture, sound, how long, the pieces of its words (a list he adds to and takes from: text line, name,
-    amount, their message; each can be put on the picture, so a picture that is a card gets its boxes filled),
-    where it is and how it comes in and goes out. The Advanced switch adds each piece's own words, width, size, colour and side, the
-    sizes, colours and font of the alert, the smallest amount and the bigger alerts from an amount. Play shows
-    it once with its animation. On top: its name and its event (his round 78: the event type it plays on; its
-    values are what it gets each time, {name} in its words, a field on its box in flows). Every change is saved at once and seen at once;
-    on_change() after each, on_delete() when it was deleted."""
+    text, picture, sound, how long, the pieces of its words and pictures (a list he adds to and takes from: text
+    line, amount, their message, a picture or video; each can be put on the picture, so a picture that is a card
+    gets its boxes filled), where it is and how it comes in and goes out, sizes, colours and font, the smallest
+    amount and the bigger alerts from an amount. Each part folds (his round 85: no Advanced switch, everything
+    shows, and he closes what he doesn't work on). Play shows it once with its animation. On top: its name and
+    its event (his round 78: the event type it plays on; its values are what it gets each time, {name} in its
+    words, a field on its box in flows). Every change is saved at once and seen at once; on_change() after each,
+    on_delete() when it was deleted."""
 
     def __init__(self, store: AlertStore, queue: AlertQueue, events: EventTypeStore, users: EventUsers, id_: str,
                  on_change: Callable[[], None] = lambda: None, on_delete: Callable[[], None] = lambda: None) -> None:
@@ -50,6 +52,7 @@ class AlertEditor:
         self._heading: ui.label | None = None
         self._frame = f"look_{uuid.uuid4().hex[:8]}"
         self._client: Client | None = None  # the page the window is on, see _send
+        self._folded: set[int] = set()  # the pieces whose settings are folded (by their place)
 
     @property
     def _rule(self) -> AlertRule:
@@ -60,8 +63,6 @@ class AlertEditor:
         panes = SplitPanes(PANES_KEY, "Preview", "Settings")
         with ui.row().classes("items-center w-full gap-2"):
             self._heading = ui.label(self._rule.title).classes("text-lg font-semibold flex-1 min-w-0 break-words")
-            ui.switch("Advanced", value=bool(app.storage.general.get(ADVANCED_KEY, False)),
-                      on_change=lambda e: self._set_advanced(e.value)).props("dense")
             panes.toggles()
         with panes.left():
             with ui.element("div").classes("w-full rounded overflow-hidden border border-gray-500/30") \
@@ -115,88 +116,106 @@ class AlertEditor:
 
     @ui.refreshable_method
     def _options(self) -> None:
+        """Every part folds (his round 85: "close every part, so we can focus on the part we want to edit"); what
+        is folded stays so. No Advanced switch any more: everything shows (his round 85)."""
         rule, look = self._rule, self._rule.look
-        advanced = bool(app.storage.general.get(ADVANCED_KEY, False))
-        _section("Name and event")
-        ui.input("Name", value=rule.name, on_change=lambda e: self._rename(e.value or "")) \
-            .props(FIELD + " debounce=400").classes("w-full")
-        self._inputs()
+        with self._part("Name and event"):
+            ui.input("Name", value=rule.name, on_change=lambda e: self._rename(e.value or "")) \
+                .props(FIELD + " debounce=400").classes("w-full")
+            self._inputs()
 
-        _section("What it says and shows")
-        ui.input("Text", value=rule.text, on_change=lambda e: self._change_rule(text=e.value or "")) \
-            .props(FIELD + " debounce=300").classes("w-full")
-        ui.label("Filled in: " + (", ".join("{" + i.name + "}" for i in rule.inputs) or "nothing (no inputs)")) \
-            .classes("text-xs opacity-60 -mt-1")
-        self._file("Picture, gif or video", rule.image, PICTURE_TYPES, lambda v: self._change_rule(image=v))
-        self._file("Sound", rule.sound, AUDIO_TYPES, lambda v: self._change_rule(sound=v))
-        if any(i.kind in ("picture", "sound") for i in rule.inputs):
-            ui.label("Empty: the file its picture / sound input gets. Or {name} of that input here.") \
+        with self._part("What it says and shows"):
+            ui.input("Text", value=rule.text, on_change=lambda e: self._change_rule(text=e.value or "")) \
+                .props(FIELD + " debounce=300").classes("w-full")
+            ui.label("Filled in: " + (", ".join("{" + i.name + "}" for i in rule.inputs) or "nothing (no inputs)")) \
                 .classes("text-xs opacity-60 -mt-1")
-        with ui.row().classes("no-wrap gap-2 w-full"):
-            ui.number("Seconds", value=rule.seconds, min=0.5, max=120, step=0.5,
-                      on_change=lambda e: self._change_rule(seconds=_number(e.value, 5))).props(FIELD).classes("flex-1")
-            ui.number("Volume (0 to 1)", value=rule.volume, min=0, max=1, step=0.1,
-                      on_change=lambda e: self._change_rule(volume=_number(e.value, 0))).props(FIELD).classes("flex-1")
+            self._file("Picture, gif or video", rule.image, PICTURE_TYPES, lambda v: self._change_rule(image=v))
+            self._file("Sound", rule.sound, AUDIO_TYPES, lambda v: self._change_rule(sound=v))
+            if any(i.kind in ("picture", "sound") for i in rule.inputs):
+                ui.label("Empty: the file its picture / sound input gets. Or {name} of that input here.") \
+                    .classes("text-xs opacity-60 -mt-1")
+            with ui.row().classes("no-wrap gap-2 w-full"):
+                ui.number("Seconds", value=rule.seconds, min=0.5, max=120, step=0.5,
+                          on_change=lambda e: self._change_rule(seconds=_number(e.value, 5))) \
+                    .props(FIELD).classes("flex-1")
+                ui.number("Volume (0 to 1)", value=rule.volume, min=0, max=1, step=0.1,
+                          on_change=lambda e: self._change_rule(volume=_number(e.value, 0))) \
+                    .props(FIELD).classes("flex-1")
 
-        _section("The pieces of its words")
-        ui.label("Add the pieces you want and take away the others. A piece that is on the picture gets a "
-                 "dashed box in the preview: drag it to where it fits. For a picture that is a card, take the "
-                 "text line away and put name, amount and message in their boxes.").classes("text-xs opacity-60")
-        for index, part in enumerate(rule.parts):
-            self._piece(index, part, advanced, bool(rule.image))
-        if not rule.parts:
-            ui.label("No pieces: this alert shows no words.").classes("text-xs opacity-60")
-        with ui.dropdown_button("Add a piece", icon="add", auto_close=True).props("no-caps outline dense"):
-            for kind, (title, _) in PARTS.items():
-                if (kind == "amount" and not rule.has_amount) or (kind == "message" and not rule.has_message):
-                    continue
-                ui.item(title, on_click=lambda k=kind: self._add_part(k))
-        ui.select(TEXT_PLACES, value=look.text_place, label="Pieces that aren't on the picture are",
-                  on_change=lambda e: self._change_look(text_place=e.value)).props(FIELD).classes("w-full")
+        with self._part("The pieces of its words and pictures"):
+            ui.label("Add the pieces you want and take away the others. A piece that is on the picture gets a "
+                     "dashed box in the preview: drag it to where it fits. For a picture that is a card, take the "
+                     "text line away and put the amount and message in their boxes.").classes("text-xs opacity-60")
+            for index, part in enumerate(rule.parts):
+                self._piece(index, part, bool(rule.image))
+            if not rule.parts:
+                ui.label("No pieces: this alert shows no words.").classes("text-xs opacity-60")
+            with ui.dropdown_button("Add a piece", icon="add", auto_close=True).props("no-caps outline dense"):
+                for kind in ADDABLE:
+                    if (kind == "amount" and not rule.has_amount) or (kind == "message" and not rule.has_message):
+                        continue
+                    ui.item(PARTS[kind][0], on_click=lambda k=kind: self._add_part(k))
+            ui.select(TEXT_PLACES, value=look.text_place, label="Pieces that aren't on the picture are",
+                      on_change=lambda e: self._change_look(text_place=e.value)).props(FIELD).classes("w-full")
 
-        _section("Where it is and how it moves")
-        ui.select(PLACES, value=look.place, label="Where on the screen",
-                  on_change=lambda e: self._change_look(place=e.value)).props(FIELD).classes("w-full")
-        with ui.row().classes("no-wrap gap-2 w-full"):
-            ui.select(ANIMATIONS_IN, value=look.animation_in, label="How it comes in",
-                      on_change=lambda e: self._change_look(play=True, animation_in=e.value)) \
-                .props(FIELD).classes("flex-1")
-            ui.select(ANIMATIONS_OUT, value=look.animation_out, label="How it goes out",
-                      on_change=lambda e: self._change_look(animation_out=e.value)).props(FIELD).classes("flex-1")
-        if not advanced:
-            return
-
-        _section("Sizes, colours, font")
-        with ui.row().classes("no-wrap gap-2 w-full"):
+        with self._part("Where it is and how it moves"):
+            ui.select(PLACES, value=look.place, label="Where on the screen",
+                      on_change=lambda e: self._change_look(place=e.value)).props(FIELD).classes("w-full")
+            with ui.row().classes("no-wrap gap-2 w-full"):
+                ui.select(ANIMATIONS_IN, value=look.animation_in, label="How it comes in",
+                          on_change=lambda e: self._change_look(play=True, animation_in=e.value)) \
+                    .props(FIELD).classes("flex-1")
+                ui.select(ANIMATIONS_OUT, value=look.animation_out, label="How it goes out",
+                          on_change=lambda e: self._change_look(animation_out=e.value)).props(FIELD).classes("flex-1")
             ui.number("Animation seconds", value=look.animation_seconds, min=0, max=3, step=0.1,
                       on_change=lambda e: self._change_look(animation_seconds=_number(e.value, 0.4))) \
-                .props(FIELD).classes("flex-1")
-            ui.number("Picture height %", value=look.picture_height, min=5, max=100, step=5,
-                      on_change=lambda e: self._change_look(picture_height=_number(e.value, 45))) \
-                .props(FIELD).classes("flex-1").tooltip("Percent of the screen's height. At 45 a picture keeps "
-                                                        "its own size unless it's bigger; any other number makes "
-                                                        "it exactly that high")
-            ui.number("Text size", value=look.text_size, min=10, max=200, step=2,
-                      on_change=lambda e: self._change_look(text_size=_number(e.value, 44))) \
-                .props(FIELD).classes("flex-1").tooltip("Pixels, on a 1080 high canvas")
-        with ui.row().classes("no-wrap gap-2 w-full"):
-            ui.color_input("Text colour", value=look.text_color,
-                           on_change=lambda e: self._change_look(text_color=e.value or "")) \
-                .props(FIELD + " clearable").classes("flex-1")
-            ui.color_input("Name colour", value=look.accent_color,
-                           on_change=lambda e: self._change_look(accent_color=e.value or "")) \
-                .props(FIELD + " clearable").classes("flex-1")
-        ui.input("Font", value=look.font, placeholder="e.g. Comic Sans MS (one installed on this PC)",
-                 on_change=lambda e: self._change_look(font=e.value or "")).props(FIELD + " debounce=400") \
-            .classes("w-full")
-        ui.label("Empty colours and font = the overlay's own (white, purple names).").classes("text-xs opacity-60")
+                .props(FIELD).classes("w-full")
+
+        with self._part("Sizes, colours, font"):
+            with ui.row().classes("no-wrap gap-2 w-full"):
+                ui.number("Picture height %", value=look.picture_height, min=5, max=100, step=5,
+                          on_change=lambda e: self._change_look(picture_height=_number(e.value, 45))) \
+                    .props(FIELD).classes("flex-1").tooltip("Percent of the screen's height. At 45 a picture keeps "
+                                                            "its own size unless it's bigger; any other number "
+                                                            "makes it exactly that high")
+                ui.number("Text size", value=look.text_size, min=10, max=200, step=2,
+                          on_change=lambda e: self._change_look(text_size=_number(e.value, 44))) \
+                    .props(FIELD).classes("flex-1").tooltip("Pixels, on a 1080 high canvas")
+            with ui.row().classes("no-wrap gap-2 w-full"):
+                ui.color_input("Text colour", value=look.text_color,
+                               on_change=lambda e: self._change_look(text_color=e.value or "")) \
+                    .props(FIELD + " clearable").classes("flex-1")
+                ui.color_input("Name colour", value=look.accent_color,
+                               on_change=lambda e: self._change_look(accent_color=e.value or "")) \
+                    .props(FIELD + " clearable").classes("flex-1")
+            ui.input("Font", value=look.font, placeholder="e.g. Comic Sans MS (one installed on this PC)",
+                     on_change=lambda e: self._change_look(font=e.value or "")).props(FIELD + " debounce=400") \
+                .classes("w-full")
+            ui.label("Empty colours and font = the overlay's own (white, purple names).") \
+                .classes("text-xs opacity-60")
 
         if rule.has_amount:
-            _section("Amounts")
-            ui.number("Only from (smallest amount that gets an alert)", value=rule.minimum, min=0, step=1,
-                      on_change=lambda e: self._change_rule(minimum=int(_number(e.value, 0)))) \
-                .props(FIELD).classes("w-full")
-            self._variations()
+            with self._part("Amounts"):
+                ui.number("Only from (smallest amount that gets an alert)", value=rule.minimum, min=0, step=1,
+                          on_change=lambda e: self._change_rule(minimum=int(_number(e.value, 0)))) \
+                    .props(FIELD).classes("w-full")
+                self._variations()
+
+    @contextmanager
+    def _part(self, title: str) -> Iterator[None]:
+        """One part of the settings that folds; whether it is folded is kept for every alert (CLOSED_KEY)."""
+        closed = app.storage.general.get(CLOSED_KEY, [])
+        with ui.expansion(value=title not in closed, on_value_change=lambda e: self._fold(title, e.value)) \
+                .props("dense switch-toggle-side").classes("w-full") as fold:
+            with fold.add_slot("header"):
+                ui.label(title).classes("text-xs font-semibold uppercase tracking-wider text-primary self-center")
+            with ui.column().classes("w-full gap-2 pb-2"):
+                yield
+
+    @staticmethod
+    def _fold(title: str, open_: bool) -> None:
+        closed = [t for t in app.storage.general.get(CLOSED_KEY, []) if t != title]
+        app.storage.general[CLOSED_KEY] = closed if open_ else [*closed, title]
 
     @ui.refreshable_method
     def _inputs(self) -> None:
@@ -224,21 +243,29 @@ class AlertEditor:
                         .props("dense").tooltip("\"Only from\" and the bigger alerts go by this one")
         ui.link("Change the event's values: Overlay → Events", "/overlays?show=events").classes("text-xs")
 
-    def _piece(self, index: int, part: AlertPart, advanced: bool, has_picture: bool) -> None:
+    def _piece(self, index: int, part: AlertPart, has_picture: bool) -> None:
+        """One piece: its head (name, on the picture, up, fold, take away) and, unfolded, its own settings."""
+        folded = index in self._folded
         with ui.card().props("flat bordered").classes("w-full gap-1 p-2"):
             with ui.row().classes("items-center no-wrap gap-1 w-full"):
+                ui.button(icon="chevron_right" if folded else "expand_more",
+                          on_click=lambda: self._fold_piece(index)) \
+                    .props("flat round dense size=sm").tooltip("Show or hide its settings")
                 ui.label(part.title).classes("text-sm font-semibold flex-1")
                 ui.switch("On the picture", value=part.on_picture,
                           on_change=lambda e: self._put_on_picture(index, e.value)).props("dense").classes("mr-2")
                 if index:
                     ui.button(icon="arrow_upward", on_click=lambda: self._part_up(index)) \
-                        .props("flat round dense").tooltip("One place up in the list (and in the stack of words)")
+                        .props("flat round dense").tooltip("One place up in the list (and in the stack)")
                 ui.button(icon="delete", on_click=lambda: self._drop_part(index)) \
                     .props("flat round dense").tooltip("Take this piece away")
             if part.on_picture and not has_picture:
                 ui.label("This alert has no picture yet: give it one above, then this piece can sit on it.") \
                     .classes("text-xs text-warning")
-            if not advanced:
+            if folded:
+                return
+            if part.kind == "picture":
+                self._picture_piece(index, part)
                 return
             ui.input("What it says", value=part.text,
                      placeholder=PARTS[part.kind][1] or "the alert's Text, above",
@@ -259,14 +286,32 @@ class AlertEditor:
                              "grow the alert without end. Empty = as many as it needs")
             if part.on_picture:
                 with ui.row().classes("no-wrap gap-2 w-full"):
-                    ui.select(ALIGNS, value=part.align, label="It starts at its",
-                              on_change=lambda e: self._change_part(index, align=e.value)) \
-                        .props(FIELD).classes("flex-1") \
-                        .tooltip("Left: the spot you drag it to is where its words begin (good for a box to fill)")
+                    self._align(index, part)
                     ui.number("Width %", value=part.width or None, min=0, max=100, step=5, placeholder="as needed",
                               on_change=lambda e: self._change_part(index, width=_number(e.value, 0))) \
                         .props(FIELD).classes("flex-1") \
                         .tooltip("How much of the picture's width it may use before its words wrap")
+
+    def _picture_piece(self, index: int, part: AlertPart) -> None:
+        """A picture or video piece (his round 85): its file and how high it is."""
+        self._file("Picture, gif or video", part.file, PICTURE_TYPES,
+                   lambda value: self._change_part(index, file=value))
+        with ui.row().classes("no-wrap gap-2 w-full"):
+            ui.number("Height", value=part.size or None, min=0, max=1080, step=10, placeholder=str(PICTURE_HEIGHT),
+                      on_change=lambda e: self._change_part(index, size=_number(e.value, 0))) \
+                .props(FIELD).classes("flex-1").tooltip("Pixels, on a 1080 high canvas. Its width follows")
+            if part.on_picture:
+                self._align(index, part)
+
+    def _align(self, index: int, part: AlertPart) -> None:
+        ui.select(ALIGNS, value=part.align, label="It starts at its",
+                  on_change=lambda e: self._change_part(index, align=e.value)) \
+            .props(FIELD).classes("flex-1") \
+            .tooltip("Left: the spot you drag it to is where it begins (good for a box to fill)")
+
+    def _fold_piece(self, index: int) -> None:
+        self._folded ^= {index}
+        self._options.refresh()
 
     @ui.refreshable_method
     def _variations(self) -> None:
@@ -350,10 +395,6 @@ class AlertEditor:
                 ui.button("Delete", icon="delete", on_click=yes).props("no-caps unelevated color=negative")
         sure.open()
 
-    def _set_advanced(self, on: bool) -> None:
-        app.storage.general[ADVANCED_KEY] = on
-        self._options.refresh()
-
     def _save(self, rule: AlertRule, redraw: bool = False, play: bool = False) -> None:
         self._store.save(rule)
         self._on_change()
@@ -384,9 +425,11 @@ class AlertEditor:
         self._save(self._rule.add_part(AlertPart(kind)), redraw=True)
 
     def _drop_part(self, index: int) -> None:
+        self._folded.clear()  # the places moved
         self._save(self._rule.without_part(index), redraw=True)
 
     def _part_up(self, index: int) -> None:
+        self._folded = {index - 1 if i == index else index if i == index - 1 else i for i in self._folded}
         self._save(self._rule.part_up(index), redraw=True)
 
     def _moved(self, spot: dict[str, Any]) -> None:
@@ -420,7 +463,8 @@ class AlertEditor:
         rule = replace(rule, look=replace(rule.look, picture_height=float(size["height"])).checked())
         for index, pixels in size.get("sizes") or []:
             if isinstance(index, int) and 0 <= index < len(rule.parts) and rule.parts[index].on_picture:
-                rule = rule.with_part(index, replace(rule.parts[index], size=max(1.0, min(float(pixels), 300.0))))
+                most = 1080.0 if rule.parts[index].kind == "picture" else 300.0  # a picture piece: its height
+                rule = rule.with_part(index, replace(rule.parts[index], size=max(1.0, min(float(pixels), most))))
         self._store.save(rule)
         self._on_change()
         self._send("hold")  # the frame draws it again from what was saved
@@ -472,10 +516,6 @@ class AlertEditor:
             return
         message = json.dumps({"type": kind, "alert": payload})
         self._client.run_javascript(f'document.getElementById("{self._frame}")?.contentWindow.postMessage({message}, "*")')
-
-
-def _section(title: str) -> None:
-    ui.label(title).classes("text-xs font-semibold uppercase tracking-wider text-primary pt-2")
 
 
 def _number(value: Any, fallback: float) -> float:

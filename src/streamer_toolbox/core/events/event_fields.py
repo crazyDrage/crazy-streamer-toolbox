@@ -68,6 +68,7 @@ EVENT_FIELDS: dict[str, tuple[str, ...]] = {
     "youtube.superchat": ("user", "amount", "currency", "message", "role", "platform"),
     "youtube.supersticker": ("user", "amount", "currency", "message", "role", "platform"),
     "youtube.member": ("user", "level", "upgrade", "role", "platform"),
+    "youtube.follow": ("user", "user_id", "followed_at", "platform"),  # a new subscriber (the follower check)
     "youtube.member_milestone": ("user", "months", "level", "message", "role", "platform"),
     "youtube.gift_members": ("user", "amount", "level", "role", "platform"),
     "youtube.online": ("title", "platform"),
@@ -106,6 +107,16 @@ EVENT_FIELDS: dict[str, tuple[str, ...]] = {
     "vts.model_moved": ("model", "x", "y", "rotation", "size"),
     "key.pressed": ("key",),
 }
+# every Twitch event also says which of his accounts heard it (his plan of 2026-11-05, answer 120: "trigger is
+# getting an account name output"): the main account, or another one that listens to its own channel
+ACCOUNT_FIELD = "account"
+ACCOUNT_PLATFORMS = ("twitch.", "youtube.", "rumble.")  # several accounts (2026-11-06: every streaming platform)
+COMMON_KINDS = ("chat", "follow", "sub", "resub", "gift", "cheer", "raid", "redeem", "online", "offline")  # CommonEvents
+MAIN_ACCOUNT_FIELD = "main_account"  # in every Twitch event too: the main account when it came (no dot of its own)
+EVENT_FIELDS.update({kind: (*fields, ACCOUNT_FIELD) for kind, fields in EVENT_FIELDS.items()
+                     if kind.startswith(ACCOUNT_PLATFORMS) or kind in COMMON_KINDS})
+# ... and so does every common event (any platform; "" from a platform without several accounts): a flow checks
+# it itself, e.g. with List has (his ask of 2026-11-05)
 
 # a viewer's "role", lowest to highest. Only a chat message tells it; every other event with "role" above gets
 # it from the RoleBook (the role the viewer had in their last chat message). A trigger's "who" is the lowest

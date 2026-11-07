@@ -14,6 +14,7 @@ from typing import Any
 import httpx
 
 from streamer_toolbox.core.app_version import APP_VERSION, channel_takes, is_newer, version_numbers
+from streamer_toolbox.core.files.write_whole import write_whole
 from streamer_toolbox.core.system.settings_backup import SettingsBackup
 from streamer_toolbox.core.system.starter_settings import StarterSettings
 from streamer_toolbox.core.system.toolbox_release import ToolboxRelease
@@ -201,4 +202,4 @@ class ToolboxUpdate:
 
     def _write(self, name: str, data: dict[str, Any]) -> None:
         self._folder.mkdir(parents=True, exist_ok=True)
-        (self._folder / name).write_text(json.dumps(data, indent=1), encoding="utf-8")
+        write_whole(self._folder / name, json.dumps(data, indent=1))

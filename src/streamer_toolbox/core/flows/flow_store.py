@@ -6,6 +6,7 @@ from typing import Any
 
 import tomlkit
 
+from streamer_toolbox.core.files.write_whole import write_whole
 from streamer_toolbox.core.flows.flow import Flow
 from streamer_toolbox.core.flows.flow_group import FlowGroup
 from streamer_toolbox.core.flows.flow_input import FlowInput
@@ -68,7 +69,7 @@ class FlowStore:
         if not NAME.fullmatch(flow.name):
             raise ValueError(f"flow name {flow.name!r}: use only a-z, 0-9 and _")
         self.folder.mkdir(parents=True, exist_ok=True)
-        self.path_of(flow.name).write_text(tomlkit.dumps(self.to_data(flow)), encoding="utf-8")
+        write_whole(self.path_of(flow.name), tomlkit.dumps(self.to_data(flow)))
 
     def delete(self, name: str) -> None:
         self.path_of(name).unlink(missing_ok=True)

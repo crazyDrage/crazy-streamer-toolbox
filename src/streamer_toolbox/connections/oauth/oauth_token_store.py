@@ -2,9 +2,10 @@ import json
 from pathlib import Path
 
 from streamer_toolbox.connections.oauth.oauth_token import OAuthToken
+from streamer_toolbox.connections.oauth.token_keeper import TokenKeeper
 
 
-class OAuthTokenStore:
+class OAuthTokenStore(TokenKeeper):
     """A login, kept in its own file next to the settings (config/secrets/twitch_token.json, config/secrets/youtube_token.json),
     never in toolbox.toml."""
 

@@ -34,9 +34,11 @@ class TwitchStreamActions:
 
     def __init__(self, helix: Helix, me: Callable[[], OAuthToken],
                  pick: Callable[[list], Any] = random.choice,
-                 now: Callable[[], datetime] = lambda: datetime.now(timezone.utc)) -> None:
+                 now: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+                 channel: Callable[[], OAuthToken] | None = None) -> None:
         self._helix = helix
         self._me = me
+        self._channel = channel or me  # where moderator boxes act (TwitchStreamBox.in_channel)
         self._pick = pick
         self._now = now
 
@@ -51,4 +53,4 @@ class TwitchStreamActions:
                     self._pick, self._now), StartPoll(self._helix, self._me, self._pick, self._now),
                     EndPoll(self._helix, self._me, self._pick, self._now), StartPrediction(self._helix, self._me,
                     self._pick, self._now), EndPrediction(self._helix, self._me, self._pick, self._now)):
-            actions.add_box(box, "twitch")
+            actions.add_box(box.in_channel(self._channel), "twitch")

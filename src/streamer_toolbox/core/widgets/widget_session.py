@@ -3,6 +3,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from streamer_toolbox.core.files.write_whole import write_whole
 from streamer_toolbox.core.history.event_history import PERIODS, EventHistory
 
 KINDS = ("follower", "subscriber", "cheer", "raid", "tip", "host")
@@ -112,5 +113,4 @@ class WidgetSession:
         self._path.parent.mkdir(parents=True, exist_ok=True)
         data = {key: value for key, value in self.data.items()
                 if key.endswith(("-latest", "-recent", "-total", "-points"))}
-        self._path.write_text(json.dumps({"data": data, "recents": self.recents}, ensure_ascii=False),
-                              encoding="utf-8")
+        write_whole(self._path, json.dumps({"data": data, "recents": self.recents}, ensure_ascii=False))

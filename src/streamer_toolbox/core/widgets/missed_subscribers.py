@@ -5,6 +5,7 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
+from streamer_toolbox.core.files.write_whole import write_whole
 from streamer_toolbox.core.history.event_history import EventHistory
 from streamer_toolbox.core.widgets.widget_session import WidgetSession
 
@@ -91,4 +92,4 @@ class MissedSubscribers:
 
     def _keep(self, logins: set[str]) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._path.write_text(json.dumps(sorted(logins)), encoding="utf-8")
+        write_whole(self._path, json.dumps(sorted(logins)))

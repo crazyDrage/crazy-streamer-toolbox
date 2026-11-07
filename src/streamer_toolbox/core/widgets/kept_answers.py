@@ -4,6 +4,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from streamer_toolbox.core.files.write_whole import write_whole
+
 KEEP_SECONDS = 6 * 60 * 60
 
 
@@ -37,9 +39,9 @@ class KeptAnswers:
             del self._kept[next(iter(self._kept))]
         if self._path is not None:
             self._path.parent.mkdir(parents=True, exist_ok=True)
-            self._path.write_text(json.dumps({key: {"at": at, "answer": answer}
-                                              for key, (at, answer) in self._kept.items()},
-                                             ensure_ascii=False), encoding="utf-8")
+            write_whole(self._path, json.dumps({key: {"at": at, "answer": answer}
+                                                for key, (at, answer) in self._kept.items()},
+                                               ensure_ascii=False))
 
     def _read(self) -> dict[str, tuple[float, Any]]:
         """What the file holds; a file that can't be read is no loss (the question is asked again)."""

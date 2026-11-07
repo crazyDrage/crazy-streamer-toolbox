@@ -16,6 +16,7 @@ from streamer_toolbox.connections.heartrate.heart_rate import EVENT as HEART_RAT
 from streamer_toolbox.connections.keyboard_connection import KEY_PRESSED
 from streamer_toolbox.connections.mixitup.mixitup_point_bank import MixItUpPointBank
 from streamer_toolbox.connections.mixitup_connection import MixItUpConnection
+from streamer_toolbox.connections.oauth.account_tokens import AccountTokens
 from streamer_toolbox.connections.oauth.oauth_token_store import OAuthTokenStore
 from streamer_toolbox.connections.sammi.toolbox_deck import toolbox_deck
 from streamer_toolbox.connections.twitch_connection import TwitchConnection
@@ -85,8 +86,14 @@ from streamer_toolbox.core.testing.test_inventory import TestInventory
 from streamer_toolbox.core.testing.test_list import TestList
 from streamer_toolbox.core.testing.test_view import TestView
 from streamer_toolbox.core.tips.tip_actions import TipActions
+from streamer_toolbox.core.system.settings_backup import UPGRADES, SettingsBackup
+from streamer_toolbox.core.system.upgrade_backup_policy import UpgradeBackupPolicy
+from streamer_toolbox.core.upgrades.accounts_upgrade import AccountsUpgrade
 from streamer_toolbox.core.upgrades.settings_upgrades import SettingsUpgrades
 from streamer_toolbox.core.upgrades.settings_version import SETTINGS_VERSION
+from streamer_toolbox.core.upgrades.youtube_accounts_upgrade import YouTubeAccountsUpgrade
+from streamer_toolbox.core.upgrades.rumble_accounts_upgrade import RumbleAccountsUpgrade
+from streamer_toolbox.connections.rumble_connection import MOVED as RUMBLE_MOVED
 from streamer_toolbox.core.variables.variable_store import VariableStore
 from streamer_toolbox.core.widgets.channel_lookup import ChannelLookup
 from streamer_toolbox.core.widgets.emote_lookup import EmoteLookup
@@ -125,6 +132,7 @@ from streamer_toolbox.gui.components.points_tool.points_tool import PointsTool
 from streamer_toolbox.gui.components.twitch_tool.twitch_tool import TwitchTool
 from streamer_toolbox.gui.components.import_tool.import_tool import ImportTool
 from streamer_toolbox.gui.components.import_tool.streamelements_importer import StreamElementsImporter
+from streamer_toolbox.gui.components.widgets_tool.designer_tool import DesignerTool
 from streamer_toolbox.gui.components.widgets_tool.widgets_tool import WidgetsTool
 from streamer_toolbox.gui.pages.connections_page import ConnectionsPage
 from streamer_toolbox.gui.pages.flow_editor_page import FlowEditorPage
@@ -136,6 +144,9 @@ from streamer_toolbox.gui.pages.login_page import LoginPage
 from streamer_toolbox.gui.pages.overlay_page import OverlayPage
 from streamer_toolbox.gui.pages.plugins_page import PluginsPage
 from streamer_toolbox.gui.pages.settings_page import SettingsPage
+from streamer_toolbox.gui.components.export_panel import ExportPanel
+from streamer_toolbox.core.exports.export_finder import ExportFinder
+from streamer_toolbox.core.exports.export_importer import ExportImporter
 from streamer_toolbox.gui.pages.tools_page import ToolsPage, tool_slug
 from streamer_toolbox.gui.pages.variables_page import VariablesPage
 from streamer_toolbox.gui.services.activity_log import ActivityLog
@@ -187,7 +198,10 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
 
     shell.info_bar = info_bar
     secrets = SecretsFolder(args.config.parent)  # tokens, keys and logins: config/secrets/
-    twitch_tokens = OAuthTokenStore(secrets.path("twitch_token.json"))
+    # one login per Twitch account, config/secrets/twitch/<login>.json, the main one in [twitch] main_account
+    # (his plan of 2026-11-05: docs/PLAN_multi_accounts.md)
+    twitch_tokens = AccountTokens(secrets.folder / "twitch", lambda file: secrets.path(f"twitch/{file}"),
+                                  lambda: twitch.settings.get("main_account", ""), lambda name: set_twitch_main(name))
     # every event that names a viewer gets their role (only chat tells it): the role filter of the triggers
     roles = RoleBook(lambda: (twitch_tokens.load().user_id if twitch_tokens.load() else ""))
     events = EventBus(roles.fill)
@@ -215,8 +229,17 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
         last_events.raw(kind, message)
         recording.raw(kind, message)
 
+    def save_twitch(values: dict) -> None:
+        """A Twitch setting the tab changed (its accounts): into toolbox.toml [twitch] and into the connection."""
+        ConfigTableWriter(args.config).save("twitch", values)
+        twitch.configure({**twitch.settings, **values})
+
+    def set_twitch_main(name: str) -> None:
+        save_twitch({"main_account": name})
+
     twitch = TwitchConnection(config.tables.get("twitch", {}), twitch_tokens, events, folder=args.config.parent,
-                              raw=raw_event)
+                              raw=raw_event, save_settings=save_twitch)
+
     probe = Mp4HeaderProbe()
 
     def wants_key(name: str) -> bool:
@@ -227,8 +250,10 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
     heart = HeartRate(events)
     if not left_out(HEART_RATE):
         heart.add_to(actions)
+    built_in = BuiltInConnections(config.tables, config.obs, args.config.parent, events, secrets, raw_event,
+                                  config_file=args.config)
     connections = ConnectionManager([connection for connection in [
-        *BuiltInConnections(config.tables, config.obs, args.config.parent, events, secrets, raw_event).build(
+        *built_in.build(
             probe, twitch, twitch_tokens, mixitup, heart, wants_key,
             lambda: toolbox_deck(actions, config.callers, port)),
         *ui_registry.connections,  # a plugin's own (ctx.add_connection)
@@ -241,6 +266,9 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
         connection.add_actions(actions)
         for box in connection.boxes():
             actions.add_box(box, connection.id)
+        accounts = connection.account_choice()
+        if accounts is not None:  # several accounts: its boxes get an Account field (docs/PLAN_multi_accounts.md)
+            actions.accounts_for(connection.id, *accounts)
     actions.sort_into(lambda: {category: SERVICES for c in connections.all()
                                for category in (c.id, BOX_CATEGORY.get(c.id, c.id))}
                       | {HEART_RATE: SERVICES}  # HypeRate's and Pulsoid's box
@@ -307,7 +335,22 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
     event_flows = EventFlows(flows, event_types)
     event_users = EventUsers(event_types, widget_store, alert_store, event_flows)
     conversion = EventConversion(event_types, widget_store, alert_store, flows)
-    upgrades = SettingsUpgrades(args.config, [EventsUpgrade(conversion)])  # the settings folder's version
+    def upgrade_backup(old: int, new: int) -> Path:
+        """The settings folder before an upgrade (his rule, 2026-11-05): backups/upgrades/, the last 5 and the
+        first of every day kept."""
+        backup = SettingsBackup(args.config.parent, sub=UPGRADES)
+        copy = backup.make(f"settings-v{old}-before-v{new}")
+        backup.prune(UpgradeBackupPolicy())
+        return copy
+
+    upgrades = SettingsUpgrades(args.config, [  # the settings folder's version: docs/SETTINGS_CHANGES.md
+        EventsUpgrade(conversion),
+        AccountsUpgrade(lambda: twitch_tokens.move_single_file(OAuthTokenStore(secrets.path("twitch_token.json"))),
+                        event_types, ConfigTableWriter(args.config)),
+        YouTubeAccountsUpgrade(lambda: built_in.youtube_tokens.move_single_file(
+            OAuthTokenStore(secrets.path("youtube_token.json")))),
+        RumbleAccountsUpgrade(lambda: built_in.rumble_keys.move_single_file(
+            secrets.path("rumble_address.txt"), RUMBLE_MOVED))], back_up=upgrade_backup)
     for line in upgrades.run() + conversion.leftovers():
         log.info("settings upgrade %s", line)
     flows.upgrade = upgrades.flow  # an imported flow from an older toolbox gets the same upgrades
@@ -317,6 +360,11 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
             f"this one knows up to {SETTINGS_VERSION}).\n\nThe toolbox reads them as they are and changes "
             "nothing in them. Something made in the newer version may not work here.\n\nUse the newer "
             "toolbox again, or a copy of the settings from before.")
+    if upgrades.failed:  # his rule: no upgrade without a backup before it
+        shell.notices["settings"] = HeaderNotice(
+            "Settings not upgraded", f"This toolbox needs its settings upgraded to version {SETTINGS_VERSION}, but "
+            f"{upgrades.failed}.\n\nNothing in the settings was changed; the toolbox reads them as they are, so "
+            "something may not work. The next start tries again (is the disk full, or a file open somewhere?).")
     for name in widget_store.names():  # widgets that never had inputs or events: the ones their code asks for
         event_users.give_events(name)
     event_users.start()  # alerts follow their events; each used event has its flow (made once)
@@ -402,7 +450,8 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
     deck_images = DeckImages(args.config.parent / "deck_images")
     deck_images.folder.mkdir(parents=True, exist_ok=True)
     app.add_static_files(DECK_IMAGES_URL, deck_images.folder)
-    live_page = LivePage(actions, activity, DeckStore(args.config.parent / "live_deck.json", flows.all), flows,
+    deck_store = DeckStore(args.config.parent / "live_deck.json", flows.all)  # one: a save redraws open Live pages
+    live_page = LivePage(actions, activity, deck_store, flows,
                          deck_images, lambda: ActionPicker(actions, filters=box_filters, switched_off=switched_off,
                                                            view=test_view, flow_only=False))
     shell.page("Live", "/", live_page.build, heading=False)
@@ -414,11 +463,17 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
     shell.page("Flows", "/flows", flows_page.build)
     shell.sub_items["/flows"] = flows_page.side_items
     shell.side_tools["/flows"] = flows_page.side_tool
+    def trigger_accounts(kind: str) -> list[str]:
+        """The accounts of the trigger's connection whose events come in now (Twitch with several); for a
+        common trigger (any platform) those of every connection."""
+        owner, dot, _ = kind.partition(".")
+        return [name for c in connections.all() if not dot or c.id == owner for name in c.listening_accounts()]
+
     shell.page("Edit flow", "/flows/edit", FlowEditorPage(flows, actions, runner, variables,
                                                             BoxValueFiles(boxes),
                                                             {"twitch.redeem": twitch.reward_choices},
                                                             box_filters, switched_off, last_events,
-                                                            test_view).build)
+                                                            test_view, trigger_accounts).build)
     shell.page("Variables", "/variables", VariablesPage(variables, flows).build)
     ui_registry.tools.insert(0, ("toolbox", "Twitch", "live_tv", "Your channel point rewards (and more Twitch things "
                                  "later)", lambda: TwitchTool(twitch, flows).build()))
@@ -435,11 +490,13 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
         WidgetsTool(widget_store, widget_hub, overlay_source, port, event_types, event_users, event_flows,
                     widget_fallback),
         ImportTool(ui_registry.importers_on, WidgetImportTarget(widget_store, event_users)),
-        EventsTool(event_types, event_users, event_flows), alert_queue, alert_backup, overlay_source, port).build)
+        EventsTool(event_types, event_users, event_flows), alert_queue, alert_backup, overlay_source, port,
+        DesignerTool(widget_store, widget_hub, event_users)).build)
     tools_page = ToolsPage(ui_registry, test_view)
     shell.page("Tools", "/tools", tools_page.build)
     shell.sub_items["/overlays"] = [("Alerts", "/overlays?show=alerts", "campaign"),
                                     ("Widgets", "/overlays?show=widgets", "widgets"),
+                                    ("Widget editor", "/overlays?show=designer", "design_services", True),
                                     ("Events", "/overlays?show=events", "bolt"),
                                     ("Import", "/overlays?show=import", "file_download")]
     shell.sub_items["/tools"] = lambda: [(title, f"/tools?show={tool_slug(title)}", icon or "handyman")
@@ -476,7 +533,12 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
                                 restart, BoxFilterPanel(box_filters, actions),
                                 TestViewPanel(test_view, lambda: gate.items()),
                                 RoleLoadingPanel(role_loading, role_loader), EventRecordingPanel(recording),
-                                SecretsLoginPanel(secrets.vault, str(secrets.folder)), update_panel)
+                                SecretsLoginPanel(secrets.vault, str(secrets.folder)), update_panel,
+                                ExportPanel(ExportFinder(flows, alert_store, widget_store, event_types, variables,
+                                                         deck_store, deck_images, actions),
+                                            ExportImporter(flows, alert_store, widget_store, event_types, variables,
+                                                           deck_store, deck_images, actions,
+                                                           args.config.parent / "media", event_users.start)))
     shell.page("Settings", "/settings", settings_page.build)
     shell.sub_items["/settings"] = settings_page.sections
 
@@ -484,7 +546,7 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
         """The side menu for the test record: every main tab with the pages below it. The tools and the
         connections are not pages here: they have rows of their own."""
         below = {"/flows": [("Edit flow", "/flows/edit")],
-                 "/overlays": [(title, path) for title, path, _ in shell.sub_items["/overlays"]],
+                 "/overlays": [(title, path) for title, path, *_ in shell.sub_items["/overlays"]],
                  "/connections": [("Toolbox", "/connections?show=toolbox")],
                  "/plugins": [(title, path) for title, path, _ in ui_registry.pages],
                  "/learn": [(title, path) for title, path, *_ in learn_page.side_items()],

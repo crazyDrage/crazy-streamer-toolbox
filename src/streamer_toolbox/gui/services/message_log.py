@@ -5,6 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from streamer_toolbox.core.files.write_whole import write_whole
 from streamer_toolbox.gui.services.message_entry import MessageEntry
 
 log = logging.getLogger(__name__)
@@ -44,7 +45,7 @@ class MessageLog:
         try:
             self._path.parent.mkdir(parents=True, exist_ok=True)
             lines = [vars(e) for e in list(self._entries)[:self._kept]]
-            self._path.write_text(json.dumps(lines, ensure_ascii=False, indent=1), encoding="utf-8")
+            write_whole(self._path, json.dumps(lines, ensure_ascii=False, indent=1))
         except OSError as e:
             log.warning("could not keep the last messages: %s", e)
 

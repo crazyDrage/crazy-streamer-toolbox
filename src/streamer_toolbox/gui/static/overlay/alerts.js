@@ -21,6 +21,7 @@
     addEventListener("resize", fit);
     fit();
   }
+  const PICTURE_HEIGHT = 150;  // a picture piece without a size of its own (AlertPart.PICTURE_HEIGHT)
   const READY_MS = 1500;  // the longest an alert waits for its picture before it starts anyway
   let timer = null;
   let sound = null;
@@ -79,7 +80,7 @@
   // edit mode: a piece of the words on the picture can be dragged; where its anchor ends up (the left end,
   // middle or right end of its top edge, by its alignment) goes to the editor with the piece's place in the
   // alert's list
-  function makeDraggable(piece, media, index, align) {
+  function makeDraggable(piece, media, index, align, widens) {
     piece.classList.add("draggable");
     const nudge = (dx, dy) => {  // the arrow keys: its spot in percent of the picture, one canvas pixel a step
       const keep = value => Math.round(Math.max(0, Math.min(value, 100)) * 100) / 100;
@@ -89,7 +90,7 @@
       piece.style.top = y + "%";
       tellLater({type: "toolbox_alert_text", index, x, y});
     };
-    if (markedKey === index) mark(piece, index, nudge);
+    if (markedKey === index) mark(piece, index, nudge, false);
     piece.addEventListener("pointerdown", down => {
       down.preventDefault();
       down.stopPropagation();  // this piece moves, not the whole alert
@@ -119,7 +120,7 @@
       piece.addEventListener("pointermove", move);
       piece.addEventListener("pointerup", up);
     });
-    makeWidenable(piece, media, index, align, nudge);
+    if (widens) makeWidenable(piece, media, index, align, nudge);  // a picture piece keeps its own shape
   }
 
   // edit mode: a handle on a piece's side sets how wide it may be (percent of the picture) before its words wrap,
@@ -168,7 +169,9 @@
       handle.setPointerCapture(down.pointerId);
       const screen = stage.getBoundingClientRect().height;
       const start = media.getBoundingClientRect().height;
-      const words = [...media.querySelectorAll(".part.over")].map(part => [part, parseFloat(getComputedStyle(part).fontSize)]);
+      // a words piece grows by its font size, a picture piece by its height
+      const sizeOf = part => part.classList.contains("part-picture") ? "height" : "fontSize";
+      const words = [...media.querySelectorAll(".part.over")].map(part => [part, parseFloat(getComputedStyle(part)[sizeOf(part)])]);
       const grown = () => media.getBoundingClientRect().height / start;  // the picture may be held by the screen's width
       const height = event => {
         const pulled = (event.clientY - down.clientY) * (fromBottom ? -1 : 1) * grows;
@@ -177,7 +180,7 @@
       const move = event => {
         box.style.setProperty("--alert-media-height", `calc(var(--vh) * ${height(event)})`);
         box.classList.add("sized");
-        for (const [part, size] of words) part.style.fontSize = size * grown() + "px";
+        for (const [part, size] of words) part.style[sizeOf(part)] = size * grown() + "px";
       };
       const up = event => {
         handle.removeEventListener("pointermove", move);
@@ -197,14 +200,16 @@
   let marked = null;
   let markedKey = null;
   let nudged = null;
-  function mark(element, key, nudge) {
+  // focus: false when the editor sent the alert again (a field there was typed in): the keys stay in that field
+  // (his round 85: "it will remove my cursor after one letter")
+  function mark(element, key, nudge, focus = true) {
     for (const old of document.querySelectorAll(".marked")) old.classList.remove("marked");
     element.classList.add("marked");
     marked = {element, nudge};
     markedKey = key;
     // the keys must come here: a drag's preventDefault keeps the focus on the editor page around this frame
     // (his round 74: "arrow keys does nothing")
-    window.focus();
+    if (focus) window.focus();
   }
   if (EDIT) {
     addEventListener("keydown", event => {
@@ -251,7 +256,7 @@
       place(spotX, spotY);
       tellLater({type: "toolbox_alert_spot", x: spotX, y: spotY});
     };
-    if (markedKey === "alert") mark(box, "alert", nudge);
+    if (markedKey === "alert") mark(box, "alert", nudge, false);
     box.addEventListener("pointerdown", down => {
       down.preventDefault();
       box.setPointerCapture(down.pointerId);
@@ -320,16 +325,23 @@
     for (const piece of alert.parts || []) {
       const part = document.createElement("div");
       part.className = "part part-" + piece.kind;
-      if (piece.kind === "text") part.innerHTML = textHtml(piece.text, alert.highlights || []);
+      if (piece.kind === "picture") {  // a picture or video of its own (his round 85), as high as its size
+        const shown = document.createElement(piece.video ? "video" : "img");
+        shown.src = piece.file;
+        shown.draggable = false;
+        if (piece.video) Object.assign(shown, {autoplay: true, loop: true, muted: true, playsInline: true});
+        part.appendChild(shown);
+        part.style.height = (piece.size || PICTURE_HEIGHT) + "px";
+      } else if (piece.kind === "text") part.innerHTML = textHtml(piece.text, alert.highlights || []);
       else part.textContent = piece.text;
-      if (piece.lines) {  // at most that many lines, the rest cut with "…" (inside, so the editor's bar isn't cut)
+      if (piece.lines && piece.kind !== "picture") {  // at most that many lines, the rest cut with "…" (inside, so the editor's bar isn't cut)
         const clamp = document.createElement("div");
         clamp.className = "clamp";
         clamp.style.webkitLineClamp = piece.lines;
         clamp.append(...part.childNodes);
         part.appendChild(clamp);
       }
-      if (piece.size) part.style.fontSize = piece.size + "px";
+      if (piece.size && piece.kind !== "picture") part.style.fontSize = piece.size + "px";
       if (piece.color) {  // the piece's own colour also for the name and amount in its words (round 76)
         part.style.color = piece.color;
         part.style.setProperty("--alert-accent", piece.color);
@@ -341,9 +353,9 @@
         part.dataset.index = piece.index;
         part.style.left = (piece.x !== undefined ? piece.x : 50) + "%";
         part.style.top = (piece.y !== undefined ? piece.y : 50) + "%";
-        if (piece.width) part.style.width = piece.width + "%";  // of the picture: its words wrap inside
+        if (piece.width && piece.kind !== "picture") part.style.width = piece.width + "%";  // its words wrap inside
         media.appendChild(part);
-        if (EDIT) makeDraggable(part, media, piece.index, align);
+        if (EDIT) makeDraggable(part, media, piece.index, align, piece.kind !== "picture");
       } else {
         words.appendChild(part);
       }

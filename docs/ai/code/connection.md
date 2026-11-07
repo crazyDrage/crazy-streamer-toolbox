@@ -22,6 +22,12 @@ HTTP API with pickers).
      tab gets "Add default flows", which puts them switched off into the folder the file names
      (`core/flows/DefaultFlows`; Twitch and YouTube have one, `tests/connections/test_default_flow_files.py`
      checks the triggers and fields of the built-in ones).
+   - `account_choice()` (optional, for a program with several logins; Twitch has it): `(on, names)`, two
+     callables: is its "Multiple accounts" switch on, and the accounts' names. Every box of the connection
+     then gets an Account field (`ActionRegistry.accounts_for`, `core/actions/AccountHandler`): shown while the
+     switch is on or when a box names one (rule 29), kept out of the box's own `run`. While the box runs,
+     `core/connections/current_account.ACCOUNT.get()` is that account ("" = the main one, his answer 122): use
+     its login there. Plan and answers: `docs/PLAN_multi_accounts.md`.
 2. Everything else it needs goes into `connections/<id>/`, one class per file: the client, the actions class,
    the event mapping.
 3. Add it to the list in `assembly/built_in_connections.py`, giving it `tables.get("<id>", {})`.

@@ -58,14 +58,14 @@ html, body {
   display: flex;
 }
 
-.alert img, .alert video {
+.alert .media > img, .alert .media > video {
   max-height: var(--alert-media-height);
   max-width: calc(var(--vw) * 80);
   user-select: none;
 }
 
 /* a picture height set in the alert's look: exactly that high (a small gif grows), not only "at most" */
-.alert.sized img, .alert.sized video {
+.alert.sized .media > img, .alert.sized .media > video {
   height: var(--alert-media-height);
   object-fit: contain;
 }
@@ -73,7 +73,7 @@ html, body {
 /* once the picture's own shape is known (alerts.js sets --alert-aspect = width / height): as high as set, but not
    wider than the screen allows, and the box is exactly the picture (pieces on it and the resize handle sit on
    the picture, not on an empty margin around it) */
-.alert.sized.measured img, .alert.sized.measured video {
+.alert.sized.measured .media > img, .alert.sized.measured .media > video {
   height: min(var(--alert-media-height), calc(var(--vw) * 80 / var(--alert-aspect)));
   max-height: none;
 }
@@ -122,6 +122,16 @@ html, body {
   width: max-content;
   max-width: calc(var(--vw) * 80);  /* may be wider than a small picture, unless it has a width of its own */
 }
+
+/* a picture or video piece (his round 85): as high as the piece's size says (alerts.js), its own shape */
+.alert .part-picture img, .alert .part-picture video {
+  display: block;
+  height: 100%;
+  width: auto;
+  user-select: none;
+}
+
+.alert .part.over.part-picture { width: auto; }
 
 .alert .part.over.align-left { transform: none; }
 .alert .part.over.align-right { transform: translate(-100%, 0); }

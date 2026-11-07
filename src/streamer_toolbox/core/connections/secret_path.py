@@ -3,6 +3,7 @@ import stat
 from pathlib import Path
 from typing import Any
 
+from streamer_toolbox.core.files.write_whole import write_whole
 from streamer_toolbox.core.security.secret_vault import SecretVault
 
 
@@ -36,7 +37,7 @@ class SecretPath(Path):
         folder.mkdir(parents=True, exist_ok=True)
         if os.name == "posix" and stat.S_IMODE(folder.stat().st_mode) != 0o700:
             folder.chmod(0o700)
-        Path(self).write_bytes(concealed)
+        write_whole(Path(self), concealed)  # a cut-short write must not leave half a token
         return len(data)
 
     def write_text(self, data: str, encoding: str | None = None, errors: str | None = None,

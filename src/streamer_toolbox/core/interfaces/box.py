@@ -11,7 +11,7 @@ from streamer_toolbox.core.flows.retrigger import Retrigger, current_retrigger
 # attribute below (tests/plugins/test_plugin_parity.py keeps it so)
 OPTIONS = tuple(f.name for f in fields(RegisteredAction)
                 if f.name not in {"name", "handler", "description", "label", "is_tested", "is_understandable",
-                                  "is_usable"})
+                                  "is_usable", "accounts"})
 
 
 class Box(ABC):

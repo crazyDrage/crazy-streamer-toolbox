@@ -2,6 +2,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from streamer_toolbox.core.files.write_whole import write_whole
+
 
 class PointStore:
     """The viewers' points (the toolbox's own currency, like Mix It Up's): one number per viewer, kept in one
@@ -69,7 +71,7 @@ class PointStore:
         if self._path is None:
             return
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._path.write_text(json.dumps(self._viewers, ensure_ascii=False), encoding="utf-8")
+        write_whole(self._path, json.dumps(self._viewers, ensure_ascii=False))
 
 
 def _platform(platform: str) -> str:

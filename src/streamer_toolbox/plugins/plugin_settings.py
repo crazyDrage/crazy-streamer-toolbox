@@ -3,6 +3,8 @@ import logging
 from pathlib import Path
 from typing import Any, Optional
 
+from streamer_toolbox.core.files.write_whole import write_whole
+
 log = logging.getLogger(__name__)
 
 
@@ -22,7 +24,7 @@ class PluginSettings:
         """Keeps these values (merged into what was saved before)."""
         merged = {**self._read(self._saved), **values}
         self._saved.parent.mkdir(parents=True, exist_ok=True)
-        self._saved.write_text(json.dumps(merged, indent=1, ensure_ascii=False), encoding="utf-8")
+        write_whole(self._saved, json.dumps(merged, indent=1, ensure_ascii=False))
 
     @staticmethod
     def _read(path: Optional[Path]) -> dict[str, Any]:

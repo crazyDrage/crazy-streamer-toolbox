@@ -19,7 +19,8 @@ class TestEventTypeStore(unittest.TestCase):
     def test_a_new_toolbox_has_the_default_types_hidden(self) -> None:
         store = EventTypeStore(self.path)
         self.assertEqual([t.name for t in store.all()],
-                         ["chat", "chat_deleted", "follow", "sub", "resub", "gift", "cheer", "raid", "tip", "redeem"])
+                         ["chat", "chat_deleted", "follow", "sub", "resub", "gift", "cheer", "raid", "tip", "redeem",
+                          "community_gift", "superchat", "member", "charity", "merch"])
         self.assertTrue(all(t.default and t.hidden for t in store.all()))
         self.assertEqual(store.get("follow").value("user").also_known_as, ("name",))
 
@@ -32,6 +33,16 @@ class TestEventTypeStore(unittest.TestCase):
         self.path.write_text(json.dumps(data), encoding="utf-8")
         self.assertEqual(EventTypeStore(self.path).all()[-1].name, "raid")
         self.assertIsNone(EventTypeStore(self.path).get("tip"))
+
+    def test_other_names_go_only_to_a_default_type_and_only_once(self) -> None:
+        store = EventTypeStore(self.path)
+        store.save("chat_deleted", replace(store.get("chat_deleted"), also_known_as=("delete-message",)))
+        self.assertEqual(store.add_other_names("chat_deleted", ("delete-messages",)), ["delete-messages"])
+        self.assertEqual(EventTypeStore(self.path).get("chat_deleted").also_known_as,
+                         ("delete-message", "delete-messages"))
+        self.assertEqual(store.add_other_names("chat_deleted", ("delete-messages",)), [])
+        own = store.add("own")
+        self.assertEqual(store.add_other_names(own.name, ("x",)), [])  # his own type stays as he made it
 
     def test_his_own_type_is_kept_with_its_values(self) -> None:
         store = EventTypeStore(self.path)

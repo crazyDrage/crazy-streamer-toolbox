@@ -1,5 +1,6 @@
 from nicegui import ui
 
+from streamer_toolbox.core.widgets.element_design import ElementDesign
 from streamer_toolbox.core.widgets.streamelements_fallback import StreamElementsFallback
 from streamer_toolbox.core.event_types.event_flows import EventFlows
 from streamer_toolbox.core.event_types.event_type_store import EventTypeStore
@@ -10,6 +11,7 @@ from streamer_toolbox.gui.components.overlay_source import OverlaySource
 from streamer_toolbox.gui.components.widgets_tool.widget_editor import WidgetEditor
 from streamer_toolbox.gui.components.widgets_tool.widget_events_tab import WidgetEventsTab
 from streamer_toolbox.gui.components.widgets_tool.widget_editor import address as editor_address
+from streamer_toolbox.gui.components.widgets_tool.widget_designer import address as designer_address
 
 
 class WidgetsTool:
@@ -52,7 +54,10 @@ class WidgetsTool:
         self._rows(windows)
         ui.timer(3.0, self._rows.refresh)  # "OBS shows it" changes without a click here
         with ui.row().classes("gap-2"):
-            ui.button("New widget", icon="add").props(f"no-caps outline href={editor_address(None)}")
+            ui.button("New widget", icon="add").props(f"no-caps outline href={editor_address(None)}") \
+                .tooltip("A widget with its own code (HTML, CSS, JS)")
+            ui.button("Widget editor", icon="design_services").props("no-caps outline href=/overlays?show=designer") \
+                .tooltip("Make one without code: pictures, GIFs, texts, alerts")
             ui.button("Add the example", icon="school", on_click=self._add_example).props("no-caps flat") \
                 .tooltip("A small widget to try and to read: latest follower and chat lines")
             ui.button("Import ...", icon="file_download").props("no-caps flat href=/overlays?show=import")                 .tooltip("From StreamElements (your overlays and Elements) or another program: Overlay → Import")
@@ -78,6 +83,10 @@ class WidgetsTool:
                     ui.label(f"{shown} Browser source{'s show' if shown > 1 else ' shows'} it." if shown
                              else "OBS isn't showing it yet.") \
                         .classes("text-xs " + ("text-positive" if shown else "text-warning"))
+                widget = self._store.get(name)
+                if widget is not None and ElementDesign.of(widget) is not None:
+                    ui.button("Edit", icon="design_services") \
+                        .props(f"no-caps outline href={designer_address(name)}").tooltip("In the widget editor")
                 ui.button("Open", icon="tune").props(f"no-caps unelevated href={editor_address(name)}") \
                     .tooltip("Preview, settings, test events and its code")
                 ui.button("Add it to OBS", icon="add_to_queue", on_click=lambda n=name: self._add_to_obs(windows, n)) \

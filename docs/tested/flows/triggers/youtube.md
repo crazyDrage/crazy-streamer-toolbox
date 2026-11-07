@@ -6,6 +6,7 @@
 | YouTube gifted memberships | `youtube.gift_members` | 2026-10-09 | - | - | - | - |  |
 | YouTube member milestone | `youtube.member_milestone` | 2026-10-09 | - | - | - | - |  |
 | YouTube new member | `youtube.member` | 2026-10-09 | - | - | - | - |  |
+| YouTube new subscriber | `youtube.follow` | - | - | - | - | - |  |
 | YouTube stream offline | `youtube.offline` | 2026-10-09 | - | - | - | - |  |
 | YouTube stream online | `youtube.online` | 2026-10-09 | - | - | - | - |  |
 | YouTube Super Chat | `youtube.superchat` | 2026-10-09 | - | - | - | - |  |
