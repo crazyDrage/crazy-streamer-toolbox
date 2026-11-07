@@ -8,6 +8,7 @@ import httpx
 
 from streamer_toolbox.connections.rumble.rumble_news import RumbleNews
 from streamer_toolbox.connections.rumble_connection import RumbleConnection
+from streamer_toolbox.core.connections.account_keys import AccountKeys
 from streamer_toolbox.core.connections.connection_state import ConnectionState
 from streamer_toolbox.core.events.event_bus import EventBus
 from streamer_toolbox.core.events.event_fields import EVENT_FIELDS
@@ -50,11 +51,15 @@ def later() -> dict:
 class TestRumbleConnection(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         self._dir = tempfile.TemporaryDirectory()
-        self.address = Path(self._dir.name) / "rumble_address.txt"
+        folder = Path(self._dir.name) / "rumble"
+        self.main = {"name": ""}
+        self.keys = AccountKeys(folder, lambda file: folder / file, lambda: self.main["name"],
+                                lambda name: self.main.update(name=name))
         self.events = EventBus()
         self.seen: list[tuple[str, dict]] = []
         self.asked: list[str] = []
         self.answers: list = [ANSWER]
+        self.asked_by: dict[str, int] = {}
 
         async def listen(kind: str, data: dict) -> None:
             self.seen.append((kind, data))
@@ -64,13 +69,15 @@ class TestRumbleConnection(unittest.IsolatedAsyncioTestCase):
     def tearDown(self) -> None:
         self._dir.cleanup()
 
-    def _connection(self, seconds: float = 2) -> RumbleConnection:
+    def _connection(self, seconds: float = 2, **settings) -> RumbleConnection:
         def rumble(request: httpx.Request) -> httpx.Response:
             self.asked.append(str(request.url))
-            answer = self.answers.pop(0) if len(self.answers) > 1 else self.answers[0]
+            seen = self.asked_by.get(str(request.url), 0)  # each address goes through the answers on its own
+            self.asked_by[str(request.url)] = seen + 1
+            answer = self.answers[min(seen, len(self.answers) - 1)]
             return answer if isinstance(answer, httpx.Response) else httpx.Response(200, json=answer)
 
-        return RumbleConnection({"enabled": True, "seconds": seconds}, self.address, self.events,
+        return RumbleConnection({"enabled": True, "seconds": seconds, **settings}, self.keys, self.events,
                                 transport=httpx.MockTransport(rumble))
 
     def test_the_first_answer_is_no_news_and_later_ones_only_what_is_new(self) -> None:
@@ -91,7 +98,7 @@ class TestRumbleConnection(unittest.IsolatedAsyncioTestCase):
         ])
         for kind, data in events:
             # what the Start box offers is what comes; role: the event bus adds it (RoleBook)
-            self.assertEqual(set(data) - {"role"}, set(EVENT_FIELDS[kind]) - {"role"})
+            self.assertEqual(set(data) - {"role"}, set(EVENT_FIELDS[kind]) - {"role", "account"})  # + the connection's
         self.assertEqual(news.news(later()), [])  # told once
 
     def test_going_live_and_ending(self) -> None:
@@ -106,19 +113,19 @@ class TestRumbleConnection(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(news.news({"livestreams": "broken", "followers": None}), [])  # an odd answer is no news
 
     async def test_it_is_off_until_switched_on_and_needs_the_address_file(self) -> None:
-        self.assertFalse(RumbleConnection({}, self.address, self.events).settings["enabled"])
+        self.assertFalse(RumbleConnection({}, self.keys, self.events).settings["enabled"])
         connection = self._connection()
         await connection.start()
         self.assertEqual(connection.status.state, ConnectionState.ERROR)
         self.assertIn("No address yet", connection.status.detail)
-        self.address.write_text("https://rumble.example.com/get-data?key=secret-key", encoding="utf-8")
+        self.keys.save("crazydrage", "https://rumble.example.com/get-data?key=secret-key")
         await connection.start()  # not Rumble's host: the key is never sent there
         self.assertIn("https://rumble.com/", connection.status.detail)
         self.assertNotIn("secret-key", connection.status.detail)
         self.assertEqual(self.asked, [])
 
     async def test_asks_again_and_again_and_passes_the_news_on(self) -> None:
-        self.address.write_text(ADDRESS + "\n", encoding="utf-8")
+        self.keys.save("crazydrage", ADDRESS)
         self.answers = [ANSWER, later()]
         connection = self._connection()
         connection._every = lambda: 0.05  # the test doesn't wait Rumble's seconds
@@ -134,7 +141,7 @@ class TestRumbleConnection(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(connection.status.state, ConnectionState.OFF)
 
     async def test_a_refused_address_shows_on_the_tab_and_isnt_asked_again(self) -> None:
-        self.address.write_text(ADDRESS, encoding="utf-8")
+        self.keys.save("crazydrage", ADDRESS)
         self.answers = [httpx.Response(403, text="no")]
         connection = self._connection()
         tried = await connection.test({})
@@ -149,12 +156,39 @@ class TestRumbleConnection(unittest.IsolatedAsyncioTestCase):
         await connection.stop()
 
     async def test_the_test_button_and_how_often_it_asks(self) -> None:
-        self.address.write_text(ADDRESS, encoding="utf-8")
+        self.keys.save("crazydrage", ADDRESS)
         tried = await self._connection().test({})
         self.assertEqual((tried.state, tried.facts), (ConnectionState.CONNECTED, (("Followers", "12"),)))
         self.assertEqual(self._connection(seconds=0.1)._every(), 2.0)  # never faster than that
         self.assertEqual(self._connection(seconds="soon")._every(), 5.0)
         self.assertEqual([field.key for field in self._connection().fields()], ["seconds"])
+
+    async def test_several_accounts_each_with_its_own_feed(self) -> None:
+        """His "the multi account option should be possible for every streaming platform" (2026-11-06)."""
+        self.keys.save("crazydrage", ADDRESS)
+        self.answers = [{**ANSWER, "channel_name": "Second Channel"}]
+        connection = self._connection(listen=["second_channel"])
+        self.assertEqual(await connection.add_account(ADDRESS + "&other=1"), "second_channel")
+        with self.assertRaises(ValueError):  # never sent anywhere but Rumble
+            await connection.add_account("https://example.com/?key=secret")
+        self.assertEqual(connection.account_names(), ["crazydrage", "second_channel"])
+        self.assertEqual(connection.main_account(), "crazydrage")
+        self.answers, self.asked_by = [ANSWER, later()], {}
+        connection._every = lambda: 0.05
+        await connection.start()
+        await asyncio.sleep(0.4)
+        await self.events.wait_idle()
+        follows = [data["account"] for kind, data in self.seen if kind == "rumble.follow"]
+        self.assertEqual(sorted(follows), ["crazydrage", "second_channel"])
+        self.assertEqual(connection.account_state("second_channel"), "connected")
+        await connection.stop()
+
+    async def test_the_moved_address_gets_the_name_rumble_gives(self) -> None:
+        self.keys.save("rumble", ADDRESS)  # settings version 4 moved rumble_address.txt here
+        self.answers = [{**ANSWER, "username": "CrazyDrage"}]
+        await self._connection().test({})
+        self.assertEqual((self.keys.names(), self.main["name"]), (["crazydrage"], "crazydrage"))
+        self.assertEqual(self.keys.load("crazydrage"), ADDRESS)
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ from pathlib import Path
 import tomlkit
 
 from streamer_toolbox.connections.vtube_studio.vts_position import VtsPosition
+from streamer_toolbox.core.files.write_whole import write_whole
 
 
 class VtsPositionStore:
@@ -28,7 +29,7 @@ class VtsPositionStore:
             doc[model] = tomlkit.table()
         doc[model][name] = {"x": position.x, "y": position.y, "rotation": position.rotation, "size": position.size}
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._path.write_text(tomlkit.dumps(doc), encoding="utf-8")
+        write_whole(self._path, tomlkit.dumps(doc))
 
     def _read(self) -> tomlkit.TOMLDocument:
         if not self._path.exists():

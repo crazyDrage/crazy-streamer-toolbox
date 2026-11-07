@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from streamer_toolbox.core.files.write_whole import write_whole
 from streamer_toolbox.core.variables.variable_store import NAME_CHARS
 
 
@@ -26,7 +27,7 @@ class BoxValueFiles:
     def save(self, kind: str, name: str, value: Any) -> Path:
         path = self._path(kind, name)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(value, indent=2, ensure_ascii=False), encoding="utf-8")
+        write_whole(path, json.dumps(value, indent=2, ensure_ascii=False))
         return path
 
     def folder(self, kind: str) -> Path:

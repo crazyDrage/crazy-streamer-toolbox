@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from nicegui import background_tasks, ui
@@ -6,8 +7,9 @@ from streamer_toolbox.core.app_version import APP_VERSION, stage
 from streamer_toolbox.core.config.config_table_writer import ConfigTableWriter
 from streamer_toolbox.core.system.toolbox_release import ToolboxRelease
 from streamer_toolbox.core.system.toolbox_restart import ToolboxRestart
-from streamer_toolbox.core.system.toolbox_update import CHANNELS, ToolboxUpdate
+from streamer_toolbox.core.system.toolbox_update import CHANNELS, REPO, WHILE_RUNNING, ToolboxUpdate
 from streamer_toolbox.gui.components.header_notice import HeaderNotice
+from streamer_toolbox.gui.components.outside_link import outside_link
 
 log = logging.getLogger(__name__)
 TABLE = "update"  # toolbox.toml: [update] check = true / false
@@ -16,7 +18,7 @@ TABLE = "update"  # toolbox.toml: [update] check = true / false
 class UpdatePanel:
     """The toolbox's own update (his next release plan, part 1: "both", tell and download and install, "at the
     top"): a newer release is a button next to the toolbox's name ("Update 0.3.0", `notices`), which opens
-    what's new and "Download and install". Settings → General has the version, "Look for updates once a day"
+    what's new and "Download and install". Settings → General has the version, "Look for updates by itself"
     and "Look now". A toolbox run from its code only tells (ToolboxUpdate.installable)."""
 
     def __init__(self, update: ToolboxUpdate, restart: ToolboxRestart, writer: ConfigTableWriter, check: bool,
@@ -30,7 +32,7 @@ class UpdatePanel:
 
     @property
     def checking(self) -> bool:
-        """ "Look for updates once a day" is on (the plugin listings follow it too)."""
+        """ "Look for updates by itself" is on (the plugin listings follow it too)."""
         return self._check
 
     def start(self) -> None:
@@ -38,6 +40,11 @@ class UpdatePanel:
         result = self._update.result()
         if result and result.get("ok"):
             log.info("updated to %s", result.get("version"))
+            # his v0.4.0-dev.2 try: after the window closed he couldn't tell when the update was done
+            self._notices["updated"] = HeaderNotice(
+                f"Updated to {APP_VERSION}", f"The update is done: this is version {APP_VERSION} now. Your "
+                "settings stayed as they were; a copy from before is in the backups folder.",
+                icon="check_circle", color="positive")
         elif result:
             self._notices["update_failed"] = HeaderNotice(
                 "Update failed", f"The update to {result.get('version')} didn't work, so this is still "
@@ -45,14 +52,25 @@ class UpdatePanel:
                 "settings folder. Try again in Settings → General, or get the new version from its page.")
         self._update.clean()
         self._show(self._update.newest)
-        if self._check:
-            background_tasks.create(self._look(), name="update check")
+        background_tasks.create(self._keep_looking(), name="update check")
+
+    async def _keep_looking(self) -> None:
+        """At the start, then every few hours while the toolbox runs (when "Look for updates" is on)."""
+        while True:
+            if self._check:
+                await self._look()
+            await asyncio.sleep(WHILE_RUNNING)
 
     def build(self) -> None:
         ui.label("Update").classes("text-lg font-semibold")
-        ui.label(f"This is version {APP_VERSION}.").classes("text-sm")
-        ui.switch("Look for updates once a day", value=self._check, on_change=lambda e: self._set_check(e.value)) \
-            .tooltip("One small question to GitHub a day; a new version shows next to the toolbox's name")
+        with ui.row().classes("items-baseline gap-x-3 gap-y-0 text-sm"):
+            ui.label(f"This is version {APP_VERSION}.")
+            # his round 88: the repository, where every version and what's new in it is
+            outside_link("The toolbox on GitHub", f"https://github.com/{REPO}")
+            outside_link("All versions", f"https://github.com/{REPO}/releases")
+        ui.switch("Look for updates by itself", value=self._check, on_change=lambda e: self._set_check(e.value)) \
+            .tooltip("At every start and every 6 hours, one small question to GitHub; a new version shows next "
+                     "to the toolbox's name")
         ui.select(CHANNELS, value=self._update.channel, label="Which versions",
                   on_change=lambda e: self._set_channel(e.value)).props("outlined dense").classes("w-64 max-w-full")
         ui.label("Test versions (dev, alpha, beta, rc) can break things. Releases only is the normal choice.") \

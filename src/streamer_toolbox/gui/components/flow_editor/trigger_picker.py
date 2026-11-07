@@ -1,10 +1,11 @@
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 
 from nicegui import ui
 
 from streamer_toolbox.gui.components.flow_editor.fold_group import FoldGroup
 from streamer_toolbox.gui.components.flow_editor.trigger_catalog import TriggerCatalog
 from streamer_toolbox.gui.components.flow_editor.trigger_entry import TriggerEntry
+from streamer_toolbox.gui.components.not_tested_mark import NotTestedMark
 
 
 class TriggerPicker:
@@ -12,10 +13,13 @@ class TriggerPicker:
     phone: a row on top) with how many triggers each has, and on the right the chosen group's triggers, each
     with one line of what it is and what it gives the flow. Searching lists the matching triggers of every
     group; Enter takes the first one. `note` is one small line below the groups (how many triggers are
-    hidden, and why)."""
+    hidden, and why). `works` says whether a kind has a yes under Works; the others get the "not tested" flask.
+    """
 
-    def __init__(self, kinds: Mapping[str, tuple[str, str, str, str]], note: str = "") -> None:
+    def __init__(self, kinds: Mapping[str, tuple[str, str, str, str]], note: str = "",
+                 works: Callable[[str], bool] | None = None) -> None:
         self._note = note
+        self._works = works
         self._catalog = TriggerCatalog(kinds)
         self._group = next(iter(self._catalog.groups()), ("", 0))[0]
         self._search = ""
@@ -83,7 +87,10 @@ class TriggerPicker:
                               "hover:bg-gray-500/15").on("click", lambda e=entry: self._dialog.submit(e)):
             ui.icon(entry.icon).classes("text-primary text-xl pt-1")
             with ui.column().classes("gap-0 min-w-0"):
-                ui.label(entry.title).classes("font-medium")
+                with ui.row().classes("no-wrap items-center gap-2"):
+                    ui.label(entry.title).classes("font-medium")
+                    if self._works is not None and not self._works(entry.kind):
+                        NotTestedMark.build()
                 if entry.info:
                     ui.label(entry.info).classes("text-xs opacity-70")
                 if entry.fields:

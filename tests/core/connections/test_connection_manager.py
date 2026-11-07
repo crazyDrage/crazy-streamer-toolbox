@@ -41,6 +41,20 @@ class TestConnectionManager(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self._saved(), {"enabled": True, "url": "good", "password": "old"})  # empty kept old
         self.assertEqual(connection.calls, ["test", "stop", "start"])
 
+    async def test_what_the_test_set_itself_is_kept(self) -> None:
+        """A Twitch login that came back as another account makes that one the main account during test()."""
+        connection = FakeConnection({"enabled": False, "password": "old"})
+        tested = connection.test
+
+        async def test_that_sets(settings: dict):
+            connection.configure({**connection.settings, "password": "set by the login"})
+            return await tested(settings)
+
+        connection.test = test_that_sets
+        await ConnectionManager([connection], ConfigTableWriter(self.path)).connect("fake", {"url": "good"})
+        self.assertEqual(self._saved()["password"], "set by the login")
+        self.assertEqual(connection.settings["password"], "set by the login")
+
     async def test_failed_connect_changes_nothing(self) -> None:
         connection = FakeConnection({"url": "good", "enabled": True})
         status = await ConnectionManager([connection], ConfigTableWriter(self.path)).connect("fake", {"url": "bad"})

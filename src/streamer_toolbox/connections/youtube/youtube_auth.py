@@ -26,11 +26,12 @@ class YouTubeAuth:
         self.redirect_uri = redirect_uri
         self._transport = transport
 
-    def authorize_url(self, state: str, write: bool = False) -> str:
+    def authorize_url(self, state: str, write: bool = False, choose: bool = False) -> str:
+        """choose: Google asks which of the browser's Google accounts (Add account: another one than his)."""
         return f"{AUTHORIZE}?" + urlencode({
             "response_type": "code", "client_id": self.client_id, "redirect_uri": self.redirect_uri,
             "scope": " ".join((READ, WRITE) if write else (READ,)), "state": state,
-            "access_type": "offline", "prompt": "consent"})
+            "access_type": "offline", "prompt": "consent select_account" if choose else "consent"})
 
     async def exchange(self, code: str) -> dict[str, Any]:
         return await self._token({"grant_type": "authorization_code", "code": code,

@@ -28,8 +28,15 @@ class TwitchStreamBox(Box):
                  now: Callable[[], datetime] = lambda: datetime.now(timezone.utc)) -> None:
         self._helix = helix
         self._me = me
+        self._channel = me  # the channel it happens in: his own, or the main one for a bot account (in_channel)
         self._pick = pick
         self._now = now
+
+    def in_channel(self, channel: Callable[[], OAuthToken]) -> "TwitchStreamBox":
+        """Where it happens when another account runs it (his plan of 2026-11-05): a bot account acts as a
+        moderator in the main account's channel; the login itself (`me`) stays the one that acts."""
+        self._channel = channel
+        return self
 
     def _allowed(self, scope: str) -> None:
         if scope not in self._me().scopes:
@@ -37,8 +44,7 @@ class TwitchStreamBox(Box):
                                   f"Connections → Twitch and allow it in the browser (it needs {scope})")
 
     def _as_moderator(self) -> dict[str, str]:
-        me = self._me().user_id
-        return {"broadcaster_id": me, "moderator_id": me}
+        return {"broadcaster_id": self._channel().user_id, "moderator_id": self._me().user_id}
 
     async def _user(self, user: Any) -> dict[str, Any]:
         login = str(user if user is not None else "").strip().lstrip("@").lower()

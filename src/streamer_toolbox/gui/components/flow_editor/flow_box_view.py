@@ -86,7 +86,7 @@ class FlowBoxView:
                         .tooltip("Full screen on/off (Esc leaves it)")
                 with ui.column().classes("tb-flow-body w-full gap-3 p-3"):
                     self.side_panel()
-            ui.element("div").props(f"id={ELEMENT_ID}").classes("tb-drawflow flex-1 min-w-0 h-[640px]")
+            ui.element("div").props(f"id={ELEMENT_ID}").classes("tb-drawflow flex-1 min-w-0")
         ui.run_javascript(f"tbFlowPanelRestore('{PANEL_ID}')")
         with ui.row().classes("items-start no-wrap w-full gap-3 -mt-3"):
             ui.label("Drag the background to scroll · wire: drag from a right dot to a left dot · several wires "

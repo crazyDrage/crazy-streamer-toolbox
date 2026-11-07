@@ -4,16 +4,18 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
 
 from streamer_toolbox.connections.oauth.oauth_token import OAuthToken
-from streamer_toolbox.connections.oauth.oauth_token_store import OAuthTokenStore
+from streamer_toolbox.connections.oauth.account_tokens import AccountTokens
 from streamer_toolbox.connections.youtube.youtube_events import youtube_events
 from streamer_toolbox.connections.youtube_connection import YouTubeConnection
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.connections.connection_state import ConnectionState
+from streamer_toolbox.core.connections.current_account import ACCOUNT
 from streamer_toolbox.core.connections.not_connected_error import NotConnectedError
 from streamer_toolbox.core.events.event_bus import EventBus
 from streamer_toolbox.core.events.event_fields import EVENT_FIELDS
@@ -53,7 +55,10 @@ def free_port() -> int:
 class TestYouTubeConnection(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
-        self.store = OAuthTokenStore(Path(self.tmp.name) / "youtube_token.json")
+        folder = Path(self.tmp.name) / "youtube"
+        self.main = {"name": ""}
+        self.store = AccountTokens(folder, lambda file: folder / file, lambda: self.main["name"],
+                                   lambda name: self.main.update(name=name))
         self.youtube = FakeYouTube()
         self.events = EventBus()
         self.seen: list[tuple[str, dict]] = []
@@ -99,7 +104,7 @@ class TestYouTubeConnection(unittest.IsolatedAsyncioTestCase):
             ("youtube.gift_members", {"user": "Ann", "amount": 5, "level": "Lizard", "platform": "youtube"})])
         for kind, data in events:
             # what the Start box offers is what comes; role: the event bus adds it (RoleBook)
-            self.assertEqual(set(data) - {"role"}, set(EVENT_FIELDS[kind]) - {"role"})
+            self.assertEqual(set(data) - {"role"}, set(EVENT_FIELDS[kind]) - {"role", "account"})  # the connection adds it
         for kind in ("tombstone", "userBannedEvent", "giftMembershipReceivedEvent", "chatEndedEvent"):
             self.assertEqual(youtube_events(message(kind)), [])
         self.assertEqual(youtube_events({"snippet": "broken"}), [])
@@ -131,12 +136,58 @@ class TestYouTubeConnection(unittest.IsolatedAsyncioTestCase):
         await self.events.wait_idle()
         self.assertEqual([kind for kind, _ in self.seen][:5], [
             "youtube.online", "youtube.chat", "youtube.superchat", "tip", "youtube.offline"])
-        self.assertEqual(self.seen[0][1], {"title": "Lizards", "platform": "youtube"})
+        self.assertEqual(self.seen[0][1], {"title": "Lizards", "platform": "youtube", "account": "crazydrage",
+                                           "main_account": "crazydrage"})
         asked = [params.get("pageToken", "") for method, name, params in self.youtube.calls
                  if (method, name) == ("GET", "liveChat/messages")]
         self.assertEqual(asked[:4], ["", "p1", "p2", "p3"])  # each ask continues where the last ended
         await connection.stop()
         self.assertEqual(connection.status.state, ConnectionState.OFF)
+
+    async def test_new_subscribers_come_from_the_subscriber_check(self) -> None:
+        """His failsafe of 2026-11-05 "for every platform": YouTube has no event for a subscriber at all."""
+        def asked() -> int:
+            return sum(name == "subscriptions" for _, name, _ in self.youtube.calls)
+
+        self.save_token()
+        self.youtube.subscribers = [("UCa", "Ann")]
+        with patch("streamer_toolbox.core.followers.follower_check.FASTEST", 0.01):
+            connection = self.connection(follower_check="0.01")
+            await connection.start()
+            await until(lambda: asked() >= 1)  # the first ask: Ann was there before, not news
+            self.youtube.subscribers = [("UCb", "Bee"), ("UCa", "Ann")]
+            await until(lambda: asked() >= 4)
+            await connection.stop()
+        follows = [data for kind, data in self.seen if kind == "youtube.follow"]
+        self.assertEqual(follows, [{"user": "Bee", "user_id": "UCb", "followed_at": "2026-11-06T10:00:00Z",
+                                    "platform": "youtube", "account": "crazydrage",
+                                    "main_account": "crazydrage"}])
+        self.assertEqual(set(follows[0]) - {"main_account"}, set(EVENT_FIELDS["youtube.follow"]))
+
+    async def test_several_accounts_a_second_channel_listens_and_a_bot_writes_in_the_main_chat(self) -> None:
+        """His "multi account option should be possible for every streaming platform" (2026-11-06)."""
+        self.save_token()
+        self.store.save_account(OAuthToken("access-1", "r2", time.time() + 3600, (READ,), "UC5", "second"))
+        self.store.save_account(OAuthToken("access-1", "r3", time.time() + 3600, (READ, WRITE), "UC9", "drage_bot"))
+        self.youtube.broadcast = BROADCAST
+        connection = self.connection(listen=["second", "drage_bot"], bot_accounts=["drage_bot"])
+        self.assertEqual(connection.account_names(), ["crazydrage", "drage_bot", "second"])
+        await connection.start()
+        self.assertEqual(connection.listening_accounts(), ["crazydrage", "second"])  # a bot never listens
+        await until(lambda: {d.get("account") for k, d in self.seen if k == "youtube.online"}
+                    == {"crazydrage", "second"})
+        mark = ACCOUNT.set("drage_bot")
+        try:
+            await connection.send_chat("hi from the bot")
+        finally:
+            ACCOUNT.reset(mark)
+        self.assertEqual(self.youtube.sent[0]["snippet"]["liveChatId"], "chat1")  # the main account's chat
+        with self.assertRaises(PermissionError):  # the main account may only read
+            await connection.send_chat("hi")
+        await connection.remove_account("second")
+        self.assertEqual((connection.account_names(), connection.settings["listen"]),
+                         (["crazydrage", "drage_bot"], ["drage_bot"]))
+        await connection.stop()
 
     async def test_an_expired_login_is_renewed_and_keeps_who_it_is(self) -> None:
         self.save_token(expires_in=10)
@@ -145,7 +196,7 @@ class TestYouTubeConnection(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(connection.status.state, ConnectionState.CONNECTED, connection.status.detail)
         saved = self.store.load()
         self.assertEqual((saved.access_token, saved.refresh_token, saved.login, saved.scopes),
-                         ("access-2", "refresh-1", "crazyDrage", (READ,)))
+                         ("access-2", "refresh-1", "crazyDrage", (READ,)))  # an old login keeps its name
         await connection.stop()
         self.save_token(expires_in=10)
         self.youtube.refresh_ok = False
@@ -198,8 +249,9 @@ class TestYouTubeConnection(unittest.IsolatedAsyncioTestCase):
         settings = {"client_id": "cid", "client_secret": "secret", "redirect_url": f"http://localhost:{port}"}
         self.assertEqual((await connection.test({})).state, ConnectionState.ERROR)
         status = await connection.test(settings)
-        self.assertEqual((status.state, status.facts), (ConnectionState.CONNECTED, (("Channel", "crazyDrage"),)),
-                         status.detail)
+        self.assertEqual((status.state, status.facts), (ConnectionState.CONNECTED, (("Channel", "crazydrage"),)),
+                         status.detail)  # the account's name: its handle, else its title as letters and _
+        self.assertEqual(self.store.names(), ["crazydrage"])
         query = parse_qs(urlsplit(opened[0]).query)
         self.assertEqual((query["scope"], query["access_type"]), ([READ], ["offline"]))
         saved = self.store.load()

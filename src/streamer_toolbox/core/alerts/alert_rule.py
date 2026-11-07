@@ -102,7 +102,7 @@ class AlertRule:
             return text.replace("{" + old + "}", "{" + new + "}")
         return replace(self, inputs=tuple(replace(i, name=new) if i.name == old else i for i in self.inputs),
                        text=swap(self.text), image=swap(self.image), sound=swap(self.sound),
-                       parts=tuple(replace(p, text=swap(p.text)) for p in self.parts),
+                       parts=tuple(replace(p, text=swap(p.text), file=swap(p.file)) for p in self.parts),
                        variations=tuple(replace(v, text=swap(v.text)) for v in self.variations))
 
     # ---- the pieces of its words ----
@@ -156,6 +156,11 @@ class AlertRule:
         said_in_stack = any("{message}" in (p.text or line) for p in self.parts
                             if p.kind == "text" and not p.on_picture)
         for index, piece in enumerate(self.parts):
+            if piece.kind == "picture":  # a picture piece shows its file (a {picture} input's too), no words
+                file = _fill(piece.file, values).strip('"')
+                if file:
+                    views.append(replace(piece, file=file).view(index, ""))
+                continue
             said = _fill(piece.template or line, values)
             if piece.kind == "message" and not piece.on_picture and said_in_stack:
                 said = ""  # a text line says it already: not twice in the stack

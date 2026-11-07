@@ -1,9 +1,11 @@
 import time
 from dataclasses import dataclass
 
+from streamer_toolbox.core.system.backup_keeping import BackupKeeping
+
 
 @dataclass(frozen=True)
-class BackupPolicy:
+class BackupPolicy(BackupKeeping):
     """Which backups of the settings folder are kept (his round 84: "10 daily ones, and 10 monthly ones"): the
     newest of each of the last `daily` days that have one, and the newest of each of the last `monthly` months.
     The newest backup of all is always kept."""

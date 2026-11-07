@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 from nicegui import ui
 
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
@@ -22,8 +24,10 @@ class FlowEditorPage:
                  variables: VariableStore, box_files: BoxValueFiles,
                  trigger_choices: dict[str, OptionsProvider] | None = None,
                  box_filters: BoxFilterStore | None = None, switched_off: SwitchedOff | None = None,
-                 last_events: LastEvents | None = None, test_view: TestView | None = None) -> None:
+                 last_events: LastEvents | None = None, test_view: TestView | None = None,
+                 trigger_accounts: Callable[[str], list[str]] | None = None) -> None:
         self._last_events = last_events
+        self._trigger_accounts = trigger_accounts
         self._test_view = test_view
         self._library = library
         self._actions = actions
@@ -56,4 +60,4 @@ class FlowEditorPage:
             draft = FlowDraft.new()
         FlowEditor(draft, old_name, self._library, self._actions, self._runner, self._variables,
                    self._box_files, self._trigger_choices, self._box_filters,
-                   self._switched_off, self._last_events, self._test_view).build()
+                   self._switched_off, self._last_events, self._test_view, self._trigger_accounts).build()

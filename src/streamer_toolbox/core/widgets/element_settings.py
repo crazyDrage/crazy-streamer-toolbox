@@ -29,14 +29,8 @@ class ElementSettings:
     @classmethod
     def of(cls, widget: Widget) -> "ElementSettings | None":
         """The widget's Element settings, or None when it is not an Element (or its JS part was rewritten)."""
-        code = widget.js.strip()
-        if PAGE_CODE not in widget.html or not code.startswith(SHOW) or ")" not in code:
-            return None
-        try:
-            config = json.loads(code[len(SHOW):code.rindex(")")])
-        except ValueError:
-            return None
-        return cls(config) if isinstance(config, dict) and isinstance(config.get("configStates"), list) else None
+        config = element_config(widget)
+        return None if config is None else cls(config)
 
     def to_js(self) -> str:
         return f"{SHOW}{json.dumps(self._config, indent=1, ensure_ascii=False)});"
@@ -63,6 +57,18 @@ class ElementSettings:
             number, name, what = key.split("/", 2)
             _write(_pieces(config["configStates"][int(number)])[name], what, value)
         return ElementSettings(config)
+
+
+def element_config(widget: Widget) -> dict[str, Any] | None:
+    """The settings file in the JS part of a widget that is an Element; None for any other widget."""
+    code = widget.js.strip()
+    if PAGE_CODE not in widget.html or not code.startswith(SHOW) or ")" not in code:
+        return None
+    try:
+        config = json.loads(code[len(SHOW):code.rindex(")")])
+    except ValueError:
+        return None
+    return config if isinstance(config, dict) and isinstance(config.get("configStates"), list) else None
 
 
 def _title(state: dict[str, Any]) -> str:

@@ -1,7 +1,9 @@
+import inspect
 from collections.abc import Callable, Iterable
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
+from streamer_toolbox.core.actions.account_handler import ACCOUNT_FIELD, AccountHandler
 from streamer_toolbox.core.actions.registered_action import (ActionHandler, FillProvider, HintProvider,
                                                              LightProvider, OptionsProvider, RegisteredAction)
 from streamer_toolbox.core.actions.switched_off_error import SwitchedOffError
@@ -19,6 +21,7 @@ class ActionRegistry:
         self._parked: frozenset[str] = frozenset()
         self._why_not: Callable[[str], str] = lambda name: ""
         self._sections: Callable[[], dict[str, str]] = dict
+        self._accounts: dict[str, tuple[Callable[[], bool], Callable[[], list[str]]]] = {}
 
     def guard(self, why_not: Callable[[str], str]) -> None:
         """why_not(action name) is asked before every run: a text (why it can't run now, e.g. its plugin is
@@ -32,6 +35,29 @@ class ActionRegistry:
 
     def section(self, category: str) -> str:
         return self._sections().get(category, UTILS)
+
+    def accounts_for(self, owner: str, on: Callable[[], bool], names: Callable[[], list[str]]) -> None:
+        """A connection with several accounts (his plan of 2026-11-05): each of its boxes ("<owner>.…", the ones
+        there and any added later) gets an Account field, shown while on() (his Multiple accounts switch) or when
+        a box names one; its choices are names(), empty = the main account."""
+        self._accounts[owner] = (on, names)
+        for name in [n for n in self._actions if n.startswith(owner + ".")]:
+            self._with_account(name)
+
+    def _with_account(self, name: str) -> None:
+        action = self._actions[name]
+        found = self._accounts.get(name.split(".", 1)[0])
+        if found is None or isinstance(action.handler, AccountHandler)                 or inspect.isasyncgenfunction(action.handler)                 or ACCOUNT_FIELD in inspect.signature(action.handler).parameters:
+            return  # a loop's ports or a box with an account field of its own stay as they are
+        on, names = found
+
+        async def choices() -> dict[str, str]:
+            return {"": "main account", **{n: n for n in names()}}
+
+        self._actions[name] = replace(
+            action, handler=AccountHandler(action.handler), accounts=on,
+            options={**action.options, ACCOUNT_FIELD: choices},
+            hints={**action.hints, ACCOUNT_FIELD: "which account does it (empty = the main account)"})
 
     def park(self, names: Iterable[str]) -> None:
         """Leaves these actions out of all() from now on (the parked boxes, see wip_boxes.py). They can still
@@ -74,6 +100,7 @@ class ActionRegistry:
                                                named_lines, tuple(toggles), offered, ends_flow, gives_back,
                                                once_per_flow, retrigger, tuple(variable_fields), keys_of,
                                                output_names, alongside, freeze=freeze, lines_from=lines_from)
+        self._with_account(name)
 
     def add_box(self, box: "Box", owner: str) -> str:
         """A Box class's box as "<owner>.<name>" (owner: a connection's or plugin's id, or "logic", ...).

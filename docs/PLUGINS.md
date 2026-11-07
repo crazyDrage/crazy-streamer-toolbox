@@ -286,7 +286,7 @@ sha256 = "the download's SHA-256 (optional)"
   and Remove (also on its card under Plugins; the folder is kept too, its settings and keys stay). The
   download's plugin.json must have the listed id and version. An installed plugin loads, a removed one
   stops, when the toolbox starts again (the page offers Restart).
-- With Settings → General → "Look for updates once a day" on, the listings are read at the start too:
+- With Settings → General → "Look for updates by itself" on, the listings are read at the start too:
   installed plugins with a newer version show "Plugin updates (n)" next to the toolbox's name.
 - A big listing can be split: one file per author or per plugin, each a line in `plugin_listings.txt`.
 

@@ -7,6 +7,7 @@ from streamer_toolbox.gui.components.events_tool.events_tool import EventsTool
 from streamer_toolbox.gui.components.import_tool.import_tool import ImportTool
 from streamer_toolbox.gui.components.keep_typed import keep_typed
 from streamer_toolbox.gui.components.overlay_source import OverlaySource
+from streamer_toolbox.gui.components.widgets_tool.designer_tool import DesignerTool
 from streamer_toolbox.gui.components.widgets_tool.widgets_tool import WidgetsTool
 
 SOURCE_NAME = "toolbox alerts"  # the Browser source "Add it to OBS" makes
@@ -16,13 +17,15 @@ class OverlayPage:
     """Overlay: what the toolbox shows on stream through a Browser source in OBS. /overlays is the main view:
     a card each for Alerts and Widgets. /overlays?show=alerts is the alerts: the alerts overlay itself (its
     address, whether OBS is listening, Add it to OBS), their preview and the alerts; ?show=widgets the widgets
-    (custom widget code in StreamElements' format, each its own Browser source); ?show=import the importers
+    (custom widget code in StreamElements' format, each its own Browser source); ?show=designer the widget
+    editor (widgets made of pieces, no code; &widget=<name> one of them); ?show=import the importers
     (StreamElements and the ones plugins add; what they bring goes to Widgets); ?show=events the event types
     widgets and alerts get their data from (his round 78); the side menu lists them.
     &alert=<id> and &widget=<name> (or new) are one alert's or widget's own page."""
 
     def __init__(self, alerts: AlertsTool, widgets: WidgetsTool, imports: ImportTool, events: EventsTool, queue: AlertQueue,
-                 backup: AlertBackup, source: OverlaySource, port: int) -> None:
+                 backup: AlertBackup, source: OverlaySource, port: int, designer: DesignerTool) -> None:
+        self._designer = designer
         self._alerts = alerts
         self._widgets = widgets
         self._imports = imports
@@ -39,6 +42,11 @@ class OverlayPage:
             self._alerts.build_editor(query["alert"])
         elif show == "widgets" and query.get("widget"):
             self._widgets.build_editor(query["widget"])
+        elif show == "designer" and query.get("widget"):
+            self._designer.build_editor(query["widget"])
+        elif show == "designer":
+            self._back()
+            self._designer.build()
         elif show == "alerts":
             self._back()
             with ui.card().classes("w-full max-w-3xl gap-2"):
@@ -69,6 +77,9 @@ class OverlayPage:
                                                        "and their Browser source for OBS")
             self._tile("widgets", "Widgets", "widgets", "Custom widget code in StreamElements' format, each with "
                                                         "its own Browser source")
+            self._tile("design_services", "Widget editor", "designer", "Make a widget without code: pictures, "
+                                                                        "GIFs, texts like the latest follower, "
+                                                                        "alerts with animations")
             self._tile("bolt", "Events", "events", "What widgets and alerts get from flows: a follow, a sub, a "
                                                     "chat message or your own, each with its values")
             self._tile("file_download", "Import", "import", "Widgets from StreamElements (your overlays and "

@@ -64,10 +64,12 @@ class ConnectionManager:
         """Tests what was typed (empty fields keep the saved value). Only if that works: switch on, save,
         reconnect. A failed test changes nothing."""
         connection = self.get(connection_id)
-        settings = {**connection.settings, **{k: v for k, v in typed.items() if v not in (None, "")}, "enabled": True}
-        status = await connection.test(settings)
+        given = {k: v for k, v in typed.items() if v not in (None, "")}
+        status = await connection.test({**connection.settings, **given, "enabled": True})
         if not status.ok:
             return status
+        # what the test set itself stays (a login that came back as another account made that one the main one)
+        settings = {**connection.settings, **given, "enabled": True}
         self._writer.save(connection.id, settings)
         await self._restart(connection, settings)
         return connection.status

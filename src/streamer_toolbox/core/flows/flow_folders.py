@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+from streamer_toolbox.core.files.write_whole import write_whole
+
 
 class FlowFolders:
     """What a folder of flows has besides its flows (a folder exists while a flow is in it; this keeps its
@@ -48,6 +50,6 @@ class FlowFolders:
 
     def _write(self) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._path.write_text(json.dumps({"hidden": sorted(self._hidden, key=str.casefold),
-                                          "off": sorted(self._off, key=str.casefold)}, indent=2,
-                                         ensure_ascii=False), encoding="utf-8")
+        write_whole(self._path, json.dumps({"hidden": sorted(self._hidden, key=str.casefold),
+                                            "off": sorted(self._off, key=str.casefold)}, indent=2,
+                                           ensure_ascii=False))

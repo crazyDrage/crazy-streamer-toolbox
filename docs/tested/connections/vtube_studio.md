@@ -2,4 +2,4 @@
 
 | What | Name in the code | AI checked | Works | Understandable | Usable | Last change | Note |
 |---|---|---|---|---|---|---|---|
-| VTube Studio | `vtube_studio` | 2026-10-31 | - | - | - | - |  |
+| VTube Studio | `vtube_studio` | 2026-10-31 | yes | - | - | 2026-11-07 |  |

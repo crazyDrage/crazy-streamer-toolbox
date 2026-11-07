@@ -5,6 +5,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from streamer_toolbox.core.files.write_whole import write_whole
 from streamer_toolbox.core.widgets.widget import Widget, check_name
 from streamer_toolbox.core.widgets.widget_input import WidgetInput
 from streamer_toolbox.core.widgets.widget_safety import WidgetSafety
@@ -60,14 +61,13 @@ class WidgetStore:
         folder = self._folder / check_name(widget.name)
         folder.mkdir(parents=True, exist_ok=True)
         for part, file in PARTS.items():
-            (folder / file).write_text(getattr(widget, part), encoding="utf-8")
+            write_whole(folder / file, getattr(widget, part))
         _write(folder / FIELDS, widget.fields)
         _write(folder / VALUES, widget.values)
         if widget.frame or (folder / FRAME).is_file():
             _write(folder / FRAME, widget.frame)
         if widget.events is not None:
-            (folder / EVENTS).write_text(json.dumps(list(widget.events), indent=2, ensure_ascii=False),
-                                         encoding="utf-8")
+            write_whole(folder / EVENTS, json.dumps(list(widget.events), indent=2, ensure_ascii=False))
         self.on_change()
 
     def add_example(self) -> str:
@@ -208,6 +208,30 @@ class WidgetStore:
             shutil.rmtree(folder)
         return files
 
+    def own_files(self, name: str) -> dict[str, Path]:
+        """Everything that makes the widget (its code, settings, media), without what it gathered while it ran
+        (data/): place in its folder (a/b.png) → file. For an export."""
+        folder = self._path(name)
+        if folder is None or not folder.is_dir():
+            return {}
+        return {file.relative_to(folder).as_posix(): file for file in sorted(folder.rglob("*"))
+                if file.is_file() and file.relative_to(folder).parts[0] not in (DATA, KEPT)}
+
+    def put_files(self, name: str, files: dict[str, bytes]) -> None:
+        """Makes a widget from its own files (own_files' places → content): an import. A widget of that name is
+        replaced whole, what it gathered (data/) stays."""
+        folder = self._folder / check_name(name)
+        if folder.is_dir():
+            for place in self.own_files(name).values():
+                place.unlink()
+        for place, content in files.items():
+            target = (folder / place).resolve()
+            if folder.resolve() not in target.parents or Path(place).parts[0] in (DATA, KEPT):
+                raise ValueError(f"not a widget file: {place!r}")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(content)
+        self.on_change()
+
     @staticmethod
     def _all_kept(folder: Path) -> dict[str, Any]:
         in_data = folder / DATA / KEPT
@@ -267,4 +291,4 @@ def _object(path: Path) -> dict[str, Any]:
 
 
 def _write(path: Path, data: dict[str, Any]) -> None:
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    write_whole(path, json.dumps(data, indent=2, ensure_ascii=False))

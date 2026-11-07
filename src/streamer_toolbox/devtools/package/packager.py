@@ -1,3 +1,5 @@
+import compileall
+import py_compile
 import shutil
 import subprocess
 import sys
@@ -127,6 +129,7 @@ class Packager:
             if not self._launcher.build(folder):
                 print(f"no {EXE} in this build (this PC has no gcc for Windows programs): only the .bat files")
         self._start_scripts(folder, self._target)
+        self._compile(folder)
         archive = self._tar(folder, name) if self._target == LINUX else self._zip(folder, name)
         # no arrow in it: not every console can print one
         print(f"everything in it (Settings, What you see): {copied} toolbox files, Python {python} -> {archive} ({archive.stat().st_size / 1e6:.1f} MB)")
@@ -137,15 +140,13 @@ class Packager:
         archive.unlink(missing_ok=True)
         with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as packed:
             for file in sorted(folder.rglob("*")):
-                if file.is_file() and "__pycache__" not in file.parts:
+                if file.is_file():
                     self._pack(packed, file, Path(name) / file.relative_to(folder))
         return archive
 
     def _tar(self, folder: Path, name: str) -> Path:
         """The Linux download: links stay links, and what may run stays runnable (the start scripts always)."""
         def entry(info: tarfile.TarInfo) -> tarfile.TarInfo | None:
-            if "__pycache__" in info.name.split("/"):
-                return None
             if info.name.endswith(".sh"):
                 info.mode = 0o755
             info.uid = info.gid = 0
@@ -177,6 +178,16 @@ class Packager:
         info.compress_type = zipfile.ZIP_DEFLATED
         info.external_attr = 0o100755 << 16
         packed.writestr(info, file.read_bytes())
+
+    def _compile(self, folder: Path) -> None:
+        """The code ready-compiled in the download (his v0.4.0-dev.3 update: the first start after it took 20-30 s,
+        compiling ~900 files): with this Python, when it is the download's version. Checked against the file's
+        hash, not its time: unpacking changes the times, and a file he changes (a plugin) is compiled again."""
+        if "{}.{}".format(*sys.version_info[:2]) != ".".join(self._version.split(".")[:2]):
+            print("not compiled ahead: this Python isn't the download's version")
+            return
+        compileall.compile_dir(folder, quiet=2, workers=0,
+                               invalidation_mode=py_compile.PycInvalidationMode.CHECKED_HASH)
 
     def tracked(self) -> list[str]:
         """The files git tracks, as paths from the repo's root."""

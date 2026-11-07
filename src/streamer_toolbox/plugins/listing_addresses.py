@@ -1,6 +1,8 @@
 import re
 from pathlib import Path
 
+from streamer_toolbox.core.files.write_whole import write_whole
+
 # the main listing, filled in for everyone (where it lives is still his to say: OPEN.md 109)
 MAIN_LISTING = "https://raw.githubusercontent.com/crazyDrage/crazy-streamer-toolbox-plugins/main/plugins.toml"
 FILE_NAME = "plugin_listings.txt"  # in the settings folder
@@ -70,4 +72,4 @@ class ListingAddresses:
 
     def _write(self, lines: list[str]) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        write_whole(self._path, "\n".join(lines) + "\n")

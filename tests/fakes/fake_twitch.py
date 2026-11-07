@@ -3,6 +3,8 @@ from urllib.parse import parse_qs
 
 import httpx
 
+from streamer_toolbox.connections.twitch.twitch_auth import BUILT_IN_CLIENT_ID
+
 SCOPES = ["channel:read:redemptions", "channel:manage:redemptions", "user:read:chat", "user:write:chat",
           "moderator:read:followers", "channel:read:subscriptions", "bits:read", "channel:read:ads",
           "channel:manage:broadcast"]
@@ -12,7 +14,7 @@ class FakeTwitch:
     """Answers like id.twitch.tv (token, validate) and api.twitch.tv/helix; use `transport` with httpx.
     Tokens in `valid` are accepted; refreshing hands out "access-2", "access-3", ..."""
 
-    def __init__(self, client_id: str = "cid") -> None:
+    def __init__(self, client_id: str = BUILT_IN_CLIENT_ID) -> None:
         self.client_id = client_id
         self.valid = {"access-1"}
         self.refresh_ok = True
@@ -24,9 +26,12 @@ class FakeTwitch:
         self.refused: set[str] = set()  # subscription types Twitch says no to (e.g. subs before affiliate)
         self.redemptions: list[tuple[dict, dict]] = []
         self.markers: list[dict] = []
+        self.followers: list[dict] = []  # channels/followers: newest first (user_id, user_login, user_name, ...)
         self.device_asks_until_confirmed = 0  # how often "did he confirm?" is answered "not yet"
         self.device_scopes = ""
         self.scopes = list(SCOPES)  # what a login is given and has
+        self.next_login = ("crazydrage", "42")  # who logs in with the next code (login, user id)
+        self._owner: dict[str, tuple[str, str]] = {}  # access / refresh token → (login, user id)
         self._next = 2
 
     @property
@@ -52,16 +57,20 @@ class FakeTwitch:
                     return httpx.Response(400, json={"status": 400, "message": "authorization_pending"})
             if form["grant_type"] == "refresh_token" and not self.refresh_ok:
                 return httpx.Response(400, json={"message": "Invalid refresh token"})
+            owner = (self._owner.get(form.get("refresh_token", ""), self.next_login)
+                     if form["grant_type"] == "refresh_token" else self.next_login)
             token = f"access-{self._next}"
             self._next += 1
             self.valid.add(token)
+            self._owner[token] = self._owner[f"refresh-{self._next}"] = owner
             return httpx.Response(200, json={"access_token": token, "refresh_token": f"refresh-{self._next}",
                                              "expires_in": 14000, "scope": self.scopes})
         if path == "/oauth2/validate":
             token = request.headers["Authorization"].removeprefix("OAuth ")
             if token not in self.valid:
                 return httpx.Response(401, json={"message": "invalid access token"})
-            return httpx.Response(200, json={"client_id": self.client_id, "login": "crazydrage", "user_id": "42",
+            login, user_id = self._owner.get(token, ("crazydrage", "42"))
+            return httpx.Response(200, json={"client_id": self.client_id, "login": login, "user_id": user_id,
                                              "scopes": self.scopes, "expires_in": 14000})
         if request.headers.get("Authorization", "").removeprefix("Bearer ") not in self.valid:
             return httpx.Response(401, json={"message": "Invalid OAuth token"})
@@ -79,6 +88,8 @@ class FakeTwitch:
             return httpx.Response(200, json={"data": [{"status": body["status"]}]})
         if path == "/helix/channels" and request.method == "GET":
             return httpx.Response(200, json={"data": [{"title": "Lizard time", "game_name": "Just Chatting"}]})
+        if path == "/helix/channels/followers":
+            return httpx.Response(200, json={"data": self.followers, "total": len(self.followers)})
         if path == "/helix/streams/markers":
             self.markers.append(body)
             return httpx.Response(200, json={"data": [{"id": "mk1", **body}]})

@@ -18,6 +18,9 @@ TRIGGERS: dict[str, tuple[str, dict[str, str]]] = {
     "chat": ("chat", {}), "chat_deleted": ("twitch.chat_deleted", {}), "follow": ("follow", {}),
     "sub": ("sub", {"gift": "false"}), "resub": ("resub", {}), "gift": ("gift", {}), "cheer": ("cheer", {}),
     "raid": ("raid", {}), "tip": ("tip", {}), "redeem": ("redeem", {}),
+    "community_gift": ("gift", {}), "superchat": ("youtube.superchat", {}), "member": ("youtube.member", {}),
+    "charity": ("streamelements.activity", {"type": "charityCampaignDonation"}),
+    "merch": ("streamelements.activity", {"type": "merch"}),
 }
 
 

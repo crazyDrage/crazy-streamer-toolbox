@@ -5,7 +5,8 @@ from dataclasses import replace
 from pathlib import Path
 
 from streamer_toolbox.core.alerts.alert import Alert
-from streamer_toolbox.core.alerts.alert_part import AlertPart
+from streamer_toolbox.core.alerts.alert_input import AlertInput
+from streamer_toolbox.core.alerts.alert_part import ADDABLE, AlertPart
 from streamer_toolbox.core.alerts.alert_queue import AlertQueue
 from streamer_toolbox.core.alerts.alert_rule import AlertRule
 from streamer_toolbox.core.alerts.alert_store import AlertStore, _old
@@ -120,9 +121,37 @@ class TestAlertPart(unittest.TestCase):
         self.assertEqual([p["kind"] for p in payload["parts"]], ["text", "name"])
         self.assertEqual(payload["parts"][1], {"kind": "name", "index": 1, "text": "Kit", "on_picture": True,
                                                "x": 33, "y": 53, "width": 0.0, "size": 0.0, "color": "",
-                                               "align": "center", "lines": 0})
+                                               "align": "center", "lines": 0, "file": ""})
         plain = queue.payload(Alert("hi", message="there"))  # the Show alert box: a text and a message
         self.assertEqual(plain["parts"], [{"kind": "text", "text": "hi"}, {"kind": "message", "text": "there"}])
+
+    def test_a_picture_piece_shows_its_file_under_a_random_name(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            gif = Path(folder) / "hat.GIF"
+            gif.write_bytes(b"GIF89a")
+            clip = Path(folder) / "clap.mp4"
+            clip.write_bytes(b"")
+            rule = replace(self.rule, inputs=(*self.rule.inputs, AlertInput("clip", "picture")))
+            rule = rule.add_part(AlertPart("picture", file=str(gif), on_picture=True, size=200)) \
+                .add_part(AlertPart("picture", file="{clip}")).add_part(AlertPart("picture"))
+            alert = rule.alert_for({**RESUB, "clip": f'"{clip}"'})
+            self.assertEqual([v["file"] for v in alert.parts if v["kind"] == "picture"],
+                             [str(gif), str(clip)])  # an empty one shows nothing
+            pictures = [p for p in AlertQueue().payload(alert)["parts"] if p["kind"] == "picture"]
+            self.assertTrue(pictures[0]["file"].startswith("/overlay/file/"))
+            self.assertTrue(pictures[0]["file"].endswith(".gif"))
+            self.assertEqual([p["video"] for p in pictures], [False, True])
+            self.assertEqual((pictures[0]["size"], pictures[0]["on_picture"]), (200, True))
+            gif.unlink()
+            with self.assertRaises(FileNotFoundError):
+                AlertQueue().payload(alert)
+
+    def test_a_picture_piece_is_kept_and_a_name_piece_still_reads(self) -> None:
+        part = AlertPart("picture", file="C:/hat.png", size=600)
+        self.assertEqual(AlertPart.from_dict(part.to_dict()), part)  # its height may be more than a word's 300
+        self.assertNotIn("file", AlertPart("name").to_dict())
+        self.assertEqual(AlertPart.from_dict({"kind": "name", "size": 600}).size, 300)
+        self.assertNotIn("name", ADDABLE)  # not offered any more; an alert that has one keeps it
 
 
 if __name__ == "__main__":

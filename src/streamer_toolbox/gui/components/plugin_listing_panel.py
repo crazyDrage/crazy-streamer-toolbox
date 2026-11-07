@@ -36,7 +36,7 @@ class PluginListingPanel:
         self._installer = installer
         self._restart = restart
         self._notices = notices if notices is not None else {}
-        self._check = check  # Settings → General → "Look for updates once a day": the plugins are asked too
+        self._check = check  # Settings → General → "Look for updates by itself": the plugins are asked too
         self._plugins: list[ListedPlugin] | None = None  # None: not read yet
         self._problems: list[str] = []
         self._done_now: list[str] = []  # "Installed Jokes", "Removed Dice": they count after a restart

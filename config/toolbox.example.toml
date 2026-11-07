@@ -36,10 +36,10 @@ folder = ""   # where your sound files are; the Play sound box lists them (full 
 
 [twitch]
 enabled = false
-client_id = ""                          # dev.twitch.tv/console → your app
-client_secret = ""
-redirect_url = "http://localhost:17563"   # must be one of the app's OAuth Redirect URLs
-# The login itself (Connect → allow in the browser) is kept in config/secrets/twitch_token.json.
+main_account = ""                       # the account boxes use when none is picked (set on the Twitch page)
+follower_check = "60"                   # seconds between two follower checks (a failsafe for missed follows); 0 = off
+# Connect logs in with the toolbox's own Twitch app (confirm the code on Twitch's page). Each account's login is
+# kept in config/secrets/twitch/<login>.json.
 
 [mixitup]
 enabled = false

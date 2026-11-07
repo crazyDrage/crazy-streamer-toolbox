@@ -55,7 +55,7 @@ name in that file. The script keeps such rows as they are.
 |---|---|---|
 | **[live](live/)** | **0** | **1** |
 | [live/page](live/page.md) | 0 | 1 |
-| **[flows](flows/)** | **15** | **363** |
+| **[flows](flows/)** | **15** | **369** |
 | [flows/page](flows/page.md) | 0 | 6 |
 | [flows/triggers/any_platform](flows/triggers/any_platform.md) | 3 | 10 |
 | [flows/triggers/crowdcontrol](flows/triggers/crowdcontrol.md) | 0 | 1 |
@@ -76,10 +76,10 @@ name in that file. The script keeps such rows as they are.
 | [flows/triggers/veadotube](flows/triggers/veadotube.md) | 0 | 2 |
 | [flows/triggers/vtube_studio](flows/triggers/vtube_studio.md) | 4 | 6 |
 | [flows/triggers/widget](flows/triggers/widget.md) | 0 | 1 |
-| [flows/triggers/youtube](flows/triggers/youtube.md) | 0 | 8 |
+| [flows/triggers/youtube](flows/triggers/youtube.md) | 0 | 9 |
 | [flows/boxes/alert/alerts](flows/boxes/alert/alerts.md) | 0 | 2 |
 | [flows/boxes/discord/general](flows/boxes/discord/general.md) | 0 | 1 |
-| [flows/boxes/event/events](flows/boxes/event/events.md) | 0 | 10 |
+| [flows/boxes/event/events](flows/boxes/event/events.md) | 0 | 15 |
 | [flows/boxes/example/effects](flows/boxes/example/effects.md) | 0 | 1 |
 | [flows/boxes/example/general](flows/boxes/example/general.md) | 0 | 5 |
 | [flows/boxes/file/text_files](flows/boxes/file/text_files.md) | 0 | 2 |
@@ -160,8 +160,8 @@ name in that file. The script keeps such rows as they are.
 | [flows/boxes/youtube/chat](flows/boxes/youtube/chat.md) | 0 | 1 |
 | **[variables](variables/)** | **0** | **1** |
 | [variables/page](variables/page.md) | 0 | 1 |
-| **[overlay](overlay/)** | **0** | **5** |
-| [overlay/page](overlay/page.md) | 0 | 5 |
+| **[overlay](overlay/)** | **0** | **6** |
+| [overlay/page](overlay/page.md) | 0 | 6 |
 | **[tools](tools/)** | **0** | **6** |
 | [tools/page](tools/page.md) | 0 | 1 |
 | [tools/twitch](tools/twitch.md) | 0 | 1 |
@@ -201,6 +201,6 @@ name in that file. The script keeps such rows as they are.
 | [plugins/page](plugins/page.md) | 0 | 4 |
 | **[learn](learn/)** | **0** | **11** |
 | [learn/page](learn/page.md) | 0 | 11 |
-| **[settings](settings/)** | **0** | **19** |
-| [settings/page](settings/page.md) | 0 | 19 |
-| **All** | **15** | **438** |
+| **[settings](settings/)** | **0** | **20** |
+| [settings/page](settings/page.md) | 0 | 20 |
+| **All** | **15** | **446** |

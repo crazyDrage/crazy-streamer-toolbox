@@ -18,10 +18,12 @@ from streamer_toolbox.core.flows.chat_match import MODES, mode_of, to_match
 from streamer_toolbox.core.flows.number_match import COMPARE, CROSSING, compare_of, to_compare
 from streamer_toolbox.core.flows.role_match import ROLE_KEYS, roles_match, roles_of
 from streamer_toolbox.gui.components.keep_typed import keep_typed
+from streamer_toolbox.gui.components.account_picker import AccountPicker
 from streamer_toolbox.gui.components.role_picker import RolePicker
 from streamer_toolbox.core.flows.flow_gate import WHEN_BUSY
-from streamer_toolbox.core.flows.flow_trigger import FlowTrigger
+from streamer_toolbox.core.flows.flow_trigger import ACCOUNTS, ALL, MAIN, FlowTrigger
 from streamer_toolbox.core.flows.flow_wire import INPUT, START
+from streamer_toolbox.core.testing.test_item import TRIGGER
 from streamer_toolbox.core.testing.test_view import TestView
 from streamer_toolbox.core.variables.variable_store import VariableStore
 from streamer_toolbox.gui.components.folder_field import FolderField
@@ -37,6 +39,7 @@ from streamer_toolbox.gui.components.flow_editor.trigger_picker import TriggerPi
 
 VIEWS = {"list": "List", "boxes": "Boxes"}
 KEY = "key.pressed"  # its key is picked in a window (KeyDialog)
+KEPT_KEYS = (*ROLE_KEYS, ACCOUNTS)  # filters a trigger keeps when its own field changes
 
 
 REDEEM = "twitch.redeem"  # its form has the refund checkbox
@@ -51,8 +54,11 @@ class FlowEditor:
                  runner: FlowRunner, variables: VariableStore, box_files: BoxValueFiles,
                  trigger_choices: dict[str, OptionsProvider] | None = None,
                  box_filters: BoxFilterStore | None = None, switched_off: SwitchedOff | None = None,
-                 last_events: LastEvents | None = None, test_view: TestView | None = None) -> None:
+                 last_events: LastEvents | None = None, test_view: TestView | None = None,
+                 trigger_accounts: Callable[[str], list[str]] | None = None) -> None:
         self._last_events = last_events
+        # a trigger kind → the accounts whose events come in now (Twitch with several: the Account select)
+        self._trigger_accounts = trigger_accounts or (lambda kind: [])
         self._test_view = test_view
         self._draft = draft
         self._old_name = old_name
@@ -225,7 +231,8 @@ class FlowEditor:
         hidden = len(offered_triggers(self._switched_off)) - len(kinds)
         note = (f"{hidden} triggers hidden: {self._test_view.why()}. Change it in Settings → What "
                 "you see") if hidden else ""
-        picked = await TriggerPicker(kinds, note).pick()
+        works = (lambda kind: self._test_view.works(f"{TRIGGER}:{kind}")) if self._test_view else None
+        picked = await TriggerPicker(kinds, note, works).pick()
         if picked is None:
             return
         trigger = FlowTrigger(picked.kind, {picked.match: picked.example} if picked.match else {})
@@ -237,7 +244,7 @@ class FlowEditor:
         icon, text, key, _ = TRIGGER_KINDS.get(trigger.kind, ("bolt", trigger.kind, None, ""))
         if key is None:  # a kind this copy doesn't know: show what its file says
             key = next(iter(trigger.match), "match")
-        elif not key and set(trigger.match) - set(ROLE_KEYS):  # e.g. an older Stream offline's "type"
+        elif not key and set(trigger.match) - set(KEPT_KEYS):  # e.g. an older Stream offline's "type"
             self._set_trigger(trigger_id, match=self._who(trigger_id))
         # the name on its own line (a long one fits), what it matches below; that line may wrap
         with ui.row().classes("items-center no-wrap gap-2 w-full"):
@@ -260,6 +267,7 @@ class FlowEditor:
                 self._trigger_value(trigger_id, trigger.kind, key, str(trigger.match.get(key, "")))
                 if "role" in EVENT_FIELDS.get(trigger.kind, ()):
                     self._who_select(trigger_id)
+            self._account_select(trigger_id)
         if trigger.kind == REDEEM:  # with the reward it is about (his round 63; one setting for the flow)
             ui.checkbox("Refund the redeem if it fails", value=self._draft.refund_on_fail,
                         on_change=lambda e: setattr(self._draft, "refund_on_fail", e.value)) \
@@ -352,8 +360,30 @@ class FlowEditor:
             .tooltip("Tick Ctrl / Alt / Shift and pick the key from a list, or press it")
 
     def _who(self, trigger_id: str) -> dict[str, str]:
-        """The trigger's role filter as it is saved (kept when its other field changes)."""
-        return {k: v for k, v in self._draft.trigger(trigger_id).match.items() if k in ROLE_KEYS}
+        """The trigger's role and account filters as they are saved (kept when its other field changes)."""
+        return {k: v for k, v in self._draft.trigger(trigger_id).match.items() if k in KEPT_KEYS}
+
+    def _account_select(self, trigger_id: str) -> None:
+        """Which accounts may start it (his answer 120): only when more than one account listens, or when it
+        names some already (rule 29: a filter never hides). "main account" follows the main one (his ask of
+        2026-11-05)."""
+        match = self._draft.trigger(trigger_id).match
+        listening = self._trigger_accounts(self._draft.trigger(trigger_id).kind)
+        picked = [n.strip() for n in str(match.get(ACCOUNTS, "")).split(",") if n.strip()]
+        if len(listening) < 2 and not picked:
+            return
+
+        def changed(names: list[str]) -> None:
+            now = {k: v for k, v in self._draft.trigger(trigger_id).match.items() if k != ACCOUNTS}
+            self._set_trigger(trigger_id, match={**now, **({ACCOUNTS: ", ".join(names)} if names else {})})
+
+        if "." not in self._draft.trigger(trigger_id).kind:  # any platform: main or all (his ask of 2026-11-05)
+            ui.select({MAIN: "Main account", ALL: "All accounts"}, value=ALL if ALL in picked else MAIN,
+                      label="Account", on_change=lambda e: changed([] if e.value == MAIN else [ALL]))                 .props("dense").classes("min-w-[10rem]")                 .tooltip('Whose events start it. A finer check goes in the flow: its "account" dot, e.g. with '
+                         'List has')
+            return
+        AccountPicker([MAIN, *listening], picked, changed,
+                      labels={MAIN: "main account (whichever is the main one then)"})
 
     def _who_select(self, trigger_id: str, chat: bool = False) -> None:
         """Who may start it: a checkbox per role (RolePicker), on a trigger that names a viewer. Only chat tells

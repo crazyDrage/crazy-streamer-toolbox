@@ -18,6 +18,7 @@ from nicegui import app, ui
 from streamer_toolbox.assembly.toolbox_assembly import assemble
 from streamer_toolbox.core.app_name import APP_NAME
 from streamer_toolbox.core.config.toolbox_config import ToolboxConfig
+from streamer_toolbox.core.files.write_whole import write_whole
 from streamer_toolbox.core.system.parent_watch import ParentWatch
 from streamer_toolbox.core.system.toolbox_launcher import ToolboxLauncher
 from streamer_toolbox.core.system.update_starter import UpdateStarter
@@ -113,7 +114,7 @@ def _session_secret(path: Path) -> str:
     show the login page at all."""
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(secrets.token_urlsafe(32), encoding="utf-8")
+        write_whole(path, secrets.token_urlsafe(32))
     return path.read_text(encoding="utf-8").strip()
 
 

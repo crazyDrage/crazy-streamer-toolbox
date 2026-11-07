@@ -34,6 +34,7 @@ TRIGGER_KINDS = {  # every platform at once (CommonEvents); the platform's own o
                  "youtube.chat": ("chat", "YouTube chat message", "command", "!command"),
                  "youtube.superchat": ("payments", "YouTube Super Chat", "user", "*"),
                  "youtube.supersticker": ("payments", "YouTube Super Sticker", "user", "*"),
+                 "youtube.follow": ("favorite", "YouTube new subscriber", "user", "*"),
                  "youtube.member": ("star", "YouTube new member", "user", "*"),
                  "youtube.member_milestone": ("star_half", "YouTube member milestone", "user", "*"),
                  "youtube.gift_members": ("redeem", "YouTube gifted memberships", "user", "*"),
@@ -112,6 +113,8 @@ TRIGGER_INFO: dict[str, str] = {
     "youtube.chat": "A message in your YouTube live chat: a command, a word in it, or a pattern",
     "youtube.superchat": "A paid message in your YouTube chat",
     "youtube.supersticker": "A paid sticker in your YouTube chat",
+    "youtube.follow": "A new subscriber (YouTube's free follow), found by the subscriber check: only public "
+                      "subscriptions, a little after they subscribed",
     "youtube.member": "A new channel member",
     "youtube.member_milestone": "A member shared a milestone, with the months",
     "youtube.gift_members": "Someone gifted memberships; amount = how many",

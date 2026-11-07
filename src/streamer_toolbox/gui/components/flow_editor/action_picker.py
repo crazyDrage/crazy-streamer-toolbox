@@ -5,9 +5,11 @@ from collections.abc import Callable
 from streamer_toolbox.core.actions.action_registry import PLUGINS, SERVICES, ActionRegistry
 from streamer_toolbox.core.actions.box_filter_store import BoxFilterStore
 from streamer_toolbox.core.actions.registered_action import RegisteredAction
+from streamer_toolbox.core.testing.test_inventory import OWN_FLOWS
 from streamer_toolbox.core.testing.test_view import TestView
 from streamer_toolbox.gui.components.flow_editor.action_catalog import ActionCatalog
 from streamer_toolbox.gui.components.flow_editor.fold_group import FoldGroup
+from streamer_toolbox.gui.components.not_tested_mark import NotTestedMark
 
 SwitchedOff = Callable[[], dict[str, str]]  # box category → name, for the connections and plugins that are off
 
@@ -154,6 +156,8 @@ class ActionPicker:
                 .on("click", lambda name=action.name: self._dialog.submit(name)):
             with ui.row().classes("no-wrap items-baseline gap-2"):
                 ui.label(action.title).classes("font-medium")
+                if not action.is_tested and action.category != OWN_FLOWS:
+                    NotTestedMark.build()
                 if group and action.group:
                     ui.label(action.group).classes("text-xs opacity-50")
             ui.label(action.description or action.name).classes("text-xs opacity-70")

@@ -9,6 +9,6 @@ class Shoutout(TwitchStreamBox):
 
     async def run(self, user: str) -> None:
         self._allowed("moderator:manage:shoutouts")
-        me = self._me().user_id
         await self._helix("POST", "chat/shoutouts", params={
-            "from_broadcaster_id": me, "to_broadcaster_id": (await self._user(user))["id"], "moderator_id": me})
+            "from_broadcaster_id": self._channel().user_id, "to_broadcaster_id": (await self._user(user))["id"],
+            "moderator_id": self._me().user_id})

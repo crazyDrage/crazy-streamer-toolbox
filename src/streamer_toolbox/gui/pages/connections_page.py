@@ -10,6 +10,7 @@ from streamer_toolbox.core.interfaces.connection import Connection
 from streamer_toolbox.core.testing.test_item import CONNECTION
 from streamer_toolbox.core.testing.test_view import TestView
 from streamer_toolbox.gui.components.connection_panel import STATE_LOOK, ConnectionPanel
+from streamer_toolbox.gui.components.not_tested_mark import NotTestedMark
 from streamer_toolbox.gui.services.ui_registry import UiRegistry
 
 LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
@@ -76,6 +77,8 @@ class ConnectionsPage:
             with ui.row().classes("items-center no-wrap gap-2 w-full"):
                 ui.icon(icon).classes("text-2xl text-primary")
                 ui.label(title).classes("text-lg font-semibold flex-1")
+                if connection is not None and self._view is not None                         and not self._view.works(f"{CONNECTION}:{connection.id}"):
+                    NotTestedMark.build()
                 if connection is not None:
                     badge = ui.badge()
             detail = ui.label(note).classes("text-xs opacity-70 break-all")

@@ -1,5 +1,4 @@
 from typing import Any
-from urllib.parse import urlencode
 
 import httpx
 
@@ -25,48 +24,40 @@ EXTRA_SCOPES = ("clips:edit", "moderator:manage:shoutouts", "moderator:manage:an
                 "moderation:read", "channel:read:vips",
                 # the trigger Suspicious user wrote (his go 2026-10-11): Twitch's "ban evader" note on a chatter
                 "moderator:read:suspicious_users")
+# a bot account (his answer 119 c: "Bot account" when adding one): writes and reads chat, and does what a mod of his
+# channel may (shoutout, announcement, timeout, chat settings, who is in chat). Only permissions the toolbox already
+# asks for (rule 43); the first two are needed, the rest are asked for and checked by the boxes that use them
+BOT_SCOPES = ("user:read:chat", "user:write:chat", "moderator:manage:shoutouts", "moderator:manage:announcements",
+              "moderator:manage:banned_users", "moderator:manage:chat_settings", "moderator:read:chatters")
+BOT_NEEDS = ("user:read:chat", "user:write:chat")
 
 
 class TwitchAuth:
-    """Twitch login (dev.twitch.tv/docs/authentication), two ways. An app with a secret (one's own,
-    "Confidential"): the authorization code flow: the streamer allows the app in the browser, Twitch sends the
-    browser back to redirect_uri with a code, the code becomes tokens. An app without a secret ("Public", the
-    toolbox's built-in one): the device code flow: Twitch gives a short code and a page, the streamer confirms
-    the code there, and the toolbox asks until the tokens are there. A public app's refresh token works once:
-    every renewal brings a new one that has to be kept."""
+    """Twitch login (dev.twitch.tv/docs/authentication) with the toolbox's own app, a "Public" one without a
+    secret: the device code flow. Twitch gives a short code and a page, the streamer confirms the code there
+    (any browser where the account is logged in), and the toolbox asks until the tokens are there. A public
+    app's refresh token works once: every renewal brings a new one that has to be kept.
 
-    @property
-    def public(self) -> bool:
-        return not self._client_secret
+    An app of his own (Client ID / Secret, a localhost redirect) is gone since 2026-11-05 (his "we don't need a
+    custom one anymore")."""
 
-    def __init__(self, client_id: str, client_secret: str, redirect_uri: str,
-                 transport: httpx.AsyncBaseTransport | None = None) -> None:
+    def __init__(self, client_id: str, transport: httpx.AsyncBaseTransport | None = None) -> None:
         self.client_id = client_id
-        self._client_secret = client_secret
-        self.redirect_uri = redirect_uri
         self._transport = transport
 
-    def authorize_url(self, state: str) -> str:
-        return f"{ID}/authorize?" + urlencode({"response_type": "code", "client_id": self.client_id,
-                                               "redirect_uri": self.redirect_uri, "scope": " ".join(SCOPES + EXTRA_SCOPES),
-                                               "state": state, "force_verify": "true"})
-
-    async def exchange(self, code: str) -> dict[str, Any]:
-        return await self._token({"grant_type": "authorization_code", "code": code,
-                                  "redirect_uri": self.redirect_uri})
-
-    async def device(self) -> dict[str, Any]:
-        """Starts a login with a code: {device_code, user_code, verification_uri, interval, expires_in}."""
+    async def device(self, scopes: tuple[str, ...] = ()) -> dict[str, Any]:
+        """Starts a login with a code: {device_code, user_code, verification_uri, interval, expires_in}. scopes:
+        what it asks for (a channel account's: all of them)."""
         async with web_client(self._transport, timeout=10) as client:
             response = await client.post(f"{ID}/device", data={"client_id": self.client_id,
-                                                               "scopes": " ".join(SCOPES + EXTRA_SCOPES)})
+                                                               "scopes": " ".join(scopes or SCOPES + EXTRA_SCOPES)})
         return _json(response)
 
-    async def device_token(self, device_code: str) -> dict[str, Any] | None:
+    async def device_token(self, device_code: str, scopes: tuple[str, ...] = ()) -> dict[str, Any] | None:
         """The tokens once he confirmed the code; None while Twitch still waits for him."""
         try:
             return await self._token({"grant_type": DEVICE_GRANT, "device_code": device_code,
-                                      "scopes": " ".join(SCOPES + EXTRA_SCOPES)})
+                                      "scopes": " ".join(scopes or SCOPES + EXTRA_SCOPES)})
         except TwitchApiError as e:
             if PENDING in str(e):
                 return None
@@ -83,8 +74,7 @@ class TwitchAuth:
 
     async def _token(self, data: dict[str, str]) -> dict[str, Any]:
         async with web_client(self._transport, timeout=10) as client:
-            secret = {} if self.public else {"client_secret": self._client_secret}
-            response = await client.post(f"{ID}/token", data={"client_id": self.client_id, **secret, **data})
+            response = await client.post(f"{ID}/token", data={"client_id": self.client_id, **data})
         return _json(response)
 
 

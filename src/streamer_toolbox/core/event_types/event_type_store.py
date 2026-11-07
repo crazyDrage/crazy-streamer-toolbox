@@ -6,6 +6,7 @@ from pathlib import Path
 from streamer_toolbox.core.event_types.default_event_types import DEFAULTS
 from streamer_toolbox.core.event_types.event_type import EventType, check_event_name
 from streamer_toolbox.core.event_types.event_value import EventValue
+from streamer_toolbox.core.files.write_whole import write_whole
 
 
 class EventTypeStore:
@@ -28,6 +29,18 @@ class EventTypeStore:
             self._types.setdefault(default.name, default)
         if new:
             self._write()
+
+    def add_other_names(self, event: str, names: tuple[str, ...]) -> list[str]:
+        """Other names a default type got after it shipped, added to the type he has if it still came with the
+        toolbox (a settings upgrade does this once, so a name he takes away later stays away); the names added."""
+        kind = self._types.get(event)
+        if kind is None or not kind.default:
+            return []
+        added = [name for name in names if name not in kind.also_known_as]
+        if added:
+            self._types[event] = replace(kind, also_known_as=(*kind.also_known_as, *added))
+            self._write()
+        return added
 
     def all(self) -> list[EventType]:
         return list(self._types.values())
@@ -82,9 +95,8 @@ class EventTypeStore:
 
     def _write(self) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._path.write_text(json.dumps({"types": [t.to_dict() for t in self._types.values()],
-                                          "defaults_added": self._defaults_added, "flows_made": self._flows_made},
-                                         indent=2, ensure_ascii=False),
-                              encoding="utf-8")
+        write_whole(self._path, json.dumps({"types": [t.to_dict() for t in self._types.values()],
+                                            "defaults_added": self._defaults_added, "flows_made": self._flows_made},
+                                           indent=2, ensure_ascii=False))
         if self.on_change:
             self.on_change()

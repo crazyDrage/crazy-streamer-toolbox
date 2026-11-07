@@ -131,14 +131,29 @@ def _tier(data: dict[str, Any]) -> str:
 # a widget input's type → the toolbox event whose StreamElements words it is sent in (se_event)
 INPUT_EVENTS = {"chat": "twitch.chat", "chat_deleted": "twitch.chat_deleted", "follow": "twitch.follow",
                 "sub": "twitch.sub", "resub": "twitch.resub", "gift": "twitch.gift", "cheer": "twitch.cheer",
-                "raid": "twitch.raid", "tip": "tip"}
+                "raid": "twitch.raid", "tip": "tip", "community_gift": "twitch.gift"}
+
+
+def input_listener(kind: str, values: dict[str, Any], names: tuple[str, ...]) -> str:
+    """Which of the event type's StreamElements names (`names`, the first is the usual one) this one send is
+    heard as: a chatter's messages all deleted at once is delete-messages, one message delete-message."""
+    mapped = _mapped(kind, values)
+    return mapped[0] if mapped and mapped[0] in names else (names[0] if names else kind)
 
 
 def input_event(kind: str, values: dict[str, Any]) -> dict[str, Any]:
     """What a widget's code gets as obj.detail.event when a flow sends an event of that type (EventSender):
     StreamElements' words for its kind (a chat message with its platform as `service`), a custom input's
     fields as they are."""
-    if kind not in INPUT_EVENTS:
+    mapped = _mapped(kind, values)
+    if not mapped:
         return dict(values)
-    mapped = se_event(INPUT_EVENTS[kind], {key: value for key, value in values.items() if value not in (None, "")})
-    return mapped[1] if mapped else dict(values)
+    if kind == "community_gift":
+        return {**mapped[1], "isCommunityGift": True}
+    return mapped[1]
+
+
+def _mapped(kind: str, values: dict[str, Any]) -> tuple[str, dict[str, Any]] | None:
+    if kind not in INPUT_EVENTS:
+        return None
+    return se_event(INPUT_EVENTS[kind], {key: value for key, value in values.items() if value not in (None, "")})

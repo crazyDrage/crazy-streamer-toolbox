@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+from streamer_toolbox.core.files.write_whole import write_whole
+
 
 class PluginSwitches:
     """Which loaded plugins he switched off on the Plugins page (config/plugins_off.json, a list of ids). A
@@ -21,4 +23,4 @@ class PluginSwitches:
     def switch(self, plugin_id: str, on: bool) -> None:
         ids = self.off() - {plugin_id} if on else self.off() | {plugin_id}
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._path.write_text(json.dumps(sorted(ids)), encoding="utf-8")
+        write_whole(self._path, json.dumps(sorted(ids)))

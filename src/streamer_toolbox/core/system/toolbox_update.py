@@ -14,6 +14,7 @@ from typing import Any
 import httpx
 
 from streamer_toolbox.core.app_version import APP_VERSION, channel_takes, is_newer, version_numbers
+from streamer_toolbox.core.files.write_whole import write_whole
 from streamer_toolbox.core.system.settings_backup import SettingsBackup
 from streamer_toolbox.core.system.starter_settings import StarterSettings
 from streamer_toolbox.core.system.toolbox_release import ToolboxRelease
@@ -34,11 +35,15 @@ CHANNELS = {"release": "Releases only", "rc": "Release candidates too", "beta": 
 ASSETS = {"windows": "crazy-streamer-toolbox-windows.zip", "linux": "crazy-streamer-toolbox-linux.tar.gz"}
 CHECKED = "checked.json"  # the last check: when, and the newest release then
 DAY = 24 * 60 * 60
+# his v0.4.0-dev.2 try (2026-11-07): "that should be automatic". Once a day missed a version that came out the
+# same day: a start asks unless it asked within the hour, and a running toolbox asks every 6 hours
+HOUR = 60 * 60
+WHILE_RUNNING = 6 * HOUR
 
 
 class ToolboxUpdate:
     """The toolbox's own update (his next release plan, part 1: "both", tell and download and install, shown
-    at the top). check() asks GitHub for the newest release at most once a day; a newer one than APP_VERSION is
+    at the top). check() asks GitHub for the newest release at most once an hour (HOUR); a newer one than APP_VERSION is
     `newest`. prepare() downloads its file for this system into `folder`, checks it against the SHA-256 GitHub
     lists, unpacks it and writes ready.json; the toolbox then stops with UPDATE_EXIT_CODE and its launcher
     starts the swap (UpdateStarter → UpdateSwap), which puts the new files in and starts it again.
@@ -51,7 +56,7 @@ class ToolboxUpdate:
     `channel` (CHANNELS): which versions count; "release" (the default) never offers a test version."""
 
     def __init__(self, root: Path, folder: Path, transport: httpx.AsyncBaseTransport | None = None,
-                 now: Callable[[], float] = time.time, check_every: float = DAY, system: str = "",
+                 now: Callable[[], float] = time.time, check_every: float = HOUR, system: str = "",
                  version: str = APP_VERSION, settings: Path | None = None, channel: str = "release") -> None:
         self._root = root
         self._folder = folder
@@ -85,7 +90,7 @@ class ToolboxUpdate:
         return channel_takes(self.channel, version)
 
     async def check(self, force: bool = False) -> ToolboxRelease | None:
-        """Asks GitHub unless it was asked less than a day ago (force: now); the newer release, or None. Fails
+        """Asks GitHub unless it was asked less than `check_every` ago (an hour; force: now); the newer release, or None. Fails
         with the reason when GitHub can't be asked."""
         async with self._busy:
             checked = self._read(CHECKED).get("checked")
@@ -201,4 +206,4 @@ class ToolboxUpdate:
 
     def _write(self, name: str, data: dict[str, Any]) -> None:
         self._folder.mkdir(parents=True, exist_ok=True)
-        (self._folder / name).write_text(json.dumps(data, indent=1), encoding="utf-8")
+        write_whole(self._folder / name, json.dumps(data, indent=1))

@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 
 from streamer_toolbox.connections.twitch.graphql_document import find_document, to_query, variables_of
+from streamer_toolbox.core.files.write_whole import write_whole
 from streamer_toolbox.core.web.web_client import web_client
 
 log = logging.getLogger(__name__)
@@ -95,4 +96,4 @@ class TwitchClipQuestion:
     def _write(self, found: dict[str, Any]) -> None:
         if self._keep is not None:
             self._keep.parent.mkdir(parents=True, exist_ok=True)
-            self._keep.write_text(json.dumps(found, indent=1), encoding="utf-8")
+            write_whole(self._keep, json.dumps(found, indent=1))

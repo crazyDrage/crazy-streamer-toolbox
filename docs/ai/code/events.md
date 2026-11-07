@@ -7,6 +7,18 @@ trigger matches start; alerts and widgets listen to the same bus.
 
 1. Publish it: `events.publish("<source>.<what>", {...})`, e.g. `"rumble.follow"`. Values are plain text,
    numbers, yes/no, lists. Always include `platform` for anything that comes from a streaming platform.
+   A connection with several accounts (Twitch) also gives `account`: which of the streamer's accounts heard it
+   (`event_fields.ACCOUNT_FIELD`, added to every `twitch.*` kind); a trigger matches it with
+   `{"accounts": "a, b"}` (the editor's Account select, shown when more than one account listens). The name
+   `main account` in it (`flow_trigger.MAIN`) is the main account at the time: Twitch events also carry
+   `main_account` (no dot of its own). The common events (any platform) carry `account` too (a dot; "" from a
+   platform without several accounts); their trigger is the main account's unless it says
+   `{"accounts": "all accounts"}` (`flow_trigger.ALL`).
+   Follows: a platform that can list its newest followers also runs a `core/followers/FollowerCheck` (setting
+   `follower_check`, seconds): it sends the platform's own follow event for each one its `SeenFollowers` list
+   (config/followers/) doesn't have, and the live event checks the same list, so each follow comes once.
+   Twitch (channels/followers) and YouTube (`youtube.follow`: new subscribers, only public ones; YouTube has no
+   live event for them) do; Rumble asks its feed all the time anyway; Fansly can't list followers.
 2. List its fields in `EVENT_FIELDS` (`core/events/event_fields.py`). The flow editor shows them as dots on
    the trigger's Start box; a field missing there can't be wired. Keep it in step with the `publish()` call.
 3. Make it a trigger the streamer can pick: an entry in `TRIGGER_KINDS` and its one line of help in

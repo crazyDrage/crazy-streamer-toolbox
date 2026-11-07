@@ -4,7 +4,7 @@ from streamer_toolbox.core.alerts.alert_queue import AlertQueue
 from streamer_toolbox.core.alerts.alert_store import AlertStore
 from streamer_toolbox.core.event_types.event_type import EventType
 from streamer_toolbox.core.event_types.event_type_store import EventTypeStore
-from streamer_toolbox.core.widgets.widget_events import INPUT_EVENTS, input_event
+from streamer_toolbox.core.widgets.widget_events import INPUT_EVENTS, input_event, input_listener
 from streamer_toolbox.core.widgets.widget_hub import WidgetHub
 from streamer_toolbox.core.widgets.widget_store import WidgetStore
 
@@ -35,7 +35,7 @@ class EventSender:
         for widget_name in self._widgets.names():
             widget = self._widgets.get(widget_name)
             if widget and name in (widget.events or ()) and only_to in ("", f"widget {widget_name}"):
-                pages += self._hub.send(kind.listener, widget_event(kind, values), widget_name)
+                pages += self._hub.send(widget_listener(kind, values), widget_event(kind, values), widget_name)
         played, in_front = 0, None
         for rule in self._alerts.all():
             if rule.event == name and only_to in ("", f"alert {rule.id}") and rule.wants(values):
@@ -43,6 +43,14 @@ class EventSender:
                 in_front = waiting if in_front is None else in_front
                 played += 1
         return {"pages": pages, "alerts": played, "in_front": in_front or 0}
+
+
+def widget_listener(kind: EventType, values: dict[str, Any]) -> str:
+    """What a widget's code hears it as (obj.detail.listener): the type's usual StreamElements name; for one
+    that came with the toolbox the one of its names that fits this send (chat_deleted: one message or all)."""
+    if kind.default and kind.name in INPUT_EVENTS:
+        return input_listener(kind.name, values, kind.also_known_as)
+    return kind.listener
 
 
 def widget_event(kind: EventType, values: dict[str, Any]) -> dict[str, Any]:

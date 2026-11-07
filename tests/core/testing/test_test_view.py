@@ -56,6 +56,11 @@ class TestTestView(unittest.TestCase):
         self.assertEqual((scene.is_tested, scene.is_understandable, scene.is_usable), (True, True, True))
         self.assertFalse(self.actions.get("obs.record").is_tested)
 
+    def test_works_says_which_rows_get_no_not_tested_mark(self) -> None:
+        self.assertTrue(self.view.works("connection:obs"))
+        self.assertFalse(self.view.works("connection:rumble"))
+        self.assertFalse(self.view.works("connection:not_in_the_record"))
+
     def test_at_first_it_shows_what_works_and_his_own_flows(self) -> None:
         self.assertEqual((self.view.mode, self.view.may_not), (NORMAL, ("understandable", "usable")))
         self.assertEqual(self._boxes(), ["flow.my_flow", "logic.debug", "logic.value", "obs.mute", "obs.set_scene"])

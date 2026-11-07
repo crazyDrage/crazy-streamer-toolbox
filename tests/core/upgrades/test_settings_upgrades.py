@@ -54,6 +54,38 @@ class TestSettingsUpgrades(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "newer toolbox"):
             upgrades.flow(Flow("a", "A"), 4)
 
+    def test_a_backup_comes_first_and_only_when_there_is_something_to_upgrade(self) -> None:
+        """His rule (2026-11-05): "before a setting update, always backup the settings"."""
+        backups: list[tuple[int, int]] = []
+
+        def back_up(old: int, new: int) -> Path:
+            backups.append((old, new))
+            self.assertEqual(self.ran, [])  # before any step
+            return Path("backups/upgrades/copy.zip")
+
+        self.assertEqual(SettingsUpgrades(self.config, [FakeSettingsUpgrade(v, self.ran) for v in (1, 2, 3)],
+                                          back_up).run(), ["1 (fake): step 1", "2 (fake): step 2", "3 (fake): step 3"])
+        self.assertEqual(backups, [])  # a new, empty settings folder: nothing to keep
+        self.config.write_text("[toolbox]\nsettings_version = 1\n", encoding="utf-8")
+        self.ran.clear()
+        said = SettingsUpgrades(self.config, [FakeSettingsUpgrade(v, self.ran) for v in (1, 2, 3)], back_up).run()
+        self.assertEqual(backups, [(1, 3)])
+        self.assertIn("copy.zip", said[0])
+        SettingsUpgrades(self.config, [FakeSettingsUpgrade(v, self.ran) for v in (1, 2, 3)], back_up).run()
+        self.assertEqual(backups, [(1, 3)])  # up to date: no backup
+
+    def test_no_backup_no_upgrade(self) -> None:
+        self.config.write_text("[toolbox]\nsettings_version = 1\n", encoding="utf-8")
+
+        def broken(old: int, new: int) -> Path:
+            raise OSError("disk full")
+
+        upgrades = SettingsUpgrades(self.config, [FakeSettingsUpgrade(v, self.ran) for v in (1, 2, 3)], broken)
+        with self.assertLogs(settings_upgrades.log, "ERROR"):
+            self.assertEqual(upgrades.run(), [])
+        self.assertEqual((self.ran, upgrades.version), ([], 1))
+        self.assertIn("disk full", upgrades.failed)
+
     def test_a_missing_step_is_a_mistake(self) -> None:
         with self.assertRaises(ValueError):
             SettingsUpgrades(self.config, [FakeSettingsUpgrade(1, self.ran), FakeSettingsUpgrade(3, self.ran)])

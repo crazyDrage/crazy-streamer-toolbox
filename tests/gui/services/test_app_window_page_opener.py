@@ -46,12 +46,33 @@ class TestAppWindowPageOpener(unittest.TestCase):
             self.launched.append(command)
             return process
 
+        (self.folder / "window").mkdir()  # not the first start
         opener = AppWindowPageOpener(self.fallback, [chrome], launch, profile_dir=self.folder / "window",
                                      on_closed=closed.set)
         opener.open("http://127.0.0.1:8850")
         self.assertIn(f"--user-data-dir={self.folder / 'window'}", self.launched[0])
         self.assertFalse(closed.wait(0.05))
         process.close()
+        self.assertTrue(closed.wait(2))
+
+    def test_a_new_profiles_window_that_closes_at_once_opens_again(self) -> None:
+        chrome = self.folder / "chrome.exe"
+        chrome.touch()
+        processes = [FakeBrowserProcess(), FakeBrowserProcess()]
+        closed = threading.Event()
+
+        def launch(command: list[str]) -> FakeBrowserProcess:
+            self.launched.append(command)
+            return processes[len(self.launched) - 1]
+
+        opener = AppWindowPageOpener(self.fallback, [chrome], launch, profile_dir=self.folder / "new",
+                                     on_closed=closed.set)
+        opener.open("http://127.0.0.1:8850")
+        processes[0].close()  # Edge's first start with a new profile
+        self.assertFalse(closed.wait(0.2))
+        self.assertEqual(2, len(self.launched))
+        self.assertEqual(self.launched[0], self.launched[1])
+        processes[1].close()  # his X: the toolbox stops
         self.assertTrue(closed.wait(2))
 
     def test_no_browser_uses_fallback(self) -> None:

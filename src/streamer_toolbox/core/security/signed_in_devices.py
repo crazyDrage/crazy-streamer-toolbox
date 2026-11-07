@@ -2,6 +2,8 @@ import json
 import logging
 from pathlib import Path
 
+from streamer_toolbox.core.files.write_whole import write_whole
+
 log = logging.getLogger(__name__)
 
 
@@ -31,4 +33,4 @@ class SignedInDevices:
 
     def _save(self) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._path.write_text(json.dumps(self._devices, indent=1), encoding="utf-8")
+        write_whole(self._path, json.dumps(self._devices, indent=1))

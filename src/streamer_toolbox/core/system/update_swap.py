@@ -17,8 +17,10 @@ from collections.abc import Callable
 from pathlib import Path
 
 from streamer_toolbox.core.system.update_files import RESULT
+from streamer_toolbox.core.system.update_window import UpdateWindow
 
 log = logging.getLogger(__name__)
+STARTED_WITHIN = 120.0  # seconds the update window waits for the new version to be up
 REPLACED = ("src", "python")  # the toolbox's own: replaced whole, so no old file stays behind
 KEPT = ("config", ".venv")  # never touched: his settings (when they are in the toolbox's folder), Linux's libraries
 
@@ -87,17 +89,35 @@ def main() -> None:
     parser.add_argument("restart", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    result = {"version": args.version, "ok": True, "error": ""}
+    restart = [part for part in args.restart if part != "--"]
+    UpdateWindow(args.version).run(lambda say: swap(args.new, args.into, args.folder, args.version, restart, say))
+
+
+def swap(new: Path, into: Path, folder: Path, version: str, restart: list[str],
+         say: Callable[[str], None] = lambda text: None, wait: float = STARTED_WITHIN,
+         sleep: Callable[[float], None] = time.sleep) -> str:
+    """The swap, its result for the toolbox, and the start of the toolbox again, then the wait until it is up
+    (it reads and removes result.json at its start); what the update window says at the end."""
+    result = {"version": version, "ok": True, "error": ""}
     try:
-        UpdateSwap(args.new, args.into, args.folder / "old").run()
-        log.info("updated to %s", args.version)
+        UpdateSwap(new, into, folder / "old").run()
+        log.info("updated to %s", version)
     except Exception as e:
         log.exception("the update didn't work; the old version stays")
         result.update(ok=False, error=str(e) or type(e).__name__)
-    (args.folder / RESULT).write_text(json.dumps(result), encoding="utf-8")
-    restart = [part for part in args.restart if part != "--"]
+    (folder / RESULT).write_text(json.dumps(result), encoding="utf-8")
     if restart:
-        start_again(restart, args.into)
+        say(f"Version {version} is in. It is starting now ..." if result["ok"] else
+            "The update didn't work, so the old version stays. It is starting again ...")
+        start_again(restart, into)
+        waited = 0.0
+        while (folder / RESULT).exists() and waited < wait:  # his dev.3 update: 20-30 s with no window
+            sleep(0.5)
+            waited += 0.5
+    if result["ok"]:
+        return f"Done. Version {version} is running, its window opens in a moment."
+    return ("The update didn't work, so the old version stays. It is starting again.\n"
+            "What happened is in cache/update/swap.log in the settings folder.")
 
 
 def start_again(command: list[str], root: Path) -> None:

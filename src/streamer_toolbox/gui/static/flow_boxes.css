@@ -7,6 +7,10 @@
   border: 1px solid rgba(127, 127, 127, 0.3);
   border-radius: 3px;
 }
+/* canvas and box panel: as high as the window under the tabs and above the info bar, so a scroll down to them
+   fills the window (his round 85: "the flow tab has empty space left, right, and bottom") */
+.tb-flow-area { --tb-flow-height: max(480px, calc(100vh - 130px)); }
+.tb-flow-area .tb-drawflow { height: var(--tb-flow-height); }
 /* a box is rows of 24 px: the title's row, then one per dot. The dots sit in their own columns left and
    right of the rows (Drawflow), kept at the same 24 px each, so a dot is always level with its row */
 .tb-drawflow .drawflow .drawflow-node {
@@ -98,7 +102,7 @@
 .tb-flow-area.tb-full .tb-drawflow { height: 100vh; border-radius: 0; }
 /* the box panel, docked left of the canvas; folded it's a thin strip of buttons (flow_boxes.js tbFlowPanel) */
 .tb-flow-panel {
-  flex: none; width: 360px; height: 640px; margin-right: 8px; display: flex; flex-direction: column;
+  flex: none; width: 360px; height: var(--tb-flow-height); margin-right: 8px; display: flex; flex-direction: column;
   overflow: hidden; border: 1px solid var(--tb-line); border-radius: 3px; background: var(--tb-panel);
   transition: width 0.2s ease;
 }

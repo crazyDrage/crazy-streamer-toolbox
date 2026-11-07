@@ -201,7 +201,7 @@ class AppShell:
             menu()
         ui.add_body_html(f"<script>{KEEP_MENU_SCROLL}{HEADER_HEIGHT}</script>")
 
-        with ui.column().classes("tb-main w-full max-w-7xl mx-auto p-4 gap-4"):
+        with ui.column().classes("tb-main w-full p-4 gap-4"):
             if heading:
                 ui.label(title).classes("text-2xl font-semibold max-lg:hidden")
             builder()

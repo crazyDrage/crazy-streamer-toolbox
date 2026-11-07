@@ -104,14 +104,20 @@ after you pressed Connect (or switched it on) on its tab. From then on it connec
 - **OBS**: in OBS, *Tools → WebSocket Server Settings*, enable it, copy the password. Enter both in the
   toolbox and press Connect.
 - **VTube Studio**: enable the API in VTube Studio's settings, press Connect, allow the plugin in VTube Studio.
-- **Twitch**: press Connect and confirm the code on Twitch's page. An app of your own is optional: on
-  `dev.twitch.tv/console` register one with the redirect URL `http://localhost:17563` and put its Client ID
-  and Secret on the tab.
+- **Twitch**: press Connect and confirm the code on Twitch's page. Nothing to set up: the toolbox logs in
+  with its own Twitch app.
 - **SAMMI**, **Mix It Up**: enable their local API, enter the address, Connect.
+- **Several accounts** (Twitch, YouTube, Rumble): each tab has an account list: **Add account**, the **Main
+  account** (used wherever no account is picked), **Remove**, and per account **Listen to its channel**. Switch
+  on **Multiple accounts** and boxes and triggers of that platform get an Account field. A **bot account**
+  (Twitch, YouTube) writes in your main channel's chat.
+- **Missed follows**: Twitch and YouTube check your newest followers every 60 seconds (`Check for new followers
+  every`, 0 = off); one Twitch missed still starts your follow flows, and nobody is thanked twice.
 - **StreamElements**, **Streamlabs**: paste the token from their dashboard (the connection's tab has the link).
 - **YouTube**: needs a Google Cloud project of your own (the tab says how), then Client ID, Client Secret,
   Connect. While you are live, chat messages, Super Chats, Super Stickers and memberships start flows.
   Writing in chat is off until you set "May write in chat" to yes (Google's permission for it is a big one).
+  New subscribers come from the subscriber check (every 60 seconds, 1 quota point each time).
 - **StreamSocket Events** (a Twitch extension where viewers press buttons, for bits or free): put the secret
   from the extension's configuration page into `config/secrets/streamsocket_secret.txt` and switch it on. Each
   redeemed event starts flows with the trigger "StreamSocket event".
@@ -146,8 +152,9 @@ after you pressed Connect (or switched it on) on its tab. From then on it connec
   address. Each new donation starts flows with the trigger "Tiltify donation". It is not counted as a tip.
 - **Crowd Control**: type your Crowd Control id (it starts with `ccuid-`) on the tab. Each effect a
   viewer asks for in your game starts flows with the trigger "Crowd Control effect".
-- **Rumble**: put your Live Stream API address into `config/secrets/rumble_address.txt` (the tab has the link to
-  Rumble's page). Chat, follows, subs, gifted subs and rants then start flows; Rumble can only be read.
+- **Rumble**: Add account on the tab and paste your Live Stream API address (the tab has the link to Rumble's
+  page); more accounts the same way. Chat, follows, subs, gifted subs and rants then start flows; Rumble can only
+  be read.
 - **Fansly**: paste your chat's address on the tab (Fansly → Streaming → the 3 dots next to the chat → Copy
   Chat Url). No login: the toolbox reads the chatroom like a viewer. Chat messages, tips (also as the Tip
   trigger) and new subs then start flows; nothing is sent to Fansly. Fansly has no official API, so this uses
@@ -241,9 +248,10 @@ Everything you set up is in the `config` folder inside the toolbox's folder: `to
 
 - **Backup**: copy the `config` folder.
 - **Move to a new version**: when one is out, a button "Update x.y.z" shows next to the toolbox's name. Press
-  it, read what's new, then **Download and install**: the toolbox stops, puts the new version in and starts
-  again by itself. Your `config` folder stays as it is. Settings → General: "Look for updates once a day" and
-  "Look now". By hand still works: unpack the new archive and copy your old `config` folder into it.
+  it, read what's new, then **Download and install**: the toolbox stops, a small window with a moving bar shows
+  while the new version goes in (don't start the toolbox yourself then), and it starts again by itself with
+  "Updated to x.y.z" next to its name. Your `config` folder stays as it is. Settings → General: "Look for
+  updates by itself" (at every start and every 6 hours) and "Look now". By hand still works: unpack the new archive and copy your old `config` folder into it.
 - **Before every update** a copy of your settings goes into `config/backups/` (a zip, named with the version
   and the date). To go back: unpack it over the `config` folder.
 - **Test versions** (`0.5.0-dev.1`, `-alpha.1`, `-beta.1`, `-rc.1`, before `0.5.0`): only offered when you pick

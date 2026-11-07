@@ -1,7 +1,7 @@
 """A message of YouTube's live chat (a liveChatMessage resource: snippet.type + its details, authorDetails) as
 toolbox events. Money and memberships come through the chat too: Super Chat, Super Sticker, new member, member
 milestone, gifted memberships. Field names from developers.google.com/youtube/v3/live/docs/liveChatMessages.
-YouTube has no event for a new subscriber (its free "follow")."""
+YouTube has no event for a new subscriber (its free "follow"): the follower check asks for them (FOLLOW)."""
 from typing import Any
 
 from streamer_toolbox.core.events.chat_command import chat_command
@@ -10,6 +10,7 @@ CHAT = "youtube.chat"
 SUPERCHAT = "youtube.superchat"
 SUPERSTICKER = "youtube.supersticker"
 MEMBER = "youtube.member"
+FOLLOW = "youtube.follow"  # a new subscriber, found by the follower check (YouTubeConnection)
 MILESTONE = "youtube.member_milestone"
 GIFT = "youtube.gift_members"
 ONLINE = "youtube.online"
