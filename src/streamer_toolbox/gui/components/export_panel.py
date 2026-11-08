@@ -8,6 +8,7 @@ from streamer_toolbox.core.exports.export_importer import ExportImporter
 from streamer_toolbox.core.exports.export_part import KINDS, ExportPart
 from streamer_toolbox.core.exports.import_row import CHOICES, TAKEN
 from streamer_toolbox.core.exports.toolbox_export import ENDING, ToolboxExport
+from streamer_toolbox.gui.components.wip_mark import WIP, WipMark
 
 GROUPS = {"alert": "Alerts", "widget": "Widgets", "flow": "Flows", "event": "Events"}
 NEVER = "Never inside: tokens, keys, accounts, passwords."
@@ -52,6 +53,9 @@ class ExportPanel:
             picked.clear()
             choices.refresh()
 
+        with ui.row().classes("w-full items-center gap-2"):
+            WipMark.build()
+            ui.label(WIP).classes("text-sm opacity-80")
         with ui.row().classes("w-full gap-4 items-start"):
             with ui.column().classes("flex-1 min-w-[18rem] gap-2"):
                 ui.label("Export").classes("text-lg font-semibold")
