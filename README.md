@@ -34,15 +34,22 @@ A flow is boxes and wires: something starts it (a follow, a redeem, a chat comma
 each box does one thing in one of your programs. A flow can be a button on the Live page, a box in another
 flow, or be started from SAMMI, Kit or the API.
 
-**A shoutout with a clip:** it looks for a clip of the channel on Twitch (the last 60 days first, then the
-last year) and plays it in OBS straight from Twitch, without downloading it.
+**A shoutout with a clip:** a button or a mod's `!so-event <name>` in chat starts it. It looks for a clip of
+the channel on Twitch (the last 60 days first, then the last year), takes the first one it finds and plays it
+in OBS straight from Twitch, without downloading it.
 
 ![A flow that finds a Twitch clip of a channel and plays it in OBS](docs/images/flow_clip.png)
 
-**A VTube Studio model animation:** the model sways left and right six times, and its horns change colour
-every round (red, orange, yellow, green, blue, purple). At the end they get their own colour back.
+**A VTube Studio model animation:** the horns change colour one by one (red, orange, yellow, green, blue,
+purple), and with each colour the model plays a short animation from spot to spot. At the end the horns get
+their own colour back.
 
-![A flow that moves a VTube Studio model left and right and tints its horns every round](docs/images/flow_vts.png)
+![A flow that tints a VTube Studio model's horns and plays a model animation for each colour](docs/images/flow_vts.png)
+
+The animation is made in its own window: move the model in VTube Studio and add its spot, or, without VTube
+Studio, add the default spot and type the numbers.
+
+![The model animation window: a map of the path and the steps](docs/images/vts_animation.png)
 
 ### Connections
 
