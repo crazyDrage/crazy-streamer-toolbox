@@ -1,6 +1,6 @@
 # the toolbox's own version: the public release's tag without the "v" (his next release plan, part 1). Raised in
 # the release commit; the packager stops a release build whose tag says something else (Packager.build)
-APP_VERSION = "0.4.0"
+APP_VERSION = "0.4.1"
 
 # test versions between releases (his answer of 2026-11-01): 0.5.0-dev.1 < -alpha.1 < -beta.1 < -rc.1 < 0.5.0.
 # Any step may be skipped. A tag with a "-" is a pre-release on GitHub (ci.yml): never "latest"

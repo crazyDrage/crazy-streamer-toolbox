@@ -13,13 +13,15 @@ from streamer_toolbox.gui.components.flow_editor.animation_map import AnimationM
 KIND = "vts/animation"  # its folder in config/boxes
 FIELDS = (("x", "x", 0.01), ("y", "y", 0.01), ("rotation", "turn °", 1.0), ("size", "size", 1.0))
 NUMBER = "dense outlined hide-bottom-space"
+DEFAULT_SPOT = VtsPosition(0.0, 0.0, 0.0, 0.0)  # Add the default spot: no VTS needed
 
 
 class AnimationDialog:
     """The window of a model animation: fixed spots or changes from where the model is (switching calculates the
     steps over), the steps (spot, seconds to get there, wait after), a map of the path, and buttons that use VTS:
-    add the model's spot as a step, take it for a step, go to a step, try the whole animation. Save to file / Load
-    from file keep animations to use in other boxes. Done hands the animation to the box."""
+    add the model's spot as a step, take it for a step, go to a step, try the whole animation. Without VTS a warning
+    shows, and Add the default spot (all 0) still makes steps to type in. Save to file / Load from file keep
+    animations to use in other boxes. Done hands the animation to the box."""
 
     def __init__(self, animation: VtsAnimation, actions: ActionRegistry, files: BoxValueFiles,
                  on_done: Callable[[VtsAnimation], None]) -> None:
@@ -31,6 +33,7 @@ class AnimationDialog:
         self._file_name = ""
         self._dialog: ui.dialog | None = None
         self._mode: ui.toggle | None = None
+        self._vts_problem = ""  # why the model can't be read (VTS not connected); "" = fine or not checked yet
 
     def open(self) -> None:
         with ui.dialog().props("persistent") as self._dialog, ui.card().classes("w-[860px] max-w-[96vw] gap-3"):
@@ -41,6 +44,7 @@ class AnimationDialog:
                      "long the way to that step takes, wait = how long it stays there.").classes("text-xs opacity-70")
             self._mode = ui.toggle({False: "Fixed spots", True: "From where the model is"},
                                    value=self._animation.relative, on_change=self._mode_changed).props("no-caps dense")
+            self._vts_warning()
             self._base_line()
             with ui.row().classes("w-full gap-4 items-start"):
                 with ui.column().classes("w-80 max-w-full gap-1"):
@@ -48,6 +52,8 @@ class AnimationDialog:
                 with ui.column().classes("flex-1 min-w-[220px] gap-2"):
                     ui.button("Add the model's spot", icon="add_location_alt", on_click=self._add_spot) \
                         .props("no-caps unelevated").tooltip("Reads where the model is in VTS and adds it as a step")
+                    ui.button("Add the default spot", icon="add", on_click=self._add_default)                         .props("no-caps outline").tooltip("Adds a step with x, y, turn and size at 0, without VTS: "
+                                                          "type the numbers in after")
                     try_button = ui.button("Try it", icon="play_arrow").props("no-caps outline") \
                         .tooltip("Plays it in VTS now, then goes back to where the model started")
                     try_button.on_click(lambda: self._try(try_button))
@@ -60,8 +66,18 @@ class AnimationDialog:
                 ui.button("Cancel", on_click=self._dialog.close).props("no-caps flat")
                 ui.button("Done", icon="check", on_click=self._done).props("no-caps unelevated")
         self._dialog.open()
+        ui.timer(0.1, self._check_vts, once=True)
 
     # ---- parts ----
+
+    @ui.refreshable_method
+    def _vts_warning(self) -> None:
+        if not self._vts_problem:
+            return
+        with ui.row().classes("items-center no-wrap gap-2 w-full rounded px-3 py-2 bg-warning/20 text-sm"):
+            ui.icon("warning", color="warning")
+            ui.label("VTube Studio is not connected: the buttons that read or move the model don't work. You can "
+                     "still add the default spot and type the numbers.").classes("flex-1")
 
     @ui.refreshable_method
     def _base_line(self) -> None:
@@ -142,7 +158,20 @@ class AnimationDialog:
         del steps[index]
         self._set_steps(steps)
 
+    def _add_default(self) -> None:
+        self._set_steps([*self._animation.steps, VtsAnimationStep(DEFAULT_SPOT)])
+
     # ---- with VTS ----
+
+    async def _check_vts(self) -> None:
+        """Reads the model once at the start: shows the warning when VTS isn't there (and the model on the map)."""
+        try:
+            self._model = VtsPosition.from_dict(await self._actions.run("vts.get_model_position"))
+            self._vts_problem = ""
+        except Exception as e:
+            self._vts_problem = str(e) or type(e).__name__
+        self._vts_warning.refresh()
+        self._map.refresh()
 
     async def _read_model(self) -> VtsPosition | None:
         try:
@@ -150,6 +179,9 @@ class AnimationDialog:
         except Exception as e:
             ui.notify(f"Can't read the model: {e}", type="negative")
             return None
+        if self._vts_problem:  # VTS came back while the window was open
+            self._vts_problem = ""
+            self._vts_warning.refresh()
         return self._model
 
     async def _spot_now(self) -> VtsPosition | None:

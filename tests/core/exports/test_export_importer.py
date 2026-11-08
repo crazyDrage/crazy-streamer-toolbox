@@ -52,7 +52,8 @@ class TestExportImporter(unittest.TestCase):
         self.theirs.importer.run(export)
         rule = self.theirs.alerts.get("cheer")
         self.assertEqual(b"png", Path(rule.image).read_bytes())
-        self.assertIn(str(self.theirs.folder / "media"), rule.image)  # in the settings folder: portable
+        # in the settings folder: portable (the real folders compared: Windows may write one short, RUNNER~1)
+        self.assertTrue(Path(rule.image).resolve().is_relative_to((self.theirs.folder / "media").resolve()))
         self.assertEqual("Event: cheer", self.theirs.flows.get("event_cheer").label)
         self.assertEqual(("cheer",), self.theirs.widgets.get("bar").events)
         self.assertIsNotNone(self.theirs.events.get("cheer"))
