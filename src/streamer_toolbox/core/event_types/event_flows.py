@@ -12,6 +12,12 @@ SEND = "event.send."  # + <event>: its box (EventActions)
 ONLY_TO = "only_to"  # the box's field that sends to one widget or alert only
 FOLDER = "Events"  # where the event types' own flows are listed
 TRIGGER, BOX = "t1", "n1"
+# values a default type's trigger doesn't give: a box before the Send box asks for them (his 11-14: the chat's
+# profile picture, "only the default that will get added"). type → (value, box id, action, its fields, its output)
+ASKED: dict[str, tuple[str, str, str, dict[str, str], str]] = {
+    "chat": ("picture", "n2", "twitch.profile_picture",
+             {"user": f"${{box.{TRIGGER}.user_id}}", "platform": f"${{box.{TRIGGER}.platform}}"}, "picture"),
+}
 # an event type that comes with the toolbox → the trigger its flow starts on and that trigger's match. A gifted
 # sub isn't a sub here: the gifter's gift event covers them (five gifts are one alert, as before round 78)
 TRIGGERS: dict[str, tuple[str, dict[str, str]]] = {
@@ -49,17 +55,24 @@ class EventFlows:
         """The event type's own flow; its name."""
         trigger, match = TRIGGERS.get(kind.name, ("", {})) if kind.default else ("", {})
         name = self._flows.free_name(f"event {kind.name}")
+        asking: tuple[FlowNode, ...] = ()
         if trigger:
             params = {v.name: f"${{box.{TRIGGER}.{v.name}}}" for v in kind.values}
             triggers = (FlowTrigger(trigger, dict(match), TRIGGER, (320.0, 40.0)),)
             wires = (FlowWire(TRIGGER, "out", BOX),)
             said = f"on every {kind.name}" + (", from any platform" if "." not in trigger else "")
+            value, box, action, fields, output = ASKED.get(kind.name, ("", "", "", {}, ""))
+            if value in params:  # Start → the box that asks → Send
+                params[value] = f"${{box.{box}.{output}}}"
+                asking = (FlowNode(box, action, dict(fields), box=(620.0, 40.0)),)
+                wires = (FlowWire(TRIGGER, "out", box), FlowWire(box, "out", BOX))
         else:
             params, triggers, wires = {}, (), (FlowWire(START, "out", BOX),)
             said = "when this flow is started (a button, another flow, a trigger you add); fill its values"
         self._flows.save(Flow(
             # right of the Manual Start and Input boxes, which stay at the left edge
-            name, f"Event: {kind.name}", (FlowNode(BOX, action_name(kind.name), params, box=(620.0, 40.0)),),
+            name, f"Event: {kind.name}",
+            (*asking, FlowNode(BOX, action_name(kind.name), params, box=(920.0 if asking else 620.0, 40.0))),
             wires, triggers, description=f"Sends the event {kind.name!r} (Overlay → Events) to every widget and "
                                          f"alert that uses it, {said}. Made by the toolbox; change it like any "
                                          "flow.", folder=FOLDER, as_box=False))

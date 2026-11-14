@@ -98,6 +98,7 @@ from streamer_toolbox.core.variables.variable_store import VariableStore
 from streamer_toolbox.core.widgets.channel_lookup import ChannelLookup
 from streamer_toolbox.core.widgets.emote_lookup import EmoteLookup
 from streamer_toolbox.core.widgets.latest_followers import LatestFollowers
+from streamer_toolbox.core.widgets.entry_files import EntryFiles
 from streamer_toolbox.core.widgets.missed_subscribers import MissedSubscribers
 from streamer_toolbox.core.widgets.streamelements_cleaner import StreamElementsCleaner
 from streamer_toolbox.core.widgets.streamelements_elements import StreamElementsElements
@@ -443,10 +444,12 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
     ui.page("/login", title=f"Sign in · {APP_NAME}")(LoginPage(access, LoginThrottle(), devices).build)
     app.include_router(build_action_router(actions, CallerAuth(list(config.callers)), activity.add))
     app.include_router(build_overlay_router(alert_queue))
+    channel_lookup = ChannelLookup(twitch.helix, channel_info)
     app.include_router(build_widget_router(widget_store, widget_hub, WidgetPage(widget_hub.session, channel_info),
-                                           ChannelLookup(twitch.helix, channel_info), widget_fallback,
+                                           channel_lookup, widget_fallback,
                                            EmoteLookup(), LatestFollowers(twitch.helix, channel_info),
-                                           SubscriberCount(twitch.helix, channel_info)))
+                                           SubscriberCount(twitch.helix, channel_info),
+                                           EntryFiles(Path(__file__).resolve().parents[3])))
     deck_images = DeckImages(args.config.parent / "deck_images")
     deck_images.folder.mkdir(parents=True, exist_ok=True)
     app.add_static_files(DECK_IMAGES_URL, deck_images.folder)

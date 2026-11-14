@@ -50,6 +50,19 @@ Without a step: `[rumble] multiple_accounts`, `bot_accounts` (unused: read only)
   `ticker`), the piece kinds `shape` and `goal`, the alert editor's animation names. An older toolbox draws such
   a widget without them (no shapes, goal bars or running tickers; fades instead of slides). Imported Elements
   are unchanged until they are saved in the editor.
+- The same widget.js: the piece kind `eventList` with `toolbox.list` (his round 89: an event or chat history;
+  `count`, `gap`, `newest`, `stays`, `keep`, `enter`, `enter_seconds`, `entries` with a `table` of
+  cells each). An older toolbox doesn't draw it (the widget's other pieces stay). On the widget page it keeps
+  the last entries in the widget's `data/store.json` under `toolbox-event-list:<piece name>`: data the widget
+  gathered ("Remove all of it" on the widget page takes it away). A profile picture is no list setting: a flow
+  gives it as an event value (his 11-13).
+- `cache/twitch_pictures.json`: the profile picture addresses the box "Twitch profile picture" got from Twitch
+  (at most 5000 people, a day each). Only that box reads it; deleting it only means asking Twitch again.
+- The default event type `chat` has a value `picture` (his 11-14), and its own flow (made the first time something
+  uses `chat`) goes Chat → Twitch profile picture (`user_id`, `platform`) → Send chat with `picture` from that box.
+  Only for a chat type that comes in new: one already in `event_types.json` keeps its values, and a flow made
+  before stays as it is ("only the default that will get added"). An older toolbox sends `picture` as one more
+  value and has no `twitch.profile_picture` box.
 
 An older toolbox on version 4 settings: finds no Rumble address (it looks for `rumble_address.txt`).
 

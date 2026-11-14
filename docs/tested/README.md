@@ -55,7 +55,7 @@ name in that file. The script keeps such rows as they are.
 |---|---|---|
 | **[live](live/)** | **0** | **1** |
 | [live/page](live/page.md) | 0 | 1 |
-| **[flows](flows/)** | **15** | **369** |
+| **[flows](flows/)** | **15** | **370** |
 | [flows/page](flows/page.md) | 0 | 6 |
 | [flows/triggers/any_platform](flows/triggers/any_platform.md) | 3 | 10 |
 | [flows/triggers/crowdcontrol](flows/triggers/crowdcontrol.md) | 0 | 1 |
@@ -136,7 +136,7 @@ name in that file. The script keeps such rows as they are.
 | [flows/boxes/twitch/chat](flows/boxes/twitch/chat.md) | 0 | 5 |
 | [flows/boxes/twitch/polls_and_predictions](flows/boxes/twitch/polls_and_predictions.md) | 0 | 4 |
 | [flows/boxes/twitch/stream](flows/boxes/twitch/stream.md) | 0 | 13 |
-| [flows/boxes/twitch/viewers](flows/boxes/twitch/viewers.md) | 0 | 5 |
+| [flows/boxes/twitch/viewers](flows/boxes/twitch/viewers.md) | 0 | 6 |
 | [flows/boxes/var/variables](flows/boxes/var/variables.md) | 0 | 5 |
 | [flows/boxes/var/wait](flows/boxes/var/wait.md) | 0 | 1 |
 | [flows/boxes/veadotube/general](flows/boxes/veadotube/general.md) | 0 | 5 |
@@ -203,4 +203,4 @@ name in that file. The script keeps such rows as they are.
 | [learn/page](learn/page.md) | 0 | 11 |
 | **[settings](settings/)** | **0** | **20** |
 | [settings/page](settings/page.md) | 0 | 20 |
-| **All** | **15** | **446** |
+| **All** | **15** | **447** |

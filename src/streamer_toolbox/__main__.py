@@ -25,6 +25,7 @@ from streamer_toolbox.core.system.update_starter import UpdateStarter
 from streamer_toolbox.gui.services.app_window_page_opener import LEAN_FLAGS, AppWindowPageOpener
 from streamer_toolbox.gui.services.tied_launch import TiedLaunch
 from streamer_toolbox.gui.services.browser_page_opener import BrowserPageOpener
+from streamer_toolbox.gui.services.toolbox_tray import ToolboxTray
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 log = logging.getLogger("streamer_toolbox")
@@ -90,10 +91,19 @@ def _launch(args: argparse.Namespace, config: ToolboxConfig) -> int:
     restart = UpdateStarter.restart_command(REPO_ROOT, [a for a in sys.argv[1:] if a != "--tied"],
                                             args.open == "window")
     updates = UpdateStarter(args.config.parent / "cache" / "update", REPO_ROOT, restart)
-    launcher = ToolboxLauncher(command, f"http://{host}:{args.port or config.port}", opener, update=updates.start)
+    url = f"http://{host}:{args.port or config.port}"
+    launcher = ToolboxLauncher(command, url, opener, update=updates.start)
+    tray = None
     if args.tied:
         ParentWatch(sys.stdin.fileno(), launcher.stop).start()
-    return launcher.run()
+    else:  # started by another program (the test window): that one shows it is open
+        tray = ToolboxTray(url, launcher.restart, launcher.stop)
+        tray.start()
+    try:
+        return launcher.run()
+    finally:
+        if tray is not None:
+            tray.stop()
 
 
 def _writable(stream) -> bool:

@@ -102,6 +102,18 @@
     } else if (piece.kind === "text") {
       if (box.style.whiteSpace === "nowrap") box.style.overflow = "hidden";  // a ticker: one line, cut off
       words(box, piece);
+    } else if (piece.kind === "eventList") {  // as element.js draws it, with example events, standing still
+      box.style.overflow = "hidden";
+      box.style.outline = "1px dashed rgba(128, 128, 128, 0.6)";  // its biggest size (not on stream)
+      if (window.TOOLBOX_ENTRY) {
+        const list = TOOLBOX_ENTRY.list(box, piece.list, {still: true, media: f => piece.media + encodeURIComponent(f),
+                                                           local: piece.local});
+        for (const sample of piece.samples || []) list.add(sample.kind, sample.data, Date.now(), true);
+      }
+      if (!(piece.samples || []).length) {
+        box.classList.add("empty");
+        box.textContent = "An event list: add its events on the right";
+      }
     }
     if (!piece.editable) return box;
     if (piece.id === stage.data.selected) {

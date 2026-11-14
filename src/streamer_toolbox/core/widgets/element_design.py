@@ -2,16 +2,19 @@ import copy
 import json
 import re
 import uuid
+from collections.abc import Callable
 from typing import Any
 
+from streamer_toolbox.core.widgets.design_values import DesignValues
 from streamer_toolbox.core.widgets.element_settings import ALERTS, SHOW, _number, _plain, element_config
+from streamer_toolbox.core.widgets.entry_table import EntryTable
 from streamer_toolbox.core.widgets.widget import Widget
 
 # the page of a designed widget is the page of an imported Element: element.js draws it from its settings
 HTML = '<div id="toolbox-element"></div>\n<script src="/static/overlay/element.js"></script>'
 CANVAS = (1920, 1080)
 KINDS = {"text": "Text", "image": "Picture or GIF", "video": "Video", "audio": "Sound", "shape": "Shape",
-         "goal": "Goal bar", "latestTicker": "Recent names"}
+         "goal": "Goal bar", "latestTicker": "Recent names", "eventList": "Event list"}
 # what a goal bar can count (a key of the session data, "<kind>-<what>.<count or amount>")
 GOALS = {"follower-session.count": "Followers this stream", "subscriber-session.count": "Subs this stream",
          "cheer-session.amount": "Bits this stream", "tip-session.amount": "Tips this stream",
@@ -22,6 +25,18 @@ GOALS = {"follower-session.count": "Followers this stream", "subscriber-session.
 # whose names a ticker shows (the session data's "<kind>-recent"), and how
 TICKERS = {"follower": "Followers", "subscriber": "Subs", "cheer": "Cheers", "raid": "Raiders", "tip": "Tips"}
 TICKER_LOOKS = {"run": "Runs along", "still": "In a row", "lines": "One per line"}
+# what an event list can show (his round 89): an alert's events and chat messages ("message", a widget's word)
+LIST_EVENTS = {"follower": "Follow", "subscriber": "Sub", "communityGiftPurchase": "Gifted subs", "cheer": "Cheer",
+               "raid": "Raid", "tip": "Tip", "message": "Chat message"}
+# where a new entry of an event list comes in (the others move away from it)
+NEWEST = {"top": "At the top (the others move down)", "bottom": "At the bottom (the others move up, like a chat)",
+          "left": "On the left (the others move right)", "right": "On the right (the others move left)"}
+LIST_ANIMATIONS = {"": "Just there", "fade": "Fade in", "slide": "Slide in", "pop": "Pop"}
+# a new entry's first look: what happened
+ENTRY_TEXTS = {"follower": "{user} followed", "subscriber": "{user} subscribed",
+               "communityGiftPurchase": "{user} gifted {amount} subs", "cheer": "{user} cheered {bits} bits",
+               "raid": "{user} raided with {viewers}", "tip": "{user} tipped {currency}{amount}",
+               "message": "{user}: {message}"}
 # what an alert's amount is, per event (a variation: "only from 100 bits")
 AMOUNTS = {"subscriber": "months", "communityGiftPurchase": "gifted subs", "cheer": "bits", "raid": "viewers",
            "tip": "amount"}
@@ -299,6 +314,8 @@ class ElementDesign:
         if kind not in KINDS:
             raise ValueError(f"not a kind of piece: {kind!r}")
         alert = bool(self.event_of(layer))
+        if alert and kind == "eventList":
+            raise ValueError("an event list goes in a layer that is always there")
         width, height = self.canvas()
         piece: dict[str, Any] = {"type": kind, "media": [], "mimeType": f"{kind}/*"}
         if kind == "text":
@@ -333,6 +350,10 @@ class ElementDesign:
                                 "fontSize": "36px", "color": "#ffffff", "fontFamily": "Arial",
                                 "fontWeight": "bold", "textShadow": "2px 2px 4px #000000",
                                 "whiteSpace": "nowrap"})
+        elif kind == "eventList":
+            piece.update(mimeType="", toolbox={"list": _list_settings({})},
+                         style={"left": _px(40), "top": _px(max(height / 2 - 300, 0)), "width": "600px",
+                                "height": _px(min(600, height))})
         if kind == "video" or kind == "audio":
             piece["volume"] = 1
         if kind == "audio":
@@ -341,7 +362,8 @@ class ElementDesign:
             piece["animation"] = {"enter": {"animationName": "fade", "animationDuration": "0.5s"},
                                   "static": {"animationDuration": "5s"},
                                   "exit": {"animationName": "fade", "animationDuration": "0.5s"}}
-        name = _free({"image": "Picture", "latestTicker": "Ticker"}.get(kind, KINDS[kind]), set(self.pieces(layer)))
+        name = _free({"image": "Picture", "latestTicker": "Ticker", "eventList": "List"}.get(kind, KINDS[kind]),
+                     set(self.pieces(layer)))
         self.pieces(layer)[name] = piece
         if file:
             self.set_file(layer, name, file)
@@ -452,6 +474,73 @@ class ElementDesign:
         piece["text"] = [{"content": f"{{session.twitch.{now['kind']}-latest.name}}"}]  # what it names
         piece.setdefault("style", {})["whiteSpace"] = "pre" if now["look"] == "lines" else "nowrap"
 
+    def event_list(self, layer: int, name: str) -> dict[str, Any]:
+        """An event list's settings: {count: how many it keeps, gap: pixels between, newest (NEWEST), stays:
+        seconds an entry stays (0: until the list is full), keep: shows the last ones again when OBS loads it,
+        enter (LIST_ANIMATIONS), enter_seconds, entries: [{event, on,
+        table}]}. Its biggest size is the piece's width and height."""
+        return _list_settings((self.piece(layer, name).get("toolbox") or {}).get("list") or {})
+
+    def set_event_list(self, layer: int, name: str, **changes: Any) -> None:
+        """Changes some of event_list()'s settings (not its entries: add_list_event, set_list_entry)."""
+        changes.pop("entries", None)
+        self._keep_list(layer, name, {**self.event_list(layer, name), **changes})
+
+    def add_list_event(self, layer: int, name: str, event: str) -> None:
+        """An event the list shows (LIST_EVENTS), with a first look: a cell that says what happened."""
+        if event not in LIST_EVENTS:
+            raise ValueError(f"an event list can't show {event!r}")
+        now = self.event_list(layer, name)
+        if any(entry["event"] == event for entry in now["entries"]):
+            raise ValueError(f"the list shows {LIST_EVENTS[event]} already")
+        now["entries"].append({"event": event, "on": True, "table": EntryTable.new(ENTRY_TEXTS[event]).data})
+        self._keep_list(layer, name, now)
+
+    def remove_list_event(self, layer: int, name: str, event: str) -> None:
+        now = self.event_list(layer, name)
+        now["entries"] = [entry for entry in now["entries"] if entry["event"] != event]
+        self._keep_list(layer, name, now)
+
+    def set_list_event_on(self, layer: int, name: str, event: str, on: bool) -> None:
+        """An event that is off isn't shown in the list on stream; its look stays."""
+        now = self.event_list(layer, name)
+        for entry in now["entries"]:
+            if entry["event"] == event:
+                entry["on"] = bool(on)
+        self._keep_list(layer, name, now)
+
+    def list_entry(self, layer: int, name: str, event: str) -> EntryTable:
+        """How the event looks in the list (a copy: change it, then set_list_entry)."""
+        for entry in self.event_list(layer, name)["entries"]:
+            if entry["event"] == event:
+                return EntryTable.of(entry["table"])
+        raise KeyError(f"the list doesn't show {event!r}")
+
+    def set_list_entry(self, layer: int, name: str, event: str, table: EntryTable) -> None:
+        now = self.event_list(layer, name)
+        for entry in now["entries"]:
+            if entry["event"] == event:
+                entry["table"] = copy.deepcopy(table.data)
+                self._keep_list(layer, name, now)
+                return
+        raise KeyError(f"the list doesn't show {event!r}")
+
+    def set_list_values(self, values: Callable[[str], list[dict[str, Any]]]) -> None:
+        """Every event list's events get their values as they are now (values(event): DesignValues.list_values
+        with the event types of Overlay → Events, which he can change): element.js reads an event's values by
+        their names and their other names."""
+        for number in range(len(self.config["configStates"])):
+            for name, piece in self.pieces(number).items():
+                if piece.get("type") != "eventList":
+                    continue
+                now = self.event_list(number, name)
+                for entry in now["entries"]:
+                    entry["values"] = values(entry["event"])
+                self._keep_list(number, name, now)
+
+    def _keep_list(self, layer: int, name: str, settings: dict[str, Any]) -> None:
+        self.piece(layer, name).setdefault("toolbox", {})["list"] = _list_settings(settings)
+
     def set_highlight(self, layer: int, name: str, color: str) -> None:
         """The colour of the filled-in words (the latest follower's name in "Latest follower: …")."""
         self.piece(layer, name).setdefault("highlightedStyle", {})["color"] = color
@@ -534,8 +623,9 @@ class ElementDesign:
             piece.pop("toolbox", None)
 
     def events(self) -> set[str]:
-        """The events it needs (follower, subscriber, ...): an alert's, a piece's reaction, and the kinds its
-        texts, goal bars and tickers show (a widget gets the new session data only after its own events)."""
+        """The events it needs (follower, subscriber, ...): an alert's, a piece's reaction, the kinds its
+        texts, goal bars and tickers show (a widget gets the new session data only after its own events), and
+        what its event lists show ("message" too: chat)."""
         found = set()
         for number, state in enumerate(self.config["configStates"]):
             if not self._on(state):
@@ -550,7 +640,10 @@ class ElementDesign:
                 ticker = self.ticker(number, name) if piece.get("type") == "latestTicker" else None
                 if ticker:
                     found.add(ticker["kind"])
-        return found & set(EVENTS)
+                if piece.get("type") == "eventList":
+                    found.update(entry["event"] for entry in self.event_list(number, name)["entries"]
+                                 if entry["on"])
+        return found & set(LIST_EVENTS)
 
     def files(self) -> set[str]:
         """The files of the media folder its pieces use (not addresses)."""
@@ -561,7 +654,20 @@ class ElementDesign:
                     href = str(media.get("href") or "")
                     if href and "/" not in href:
                         used.add(href)
+                for entry in ((piece.get("toolbox") or {}).get("list") or {}).get("entries") or []:
+                    if isinstance(entry, dict):
+                        used.update(EntryTable.of(entry.get("table")).files())
         return used
+
+    def addresses(self) -> set[str]:
+        """The addresses its event lists' picture and video cells have (EntryTable.addresses)."""
+        found = set()
+        for state in self.config["configStates"]:
+            for piece in ((state.get("settings") or {}).get("compositeFields") or {}).values():
+                for entry in ((piece.get("toolbox") or {}).get("list") or {}).get("entries") or []:
+                    if isinstance(entry, dict):
+                        found.update(EntryTable.of(entry.get("table")).addresses())
+        return found
 
     def _state(self, layer: int) -> dict[str, Any]:
         states = self.config["configStates"]
@@ -631,3 +737,40 @@ def _px(value: float) -> str:
 
 def _seconds(value: Any) -> str:
     return f"{_plain(max(float(value or 0), 0))}s"
+
+
+def _new_codes(table: dict[str, Any], event: str) -> dict[str, Any]:
+    """A look of the first event lists with the values' names: {event.data.username} is {user}."""
+    for cell in table["cells"]:
+        for key in ("text", "address"):
+            cell[key] = DesignValues.old_codes(cell[key], event)
+    for style in (table.get("style") or {}, *((cell.get("style") or {}) for cell in table["cells"])):
+        for key, value in style.items():
+            if isinstance(value, str):
+                style[key] = DesignValues.old_codes(value, event)
+    return table
+
+
+def _values(given: Any) -> list[dict[str, Any]]:
+    """An entry's values as the editor gave them (DesignValues.list_values)."""
+    return [{"name": str(value["name"]), "aka": [str(name) for name in value.get("aka") or []],
+             "default": str(value.get("default") or "")}
+            for value in given if isinstance(value, dict) and value.get("name")] if isinstance(given, list) else []
+
+
+def _list_settings(given: dict[str, Any]) -> dict[str, Any]:
+    """An event list's settings as event_list() gives them: what is missing or wrong gets its usual value."""
+    def number(key: str, usual: float, low: float, high: float) -> int | float:
+        try:
+            return _plain_number(max(low, min(float(given.get(key, usual)), high)))
+        except (TypeError, ValueError):
+            return usual
+    entries = [{"event": entry["event"], "on": entry.get("on", True) is not False,
+                "table": _new_codes(EntryTable.of(entry.get("table")).data, entry["event"]),
+                "values": _values(entry.get("values"))}
+               for entry in given.get("entries") or [] if isinstance(entry, dict) and entry.get("event") in LIST_EVENTS]
+    return {"count": int(number("count", 10, 1, 100)), "gap": number("gap", 8, 0, 500),
+            "newest": given.get("newest") if given.get("newest") in NEWEST else "top",
+            "stays": number("stays", 0, 0, 86400), "keep": given.get("keep", True) is not False,
+            "enter": given.get("enter") if given.get("enter") in LIST_ANIMATIONS else "fade",
+            "enter_seconds": number("enter_seconds", 0.4, 0, 10), "entries": entries}

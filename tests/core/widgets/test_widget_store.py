@@ -1,4 +1,5 @@
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 
@@ -60,6 +61,17 @@ class TestWidgetStore(unittest.TestCase):
         self.assertEqual((self.store.names(), self.store.get("goal")), ([], None))
         with self.assertRaisesRegex(KeyError, "no widget"):
             self.store.set_values("goal", {})
+
+    def test_keys_kept_at_the_same_time_are_all_kept(self) -> None:
+        # two event lists of a widget save at the same moment (the routes run side by side)
+        self.store.save(Widget("lists", fields=FIELDS))
+        threads = [threading.Thread(target=self.store.keep, args=("lists", f"list{nth}", [nth]))
+                   for nth in range(8)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        self.assertEqual([[nth] for nth in range(8)], [self.store.kept("lists", f"list{nth}") for nth in range(8)])
 
     def test_the_example_widget_comes_with_the_toolbox(self) -> None:
         name = self.store.add_example()

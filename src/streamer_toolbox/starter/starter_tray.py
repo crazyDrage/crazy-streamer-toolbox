@@ -1,6 +1,8 @@
 import logging
 from collections.abc import Callable
 
+from streamer_toolbox.gui.services.tray_picture import tray_picture
+
 log = logging.getLogger(__name__)
 
 
@@ -25,7 +27,7 @@ class StarterTray:
             import pystray
             menu = pystray.Menu(*(pystray.MenuItem(text, self._on(action), default=default)
                                   for text, action, default in self._actions))
-            self._icon = pystray.Icon("streamer-toolbox", _picture(), "streamer-toolbox", menu)
+            self._icon = pystray.Icon("streamer-toolbox", tray_picture(), "streamer-toolbox", menu)
             self._icon.run_detached()
         except Exception as e:  # no tray on this desktop, or pystray missing: the window alone still works
             log.warning("no tray icon: %s", e)
@@ -39,13 +41,3 @@ class StarterTray:
     def _on(self, action: Callable[[], None]) -> Callable[..., None]:
         return lambda *args: self._call(action)
 
-
-def _picture():
-    """A round teal icon with a T, drawn here (the toolbox has no picture file for it)."""
-    from PIL import Image, ImageDraw
-    image = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(image)
-    draw.ellipse((2, 2, 62, 62), fill=(38, 166, 154, 255))
-    draw.rectangle((16, 16, 48, 24), fill="white")
-    draw.rectangle((28, 16, 36, 50), fill="white")
-    return image

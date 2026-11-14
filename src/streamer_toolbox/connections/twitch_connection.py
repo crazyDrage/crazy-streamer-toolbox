@@ -16,6 +16,7 @@ from streamer_toolbox.connections.twitch.boxes.pause_reward import PauseReward
 from streamer_toolbox.connections.twitch.boxes.reward_on_off import RewardOnOff
 from streamer_toolbox.connections.twitch.boxes.send_chat_message import SendChatMessage
 from streamer_toolbox.connections.twitch.boxes.stream_marker import StreamMarker
+from streamer_toolbox.connections.twitch.boxes.twitch_profile_picture import TwitchProfilePicture
 from streamer_toolbox.connections.twitch.eventsub_client import EVENTSUB_URL, EventSubClient
 from streamer_toolbox.connections.twitch.eventsub_events import subscriptions, to_event
 from streamer_toolbox.connections.twitch.twitch_api import TwitchApi
@@ -28,6 +29,7 @@ from streamer_toolbox.connections.twitch.twitch_clip_downloader import (REPO, Tw
                                                                         release_file)
 from streamer_toolbox.connections.twitch.twitch_clip_files import TwitchClipFiles
 from streamer_toolbox.connections.twitch.twitch_clip_question import TwitchClipQuestion
+from streamer_toolbox.connections.twitch.twitch_picture_lookup import TwitchPictureLookup
 from streamer_toolbox.connections.twitch.twitch_stream_actions import TwitchStreamActions
 from streamer_toolbox.connections.twitch.twitch_viewer_actions import TwitchViewerActions
 from streamer_toolbox.connections.twitch.twitch_reward import TwitchReward
@@ -380,8 +382,10 @@ class TwitchConnection(ConnectionBase, RewardManager, AccountHolder):
         question = TwitchClipQuestion(self._folder / "cache" / "twitch_clip_question.json" if self._folder else None,
                                       self._transport)
         TwitchClipActions(TwitchClipFiles(self._transport, question=question), downloader).add_to(actions)
+        pictures = TwitchPictureLookup(self._helix, self._folder / "cache" / "twitch_pictures.json"
+                                       if self._folder else None)
         for box in (SendChatMessage(self), CreateReward(self), PauseReward(self), RewardOnOff(self),
-                    GetRewards(self), FinishRefundRedeem(self), StreamMarker(self)):
+                    GetRewards(self), FinishRefundRedeem(self), StreamMarker(self), TwitchProfilePicture(pictures)):
             actions.add_box(box, "twitch")
 
     # ---- internals ----

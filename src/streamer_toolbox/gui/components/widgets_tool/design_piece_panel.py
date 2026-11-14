@@ -31,12 +31,13 @@ Change = Callable[[str, Callable[[ElementDesign], Any]], None]
 class DesignPiecePanel:
     """The settings of the piece picked in the widget editor (WidgetDesigner): its text and the values in it,
     its file, look, place and how it moves; a shape's colours, a goal bar's and a ticker's settings
-    (DesignLivePanel). Each change goes through `change`, which redraws the canvas and saves; the panel itself
+    (DesignLivePanel), an event list's (DesignListPanel, through `list_panel`). Each change goes through `change`, which redraws the canvas and saves; the panel itself
     is drawn again only when another piece is picked."""
 
     def __init__(self, design: ElementDesign, layer: int, name: str, change: Change,
                  pick_file: Callable[[], Awaitable[None]], upload: Callable[[Any], Awaitable[None]],
-                 try_reaction: Callable[[list[str]], None], align: Callable[[str], None]) -> None:
+                 try_reaction: Callable[[list[str]], None], align: Callable[[str], None],
+                 list_panel: Callable[[], None] | None = None) -> None:
         self._design = design
         self._layer = layer
         self._name = name
@@ -45,6 +46,7 @@ class DesignPiecePanel:
         self._upload = upload
         self._try = try_reaction
         self._align = align
+        self._list_panel = list_panel
 
     def build(self) -> None:
         piece = self._design.piece(self._layer, self._name)
@@ -65,6 +67,8 @@ class DesignPiecePanel:
             self._look(kind)
         if kind == "shape":
             self._shape()
+        if kind == "eventList" and self._list_panel:
+            self._list_panel()
         if kind in ("image", "video", "audio"):
             self._file(kind)
         if kind in ("video", "audio"):
@@ -200,7 +204,8 @@ class DesignPiecePanel:
                 ui.button(icon=icon, on_click=lambda h=how: self._align(h)).props("flat round dense size=sm") \
                     .tooltip(tip)
         sides = (("left", "X"), ("top", "Y"), ("width", "Width")) + ((("height", "Height"),)
-                                                                    if kind in ("shape", "goal") else ())
+                                                                    if kind in ("shape", "goal", "eventList")
+                                                                    else ())
         with ui.row().classes("w-full no-wrap gap-2"):
             for side, label in sides:
                 ui.number(label, value=_number(style.get(side)), step=1,

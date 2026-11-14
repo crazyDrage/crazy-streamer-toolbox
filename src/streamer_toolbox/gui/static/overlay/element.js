@@ -8,7 +8,8 @@
 // A file named without an address is in the widget's media folder (fetched when the Element was imported).
 // The widget editor's own additions (ElementDesign): shapes, goal bars (toolbox.goal), tickers of the recent
 // ones (toolbox.ticker), a layer that is off or in front of the alerts (toolbox.off / toolbox.front), a
-// condition by chance ({"var": "random"}, new for each event).
+// condition by chance ({"var": "random"}, new for each event), event lists (toolbox.list: event_entry.js draws
+// them; chat messages too, and a message a moderator deletes goes from the list).
 (() => {
   const MEDIA = "/overlay/widget/" + encodeURIComponent(window.TOOLBOX_WIDGET.name) + "/media/";
   const LAYER = {background: 1, static: 2, foreground: 4};  // alerts are layer 3
@@ -21,6 +22,7 @@
   const labels = [];  // the texts that are always there: filled again when the session data changes
   const reacting = [];  // the pieces that are always there and move when an event comes (the widget editor's)
   const waiting = [];  // events whose alert is still to come
+  const lists = [];  // the event lists that are always there: {name, list, settings}
   let showing = false;
 
   const seconds = text => (parseFloat(text) || 0) * (String(text).trim().endsWith("ms") ? 1 : 1000);
@@ -171,6 +173,9 @@
       box.tbLabel.style.cssText = "position: absolute; inset: 0; display: flex; align-items: center; " +
         "justify-content: center; white-space: nowrap";
       box.append(box.tbFill, box.tbLabel);
+    } else if (field.type === "eventList") {
+      box = document.createElement("div");
+      box.style.overflow = "hidden";
     } else if (field.type === "text" || field.type === "latestTicker") {
       box = document.createElement("div");
       box.style.whiteSpace = field.type === "text" ? "pre-wrap" : "nowrap";  // (a ticker's own style may say)
@@ -206,14 +211,81 @@
     return box;
   }
 
+  // an event list (the widget editor's): the last entries again if he wants them (kept in the widget's store)
+  function eventList(name, field, box) {
+    const settings = (field.toolbox || {}).list || {};
+    const own = "/overlay/widget/" + encodeURIComponent(window.TOOLBOX_WIDGET.name);
+    const list = TOOLBOX_ENTRY.list(box, settings, {media: address, local: own + "/local?path=",
+      scale: () => innerWidth / config.boundingBox.width});
+    const kept = {name, list, settings, key: "toolbox-event-list:" + name, timer: null};
+    lists.push(kept);
+    if (settings.keep !== false) {
+      SE_API.store.get(kept.key).then(saved => {
+        for (const one of Array.isArray(saved) ? saved : []) list.add(one.kind, one.data || {}, one.at, true);
+      }).catch(() => {});
+    }
+  }
+
+  // what the lists show now, kept a moment after the last change (one write for a burst of chat)
+  function keepLists() {
+    for (const kept of lists) {
+      if (kept.settings.keep === false) continue;
+      clearTimeout(kept.timer);
+      kept.timer = setTimeout(() => SE_API.store.set(kept.key, kept.list.entries()).catch(() => {}), 2000);
+    }
+  }
+
+  // which of the lists' events a widget event is (an entry's "event"), null for none of theirs
+  function listKind(listener, told) {
+    if (!told) return null;
+    if (listener === "message") return "message";
+    const event = elementEvent(listener, told);
+    if (!event || (event.type === "subscriber" && event.data.gifted)) return null;  // a gift bomb: its gifter's entry
+    return event.type === "follow" ? "follower" : event.type;
+  }
+
+  // an entry's values (the editor gives them: the event types' of Overlay → Events), each by its name: what the
+  // event has under that name, else under one of its other names ("also known as": StreamElements' words, so a
+  // test button's event fills them too), else its default
+  function listData(told, values) {
+    const inner = told.data && typeof told.data === "object" ? told.data : {};
+    const data = {};
+    for (const value of values || []) {
+      const names = [value.name, ...(value.aka || [])];
+      let found = names.map(name => told[name]).find(one => one !== undefined && one !== "");
+      if (found === undefined) found = names.map(name => inner[name]).find(one => one !== undefined && one !== "");
+      if (value.name === "tier" && /^[123]000$/.test(String(found))) found = String(found)[0];  // 2000 → 2
+      data[value.name] = found ?? value.default ?? "";
+    }
+    return data;
+  }
+
+  function toLists(listener, told) {
+    if (!lists.length) return;
+    if (listener === "delete-message") {
+      lists.forEach(kept => kept.list.drop((kind, data) => data.message_id && data.message_id === told.msgId));
+    } else if (listener === "delete-messages") {
+      lists.forEach(kept => kept.list.drop((kind, data) => kind === "message" && (!told.userId || data.user_id === told.userId)));
+    } else {
+      const kind = listKind(listener, told);
+      if (!kind) return;
+      for (const kept of lists) {
+        const entry = (kept.settings.entries || []).find(one => one.event === kind);
+        if (entry) kept.list.add(kind, listData(told, entry.values));
+      }
+    }
+    keepLists();
+  }
+
   // a state that is always there: everything in it stands, a video runs round
   function stand(state) {
     const into = layer(state, null);
-    for (const field of Object.values((state.settings || {}).compositeFields || {})) {
+    for (const [name, field] of Object.entries((state.settings || {}).compositeFields || {})) {
       const box = make(field);
       if (!box) continue;
       if (box.tagName === "VIDEO") { box.loop = true; play(box); }
       into.append(box);
+      if (field.type === "eventList") eventList(name, field, box);
       if (((field.toolbox || {}).react || {}).events) reacting.push([box, field.toolbox.react]);
       if (field.type === "text" || field.type === "latestTicker" || field.type === "goal") {
         labels.push([box, field]);
@@ -342,7 +414,20 @@
       `height: ${config.boundingBox.height}px; overflow: hidden; transform-origin: top left`;
     fit();
     addEventListener("resize", fit);
-    config.configStates.filter(state => always(state) && on(state)).forEach(stand);
+    entryCode().then(() => config.configStates.filter(state => always(state) && on(state)).forEach(stand));
+  }
+
+  // event_entry.js, only for a widget with an event list (it is loaded once, before the layers stand)
+  function entryCode() {
+    const needed = config.configStates.some(state => Object.values((state.settings || {}).compositeFields || {})
+      .some(field => field.type === "eventList"));
+    if (!needed || window.TOOLBOX_ENTRY) return Promise.resolve();
+    return new Promise(done => {
+      const script = document.createElement("script");
+      script.src = "/static/overlay/event_entry.js";
+      script.onload = script.onerror = done;
+      document.head.append(script);
+    });
   }
 
   addEventListener("onWidgetLoad", load => {
@@ -355,6 +440,7 @@
     for (const [box, field] of labels) fillText(box, field, null);
   });
   addEventListener("onEventReceived", received => {
+    toLists(received.detail.listener, received.detail.event);
     const event = elementEvent(received.detail.listener, received.detail.event);
     if (!event || !config) return;
     const kind = received.detail.listener.replace(/-latest$/, "");

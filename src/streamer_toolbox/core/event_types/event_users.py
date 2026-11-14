@@ -27,6 +27,10 @@ class EventUsers:
         self._alerts = alerts
         self._flows = flows
 
+    def event_types(self) -> list[EventType]:
+        """Overlay → Events' list as it is now."""
+        return self._events.all()
+
     # ---- who uses it ----
 
     def widgets_of(self, event: str) -> list[str]:

@@ -17,17 +17,19 @@ from streamer_toolbox.core.widgets.widget_store import WidgetStore
 from streamer_toolbox.gui.components.file_dialog import FileDialog
 from streamer_toolbox.gui.components.widgets_tool.design_add_list import DesignAddList
 from streamer_toolbox.gui.components.widgets_tool.design_layer_panel import DesignLayerPanel
+from streamer_toolbox.gui.components.widgets_tool.design_list_panel import DesignListPanel
 from streamer_toolbox.gui.components.widgets_tool.design_piece_panel import EVENT_NAMES, FIELD, DesignPiecePanel
 
-HEAD = '<link rel="stylesheet" href="/static/widget_designer.css"><script src="/static/widget_designer.js"></script>'
+HEAD = ('<link rel="stylesheet" href="/static/widget_designer.css"><script src="/static/widget_designer.js"></script>'
+        '<script src="/static/overlay/event_entry.js"></script>')
 ICONS = {"text": "title", "image": "image", "video": "movie", "audio": "volume_up", "latestTicker": "view_carousel",
-         "shape": "crop_square", "goal": "flag"}
+         "shape": "crop_square", "goal": "flag", "eventList": "view_list"}
 # what the canvas draws a piece as (widget_designer.js)
 DRAWN = {"text": "text", "latestTicker": "text", "image": "image", "video": "video", "shape": "shape",
-         "goal": "goal"}
+         "goal": "goal", "eventList": "eventList"}
 # what pulling a piece's corner does: a text gets bigger as a whole, a shape or a goal bar wider and higher on
 # their own, the others only wider (a picture's height follows)
-RESIZE = {"text": "scale", "shape": "free", "goal": "free"}
+RESIZE = {"text": "scale", "shape": "free", "goal": "free", "eventList": "free"}
 SIZES = {"1920x1080": "1920 × 1080 (full screen)", "1280x720": "1280 × 720", "1920x200": "1920 × 200 (a bar)",
          "800x600": "800 × 600", "1080x1920": "1080 × 1920 (standing)"}
 # an alert layer's event → the test button's event (Overlay → Widgets' test events)
@@ -36,7 +38,7 @@ TEST_LISTENERS = {"follower": "follower-latest", "subscriber": "subscriber-lates
 # an Element's event → the toolbox's event types it comes from (a widget only gets the types it is given)
 EVENT_TYPES = {"follower": ("follow",), "subscriber": ("sub", "resub", "gift"),
                "communityGiftPurchase": ("community_gift",), "cheer": ("cheer",), "raid": ("raid",),
-               "tip": ("tip",)}
+               "tip": ("tip",), "message": ("chat", "chat_deleted")}
 UNDO_STEPS = 100
 SAVE_AFTER = 0.6  # seconds without a change: then it is saved (and OBS loads it again)
 
@@ -188,7 +190,15 @@ class WidgetDesigner:
             ui.label("Pick a piece on the canvas or in the list to change it.").classes("text-sm opacity-70")
             return
         DesignPiecePanel(self._design, self._layer, self._picked, self._change, self._pick_file, self._uploaded,
-                         self._try_reaction, self._align).build()
+                         self._try_reaction, self._align, self._list_panel).build()
+
+    def _list_panel(self) -> None:
+        DesignListPanel(self._design, self._layer, self._picked, self._change, self._windows, self._store_file,
+                        self._media_address, self._read_file, self._list_values).build()
+
+    def _list_values(self, event: str) -> list[dict[str, Any]]:
+        """An event list's event's values: its event types' (Overlay → Events) as they are now."""
+        return DesignValues.list_values(event, self._users.event_types())
 
     def _show_mode(self, mode: str) -> None:
         self._edit_box.set_visibility(mode == "edit")
@@ -278,6 +288,13 @@ class WidgetDesigner:
                         .replace("{target}", f"{float(goal['target']):g}").replace("{percent}", f"{percent}%")
                 elif kind == "shape":
                     pass
+                elif kind == "eventList":
+                    entry["list"] = self._design.event_list(number, name)
+                    for one in entry["list"]["entries"]:
+                        one["values"] = self._list_values(one["event"])
+                    entry["samples"] = DesignValues.list_samples(entry["list"])
+                    entry["media"] = self._media_address("")
+                    entry["local"] = f"/overlay/widget/{self._name}/local?path="
                 else:
                     href = self._design.file(number, name)
                     entry["src"] = self._media_address(href) if href else ""
@@ -508,6 +525,26 @@ class WidgetDesigner:
     async def _uploaded(self, e) -> None:
         self._take_file(e.file.name, await e.file.read())
 
+    async def _read_file(self, endings: tuple[str, ...]) -> tuple[str, bytes] | None:
+        """A file he picks on this PC (FileDialog): (its name, its content); None when he picks none."""
+        with self._windows:
+            path = await FileDialog(endings).open()
+        if not path:
+            return None
+        try:
+            return Path(path).name, Path(path).read_bytes()
+        except OSError as error:
+            ui.notify(f"Can't read it: {error}", type="negative")
+            return None
+
+    def _store_file(self, file_name: str, content: bytes) -> str | None:
+        """Into the widget's media folder; its name there, None when it couldn't be added."""
+        try:
+            return self._files.add(self._name, file_name, content)
+        except (KeyError, ValueError, OSError) as error:
+            ui.notify(f"Not added: {error}", type="negative")
+            return None
+
     def _take_file(self, file_name: str, content: bytes) -> None:
         name, layer = self._picked, self._layer
         try:
@@ -541,7 +578,10 @@ class WidgetDesigner:
         if widget is None:
             ui.notify(f"The widget {self._name} isn't there any more: not saved", type="negative")
             return
+        self._design.set_list_values(self._list_values)  # Overlay → Events can have changed them
         self._store.save(replace(widget, js=self._design.to_js()))
+        if self._design.addresses():
+            self._draw()  # a path on this PC a list's cell shows: the toolbox gives it once it is saved
         # the event types its alerts and reactions need, besides the ones it had (their flows made once)
         needed = [kind for event in sorted(self._design.events()) for kind in EVENT_TYPES[event]]
         if set(needed) - set(widget.events or ()):
