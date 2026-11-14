@@ -2,6 +2,7 @@ from urllib.parse import quote
 
 from nicegui import ui
 
+from streamer_toolbox.core.event_types.event_flows import EventFlows
 from streamer_toolbox.core.flows.default_flows import DefaultFlows
 from streamer_toolbox.core.flows.flow_pack import FlowPack
 from streamer_toolbox.gui.components.default_flows_dialog import DefaultFlowsDialog
@@ -22,10 +23,11 @@ class ConnectionPanel:
     "Add default flows" when it has some (his round 66)."""
 
     def __init__(self, connection: Connection, manager: ConnectionManager,
-                 default_flows: DefaultFlows | None = None) -> None:
+                 default_flows: DefaultFlows | None = None, event_flows: EventFlows | None = None) -> None:
         self._connection = connection
         self._manager = manager
         self._default_flows = default_flows
+        self._event_flows = event_flows  # its events' own flows come with the default flows (his 11-14)
 
     def build(self) -> None:
         connection = self._connection
@@ -112,13 +114,10 @@ class ConnectionPanel:
         ui.label(f'You pick which ones. They go into the folder "{pack.folder}", switched off: switch on the ones '
                  "you want in Flows.").classes("text-xs opacity-60")
 
-        async def add() -> None:
-            if not self._default_flows.there(file) >= {f.label.casefold() for f in pack.flows}:
-                if await DefaultFlowsDialog(self._default_flows, file).ask_and_add():
-                    link.set_visibility(True)
-                return
-            ui.notify(f'All of them are in "{pack.folder}" already', type="info")
-            link.set_visibility(True)
+        async def add() -> None:  # always the window: one there already can be updated (his 11-14)
+            if await DefaultFlowsDialog(self._default_flows, file, self._event_flows,
+                                        self._connection.event_types()).ask_and_add():
+                link.set_visibility(True)
 
         with ui.row().classes("items-center gap-3"):
             ui.button("Add default flows", icon="playlist_add", on_click=add).props("no-caps outline")

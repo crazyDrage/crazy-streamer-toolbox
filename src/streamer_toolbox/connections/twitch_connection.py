@@ -370,6 +370,10 @@ class TwitchConnection(ConnectionBase, RewardManager, AccountHolder):
     def default_flows(self) -> Path:
         return Path(__file__).parent / "twitch" / "default_flows.flows.toml"
 
+    def event_types(self) -> tuple[str, ...]:
+        return ("chat", "chat_deleted", "follow", "sub", "resub", "gift", "community_gift", "cheer", "raid",
+                "redeem")
+
     def add_actions(self, actions: ActionRegistry) -> None:
         TwitchChannelActions(self._helix, self._need_token).add_to(actions)
         TwitchStreamActions(self._helix, self._need_token, channel=self._channel_token).add_to(actions)

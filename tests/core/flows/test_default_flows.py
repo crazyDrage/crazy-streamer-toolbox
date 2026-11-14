@@ -75,6 +75,16 @@ class TestDefaultFlows(unittest.TestCase):
         self.assertEqual((added, there), (["Thank a raid"], []))
         self.assertEqual([f.label for f in self.library.all()], ["Thank a raid"])
 
+    def test_an_update_puts_the_default_back_keeping_its_name_and_on_off(self) -> None:
+        """His 11-14: "a popup for updating the existing flows with the same name"; his yes updates them."""
+        self.defaults.add(self.file)
+        self.library.save(Flow("thank", "Thank a follow", description="his own words", folder="Test flows",
+                               enabled=True))
+        self.assertEqual(["Thank a follow"], self.defaults.update(self.file, ["Thank a follow"]))
+        flow = self.library.get("thank")
+        self.assertEqual(("", True, 1), (flow.description, flow.enabled, len(flow.triggers)))
+        self.assertEqual([], self.defaults.update(self.file, ["Not in the file"]))
+
     def test_there_names_the_ones_in_the_folder(self) -> None:
         self.assertEqual(self.defaults.there(self.file), set())
         self.defaults.add(self.file, only={"Thank a follow"})

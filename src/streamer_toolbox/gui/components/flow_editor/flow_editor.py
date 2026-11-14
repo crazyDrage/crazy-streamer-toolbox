@@ -5,6 +5,7 @@ from nicegui import app, ui
 
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.actions.box_filter_store import BoxFilterStore
+from streamer_toolbox.gui.components.sure_to_delete import sure_to_delete
 from streamer_toolbox.gui.components.flow_editor.action_picker import SwitchedOff
 from streamer_toolbox.core.actions.registered_action import OptionsProvider
 from streamer_toolbox.core.data.box_value import understand
@@ -95,6 +96,9 @@ class FlowEditor:
             ui.timer(1.0, lambda: setattr(self, "_running", self._runner.running(self._draft.name) > 0))
             ui.button("Save", icon="save", on_click=self._save).props("no-caps unelevated")
             ui.button("Save as template", icon="bookmark_add", on_click=self._save_template).props("no-caps outline")
+            if self._old_name:  # a saved flow (his 11-14: "there is no delete button")
+                ui.button(icon="delete", on_click=self._delete).props("flat round color=negative") \
+                    .tooltip("Delete this flow")
         ui.label(f"File: {self._library.folder / (draft.name + '.toml')}" if draft.name
                  else "New flow: the file name comes from the name when you save.").classes("text-xs opacity-60")
         with ui.row().classes("items-start no-wrap gap-4 w-full"):
@@ -526,6 +530,18 @@ class FlowEditor:
         ui.notify(f"{draft.label} saved · action flow.{draft.name}", type="positive")
         if self._old_name != draft.name:
             ui.navigate.to(f"/flows/edit?flow={draft.name}")
+
+    async def _delete(self) -> None:
+        flow = self._library.get(self._old_name)
+        if flow is None:
+            ui.notify("It isn't saved (any more)", type="info")
+            return
+        if await sure_to_delete(f"Delete the flow {flow.label}?",
+                                f"Deletes {self._library.folder / (flow.name + '.toml')} and the action "
+                                f"{flow.action_name}. SAMMI buttons that call it will fail."):
+            self._library.delete(flow.name)
+            ui.notify(f"{flow.label} deleted")
+            ui.navigate.to("/flows")
 
     async def _save_template(self) -> None:
         if self._view == "boxes":

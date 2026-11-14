@@ -58,8 +58,47 @@ class EventFlows:
 
     def make(self, kind: EventType) -> str:
         """The event type's own flow; its name."""
-        trigger, match = TRIGGERS.get(kind.name, ("", {})) if kind.default else ("", {})
         name = self._flows.free_name(f"event {kind.name}")
+        self._flows.save(self._built(kind, name))
+        self._events.mark_flow_made(kind.name)
+        return name
+
+    def own_flow(self, event: str) -> Flow | None:
+        """The flow that sends the event: the one labelled "Event: <name>", else the first that sends it."""
+        wanted, label = action_name(event), f"Event: {event}".casefold()
+        sending = [flow for flow in self._flows.all() if any(node.action == wanted for node in flow.nodes)]
+        named = [flow for flow in self._flows.all() if flow.label.casefold() == label]
+        return (named or sending or [None])[0]
+
+    def add_default(self, event: str) -> str:
+        """A connection's "Add default flows" (his 11-14): the default type back if he deleted it, shown, and its
+        own flow made new; the flow's name. Its flow there already: nothing new ("")."""
+        kind = self._default_type(event)
+        if kind is None or self.own_flow(event) is not None:
+            return ""
+        return self.make(kind)
+
+    def update_default(self, event: str) -> str:
+        """His yes to "update the existing flows": the type's own flow made new in the place of the one there
+        (its name and on/off stay); the flow's name."""
+        kind = self._default_type(event)
+        there = self.own_flow(event)
+        if kind is None:
+            return ""
+        if there is None:
+            return self.make(kind)
+        self._flows.save(replace(self._built(kind, there.name), enabled=there.enabled), there.name)
+        self._events.mark_flow_made(kind.name)
+        return there.name
+
+    def _default_type(self, event: str) -> EventType | None:
+        kind = self._events.restore_default(event)
+        if kind is not None:
+            self._events.show(event)
+        return self._events.get(event)
+
+    def _built(self, kind: EventType, name: str) -> Flow:
+        trigger, match = TRIGGERS.get(kind.name, ("", {})) if kind.default else ("", {})
         asking: tuple[FlowNode, ...] = ()
         if trigger:
             params = {v.name: f"${{box.{TRIGGER}.{v.name}}}" for v in kind.values}
@@ -77,15 +116,13 @@ class EventFlows:
         else:
             params, triggers, wires = {}, (), (FlowWire(START, "out", BOX),)
             said = "when this flow is started (a button, another flow, a trigger you add); fill its values"
-        self._flows.save(Flow(
+        return Flow(
             # right of the Manual Start and Input boxes, which stay at the left edge
             name, f"Event: {kind.name}",
             (*asking, FlowNode(BOX, action_name(kind.name), params, box=(620.0 + 300.0 * len(asking), 40.0))),
             wires, triggers, description=f"Sends the event {kind.name!r} (Overlay → Events) to every widget and "
                                          f"alert that uses it, {said}. Made by the toolbox; change it like any "
-                                         "flow.", folder=FOLDER, as_box=False))
-        self._events.mark_flow_made(kind.name)
-        return name
+                                         "flow.", folder=FOLDER, as_box=False)
 
     def make_once(self, event: str) -> str:
         """The event type's own flow, unless the toolbox made it before or a flow sends it already; its name, or

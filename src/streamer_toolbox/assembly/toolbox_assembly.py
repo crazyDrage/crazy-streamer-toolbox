@@ -512,7 +512,8 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
     shell.sub_items["/tools"] = lambda: [(title, f"/tools?show={tool_slug(title)}", icon or "handyman")
                                          for _, title, icon, *_ in tools_page.shown()]
     default_flows = DefaultFlows(flows, deck_store)
-    connections_page = ConnectionsPage(config, args.config, ui_registry, connections, test_view, default_flows)
+    connections_page = ConnectionsPage(config, args.config, ui_registry, connections, test_view, default_flows,
+                                       event_flows)
     shell.sub_items["/connections"] = lambda: [("Toolbox", "/connections?show=toolbox", "lan")] + [
         (c.title, f"/connections?show={c.id}", c.icon) for c in connections_page.shown()]
     shell.page("Connections", "/connections", connections_page.build)

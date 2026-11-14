@@ -54,5 +54,33 @@ class TestEventFlows(unittest.TestCase):
         self.assertEqual((FlowWire("t1", "out", "n1"),), flow.wires)
 
 
+    def test_default_flows_bring_an_events_flow_once(self) -> None:
+        """His 11-14: adding Twitch's default flows adds the events and their flows too."""
+        name = self.event_flows.add_default("follow")
+        self.assertEqual("Event: follow", self.flows.get(name).label)
+        self.assertFalse(self.events.get("follow").hidden)
+        self.assertEqual("", self.event_flows.add_default("follow"))  # there already
+
+    def test_a_deleted_default_type_comes_back_with_its_flow(self) -> None:
+        self.events.delete("raid")
+        name = self.event_flows.add_default("raid")
+        self.assertIsNotNone(self.events.get("raid"))
+        self.assertEqual(action_name("raid"), self.flows.get(name).nodes[-1].action)
+        self.assertEqual("", self.event_flows.add_default("not_a_default"))
+
+    def test_an_update_makes_his_flow_the_default_again(self) -> None:
+        name = self.event_flows.add_default("cheer")
+        his = self.flows.get(name)
+        self.flows.save(replace(his, description="mine", enabled=False, nodes=()), name)
+        self.assertEqual(name, self.event_flows.update_default("cheer"))
+        flow = self.flows.get(name)
+        self.assertEqual((False, action_name("cheer")), (flow.enabled, flow.nodes[-1].action))
+        self.assertNotEqual("mine", flow.description)
+
+    def test_twitchs_event_types_all_have_a_default_flow(self) -> None:
+        from streamer_toolbox.connections.twitch_connection import TwitchConnection
+        from streamer_toolbox.core.event_types.event_flows import TRIGGERS
+        self.assertTrue(set(TwitchConnection.event_types(None)) <= set(TRIGGERS))
+
 if __name__ == "__main__":
     unittest.main()
