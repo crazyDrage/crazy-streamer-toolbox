@@ -64,6 +64,12 @@ Without a step: `[rumble] multiple_accounts`, `bot_accounts` (unused: read only)
   before stays as it is ("only the default that will get added"). An older toolbox sends `picture` as one more
   value and has no `twitch.profile_picture` box.
 
+- `cache/media/<folder>/`: pictures and videos the box "Keep media locally" downloaded (his idea of 11-14), named
+  after their address, with an `index.json` (each file's address, when it was fetched and last used, its size;
+  the folder's limits from the box). Only the toolbox reads it; deleting the folder only means downloading again.
+  The chat type's own flow (made new) keeps the profile picture there: Chat → Twitch profile picture → Keep
+  media locally → Send chat, `picture` = `/media/kept/media/<file>`.
+
 An older toolbox on version 4 settings: finds no Rumble address (it looks for `rumble_address.txt`).
 
 

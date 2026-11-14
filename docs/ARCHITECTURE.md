@@ -275,6 +275,10 @@ connections/             ONLY the connection classes, one per service
                          TwitchChannelActions (channel info, title, category, ads, users, followers; via
                          TwitchApi.helix); TwitchPictureLookup (profile picture addresses for the box "Twitch
                          profile picture": by id or name, batched, kept a day in cache/twitch_pictures.json)
+core/media/media_buffer  MediaBuffer: pictures and videos from the web kept on this PC (box "Keep media
+                         locally", media_actions): cache/media/<folder>/, an index per folder, the folder's limits
+                         (size, biggest file, days); internet addresses only. api/media_router serves them at
+                         /media/kept/<folder>/<file> (only files of the index, sandboxed)
 core/system/github_program  GithubProgram: a program fetched from a GitHub project's releases into the settings
                          folder and kept up to date (SHA-256 checked, once a day); used for TwitchDownloaderCLI
                          (connections/twitch/twitch_clip_downloader: the Download clip box)

@@ -7,6 +7,7 @@ from nicegui import Client, app, ui
 
 from streamer_toolbox.api.action_router import build_action_router
 from streamer_toolbox.api.caller_auth import CallerAuth
+from streamer_toolbox.api.media_router import build_media_router
 from streamer_toolbox.api.overlay_router import build_overlay_router
 from streamer_toolbox.api.widget_router import build_widget_router
 from streamer_toolbox.api.widget_sandbox_middleware import WidgetSandboxMiddleware
@@ -70,6 +71,8 @@ from streamer_toolbox.core.flows.timer_clock import TimerClock
 from streamer_toolbox.core.history.event_history import EventHistory
 from streamer_toolbox.core.history.history_actions import HistoryActions
 from streamer_toolbox.core.learn.learn_library import LearnLibrary
+from streamer_toolbox.core.media.media_actions import MediaActions
+from streamer_toolbox.core.media.media_buffer import MediaBuffer
 from streamer_toolbox.core.media.mp4_header_probe import Mp4HeaderProbe
 from streamer_toolbox.core.points.local_point_bank import LocalPointBank
 from streamer_toolbox.core.points.point_actions import PointActions
@@ -296,6 +299,9 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
     box_filters = BoxFilterStore(args.config.parent / "box_filters.json")
     OwnBoxes(variables, probe, NiceGuiMessageService(pages), confirm,
              config.tables.get("sound", {}).get("folder"), boxes).add_to(actions)
+    # pictures and videos from the web kept on this PC, served at /media/kept/ (his idea of 11-14)
+    media_buffer = MediaBuffer(args.config.parent / "cache" / "media")
+    MediaActions(media_buffer).add_to(actions)
     # the alerts before the flows; each alert plays on its event (Overlay → Events, its Send box)
     alert_queue = AlertQueue()
     alert_store = AlertStore(args.config.parent / "alerts.json")
@@ -444,6 +450,7 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
     ui.page("/login", title=f"Sign in · {APP_NAME}")(LoginPage(access, LoginThrottle(), devices).build)
     app.include_router(build_action_router(actions, CallerAuth(list(config.callers)), activity.add))
     app.include_router(build_overlay_router(alert_queue))
+    app.include_router(build_media_router(media_buffer))
     channel_lookup = ChannelLookup(twitch.helix, channel_info)
     app.include_router(build_widget_router(widget_store, widget_hub, WidgetPage(widget_hub.session, channel_info),
                                            channel_lookup, widget_fallback,

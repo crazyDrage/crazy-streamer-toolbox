@@ -55,7 +55,7 @@ name in that file. The script keeps such rows as they are.
 |---|---|---|
 | **[live](live/)** | **0** | **1** |
 | [live/page](live/page.md) | 0 | 1 |
-| **[flows](flows/)** | **15** | **370** |
+| **[flows](flows/)** | **15** | **371** |
 | [flows/page](flows/page.md) | 0 | 6 |
 | [flows/triggers/any_platform](flows/triggers/any_platform.md) | 3 | 10 |
 | [flows/triggers/crowdcontrol](flows/triggers/crowdcontrol.md) | 0 | 1 |
@@ -101,6 +101,7 @@ name in that file. The script keeps such rows as they are.
 | [flows/boxes/logic/repeat](flows/boxes/logic/repeat.md) | 0 | 3 |
 | [flows/boxes/logic/wait](flows/boxes/logic/wait.md) | 0 | 2 |
 | [flows/boxes/lumia/general](flows/boxes/lumia/general.md) | 0 | 4 |
+| [flows/boxes/media/media](flows/boxes/media/media.md) | 0 | 1 |
 | [flows/boxes/mixitup/chat](flows/boxes/mixitup/chat.md) | 0 | 2 |
 | [flows/boxes/mixitup/commands](flows/boxes/mixitup/commands.md) | 0 | 2 |
 | [flows/boxes/mixitup/counters](flows/boxes/mixitup/counters.md) | 0 | 4 |
@@ -160,8 +161,8 @@ name in that file. The script keeps such rows as they are.
 | [flows/boxes/youtube/chat](flows/boxes/youtube/chat.md) | 0 | 1 |
 | **[variables](variables/)** | **0** | **1** |
 | [variables/page](variables/page.md) | 0 | 1 |
-| **[overlay](overlay/)** | **0** | **6** |
-| [overlay/page](overlay/page.md) | 0 | 6 |
+| **[overlay](overlay/)** | **0** | **7** |
+| [overlay/page](overlay/page.md) | 0 | 7 |
 | **[tools](tools/)** | **0** | **6** |
 | [tools/page](tools/page.md) | 0 | 1 |
 | [tools/twitch](tools/twitch.md) | 0 | 1 |
@@ -203,4 +204,4 @@ name in that file. The script keeps such rows as they are.
 | [learn/page](learn/page.md) | 0 | 11 |
 | **[settings](settings/)** | **0** | **20** |
 | [settings/page](settings/page.md) | 0 | 20 |
-| **All** | **15** | **447** |
+| **All** | **15** | **449** |

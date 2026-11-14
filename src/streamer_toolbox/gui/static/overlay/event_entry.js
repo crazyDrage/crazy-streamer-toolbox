@@ -19,9 +19,11 @@
   }
 
   // where a picture or video cell's address (filled in) is loaded from: a web address as it is, a path on this
-  // PC through the widget's own route (opts.local; the toolbox gives only what its addresses make)
+  // PC through the widget's own route (opts.local; the toolbox gives only what its addresses make), a kept file
+  // (/media/kept/...) from the toolbox
   function source(address, opts) {
-    if (/^(https?:|data:|blob:)/i.test(address)) return address;
+    // the media buffer's files (box "Keep media locally") are on the toolbox's own address
+    if (/^(https?:|data:|blob:)/i.test(address) || address.startsWith("/media/kept/")) return address;
     return opts.local ? opts.local + encodeURIComponent(address) : "";
   }
 

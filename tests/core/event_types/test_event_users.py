@@ -16,6 +16,8 @@ from streamer_toolbox.core.event_types.event_type_store import EventTypeStore
 from streamer_toolbox.core.event_types.event_users import EventUsers
 from streamer_toolbox.core.events.common_events import SAME, common
 from streamer_toolbox.core.flows.flow_library import FlowLibrary
+from streamer_toolbox.core.media.media_actions import MediaActions
+from streamer_toolbox.core.media.media_buffer import MediaBuffer
 from streamer_toolbox.core.flows.flow_runner import FlowRunner
 from streamer_toolbox.core.flows.flow_store import FlowStore
 from streamer_toolbox.core.flows.flow_trigger_router import FlowTriggerRouter
@@ -24,6 +26,7 @@ from streamer_toolbox.core.widgets.widget import Widget
 from streamer_toolbox.core.widgets.widget_hub import WidgetHub
 from streamer_toolbox.core.widgets.widget_store import WidgetStore
 from tests.fakes.fake_helix import FakeHelix
+from tests.fakes.fake_media_web import FakeMediaWeb
 
 KIT = "https://static-cdn.jtvnw.net/jtv_user_pictures/kit-profile_image-300x300.png"
 CHAT_JS = """window.addEventListener('onEventReceived', obj => {
@@ -123,18 +126,23 @@ class TestEventUsers(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.users.users("chat"), ["Widget chat_box"])
 
     async def test_a_twitch_chat_message_reaches_the_widget_with_the_profile_picture(self) -> None:
-        """His 11-14: the chat's own flow asks for the picture, then sends; YouTube's chatter gets none."""
+        """His 11-14: the chat's own flow asks for the picture, keeps it on this PC, then sends; YouTube's
+        chatter gets none."""
         helix = FakeHelix({("GET", "users"): {"data": [{"id": "11", "login": "kit", "profile_image_url": KIT}]}})
         self.actions.add_box(TwitchProfilePicture(TwitchPictureLookup(helix, wait=0)), "twitch")
+        web = FakeMediaWeb()
+        web.picture(KIT.replace("300x300", "70x70"))
+        MediaActions(MediaBuffer(Path(self._dir.name) / "media", web.transport)).add_to(self.actions)
         self.widgets.save(Widget("chat_box", js=CHAT_JS))
         self.users.give_events("chat_box")
         page = self.hub.listen("chat_box")
         await self._event("twitch.chat", {"user": "Kit", "message": "hi", "user_id": "11", "platform": "twitch"})
-        self.assertEqual(KIT.replace("300x300", "70x70"), _next_event(page)["event"]["picture"])
+        picture = _next_event(page)["event"]["picture"]
+        self.assertTrue(picture.startswith("/media/kept/media/"), picture)  # kept on this PC
         await self._event("youtube.chat", {"user": "Ann", "message": "hey", "user_id": "UCx", "platform": "youtube"})
         told = _next_event(page)["event"]
         self.assertEqual(("hey", ""), (told["text"], told["picture"]))
-        self.assertEqual(1, len(helix.calls))
+        self.assertEqual((1, 1), (len(helix.calls), len(web.asked)))
 
     async def test_imported_widgets_get_the_newer_streamelements_events_with_their_flows(self) -> None:
         """His "add the missing events" (2026-11-05): a gift bomb, YouTube's Super Chat and StreamElements'

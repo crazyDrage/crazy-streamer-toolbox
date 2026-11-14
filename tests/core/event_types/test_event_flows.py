@@ -29,14 +29,16 @@ class TestEventFlows(unittest.TestCase):
     def tearDown(self) -> None:
         self._dir.cleanup()
 
-    def test_the_chats_flow_gets_the_picture_from_the_twitch_box(self) -> None:
+    def test_the_chats_flow_gets_the_picture_from_twitch_and_keeps_it_locally(self) -> None:
         flow = self.flows.get(self.event_flows.make(self.events.get("chat")))
-        picture = next(node for node in flow.nodes if node.action == "twitch.profile_picture")
-        send = next(node for node in flow.nodes if node.action == action_name("chat"))
+        picture, keep, send = (next(node for node in flow.nodes if node.action == action)
+                               for action in ("twitch.profile_picture", "media.keep_locally", action_name("chat")))
         self.assertEqual({"user": "${box.t1.user_id}", "platform": "${box.t1.platform}"}, picture.params)
-        self.assertEqual("${box.%s.picture}" % picture.id, send.params["picture"])
+        self.assertEqual({"url": "${box.%s.picture}" % picture.id}, keep.params)
+        self.assertEqual("${box.%s.address}" % keep.id, send.params["picture"])
         self.assertEqual("${box.t1.message}", send.params["message"])
-        self.assertEqual({FlowWire("t1", "out", picture.id), FlowWire(picture.id, "done", send.id)}, set(flow.wires))
+        self.assertEqual({FlowWire("t1", "out", picture.id), FlowWire(picture.id, "done", keep.id),
+                          FlowWire(keep.id, "done", send.id)}, set(flow.wires))
 
     def test_a_chat_type_from_before_the_picture_keeps_its_old_flow(self) -> None:
         """His "only the default that will get added": settings from before get no box."""
