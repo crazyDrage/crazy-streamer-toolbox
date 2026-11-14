@@ -49,6 +49,26 @@ class TestToolboxLauncher(unittest.TestCase):
         self.assertEqual(len(started), 1)
         self.assertTrue(started[0].stdin.closed)
 
+    def test_a_toolbox_stuck_while_closing_is_ended_after_the_grace(self) -> None:
+        """His 11-14: "stopping the toolbox will not close the window, and will not close the tray icon"."""
+        stuck = FakeChildProcess(1, stuck=True)
+        launcher = ToolboxLauncher(["toolbox"], "http://127.0.0.1:8850", None, lambda command, stdin=None: stuck,
+                                   ready=lambda url: True, stop_grace=0.05)
+        launcher._ready = lambda url: (launcher.stop(), True)[1]
+        launcher._opener = FakePageOpener()
+        with self.assertLogs("streamer_toolbox.core.system.toolbox_launcher", "WARNING"):
+            self.assertEqual(launcher.run(), 1)
+        self.assertTrue(stuck.killed)
+
+    def test_a_toolbox_that_closes_in_time_is_left_alone(self) -> None:
+        child = FakeChildProcess(0)
+        launcher, _ = self._launcher([0])
+        launcher._child = child
+        launcher._stop_grace = 0.05
+        launcher.stop()
+        self.assertEqual(child.wait(), 0)
+        self.assertFalse(child.killed)
+
     def test_restart_from_outside_starts_it_again_whatever_its_code(self) -> None:
         launcher, started = self._launcher([0, 0], FakePageOpener())  # the opener's wait is where it runs
         launcher._ready = lambda url: (launcher.restart(), True)[1] if len(started) == 1 else True

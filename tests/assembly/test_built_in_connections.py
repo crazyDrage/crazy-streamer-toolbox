@@ -9,6 +9,8 @@ from streamer_toolbox.connections.oauth.oauth_token_store import OAuthTokenStore
 from streamer_toolbox.connections.twitch_connection import TwitchConnection
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.config.obs_config import ObsConfig
+from streamer_toolbox.core.event_types.default_event_types import DEFAULTS
+from streamer_toolbox.core.event_types.event_flows import TRIGGERS
 from streamer_toolbox.core.events.event_bus import EventBus
 from streamer_toolbox.core.media.mp4_header_probe import Mp4HeaderProbe
 
@@ -47,6 +49,14 @@ class TestBuiltInConnections(unittest.TestCase):
         categories = {box.name.split(".")[0] for box in self.actions.all(include_flow_only=True)}
         for category in ("obs", "sammi", "mixitup", "vts", "twitch", "youtube", "streamerbot", "tits", "discord"):
             self.assertIn(category, categories)
+
+    def test_the_events_of_add_default_flows_are_default_event_types_with_a_trigger(self) -> None:
+        """His 11-14: "Add default flows" brings the connection's events and their flows (Twitch, YouTube)."""
+        defaults = {kind.name for kind in DEFAULTS}
+        offered = {connection.id: connection.event_types() for connection in self.connections}
+        self.assertEqual(offered["youtube"], ("chat", "follow", "sub", "resub", "gift", "superchat", "member"))
+        for connection_id, events in offered.items():
+            self.assertEqual([e for e in events if e not in defaults or e not in TRIGGERS], [], connection_id)
 
 
 if __name__ == "__main__":

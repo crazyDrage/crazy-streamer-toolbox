@@ -249,6 +249,11 @@ class YouTubeConnection(ConnectionBase, AccountHolder):
                                   "under Connections → YouTube and press Connect once")
         await self._api().send_chat(await self._live_chat(), str(message))
 
+    def event_types(self) -> tuple[str, ...]:
+        """His 11-14 "about youtube events, yes": chat, a new subscriber (follow), a new member (sub; also
+        "member", StreamElements' sponsor), a member milestone (resub), gifted memberships (gift), a Super Chat."""
+        return ("chat", "follow", "sub", "resub", "gift", "superchat", "member")
+
     def add_actions(self, actions: ActionRegistry) -> None:
         for box in (SendChatMessage(self),):
             actions.add_box(box, "youtube")

@@ -8,6 +8,7 @@ from streamer_toolbox.core.interfaces.connection import Connection
 from streamer_toolbox.core.connections.connection_status import ConnectionStatus
 
 log = logging.getLogger(__name__)
+STOP_LIMIT = 5.0  # seconds a connection gets to stop when the toolbox closes; one that takes longer is left
 
 
 class ConnectionManager:
@@ -15,11 +16,12 @@ class ConnectionManager:
     While running it checks every few seconds, so a program started after the toolbox gets connected by itself."""
 
     def __init__(self, connections: list[Connection], writer: ConfigTableWriter, check_every: float = 5.0,
-                 paused: Callable[[str], bool] = lambda connection_id: False) -> None:
+                 paused: Callable[[str], bool] = lambda connection_id: False, stop_limit: float = STOP_LIMIT) -> None:
         self._paused = paused  # a switched-off plugin's connection: not started, not kept alive (PluginPower)
         self._connections = {c.id: c for c in connections}
         self._writer = writer
         self._check_every = check_every
+        self._stop_limit = stop_limit
         self._busy = {c.id: asyncio.Lock() for c in connections}  # a check never runs during a GUI restart
         self._watcher: asyncio.Task | None = None
 
@@ -42,7 +44,17 @@ class ConnectionManager:
             self._watcher.cancel()
             await asyncio.gather(self._watcher, return_exceptions=True)
             self._watcher = None
-        await asyncio.gather(*(c.stop() for c in self.all()), return_exceptions=True)
+        await asyncio.gather(*(self._stop(c) for c in self.all()))
+
+    async def _stop(self, connection: Connection) -> None:
+        """One connection's stop when the toolbox closes, with a time limit: one that never finished kept the
+        toolbox, its window and its tray icon open (his 11-14 "it is stuck now")."""
+        try:
+            await asyncio.wait_for(connection.stop(), self._stop_limit)
+        except TimeoutError:
+            log.warning("connection %s didn't stop within %s s: closing without it", connection.id, self._stop_limit)
+        except Exception as e:
+            log.warning("connection %s: stop failed: %s: %s", connection.id, type(e).__name__, e)
 
     async def check_all(self) -> None:
         """One round of keep_alive for every switched-on connection (the watcher calls it every few seconds)."""
