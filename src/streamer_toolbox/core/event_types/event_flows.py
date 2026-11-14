@@ -6,7 +6,7 @@ from streamer_toolbox.core.flows.flow import Flow
 from streamer_toolbox.core.flows.flow_library import FlowLibrary
 from streamer_toolbox.core.flows.flow_node import FlowNode
 from streamer_toolbox.core.flows.flow_trigger import FlowTrigger
-from streamer_toolbox.core.flows.flow_wire import START, FlowWire
+from streamer_toolbox.core.flows.flow_wire import DONE, START, FlowWire
 
 SEND = "event.send."  # + <event>: its box (EventActions)
 ONLY_TO = "only_to"  # the box's field that sends to one widget or alert only
@@ -65,7 +65,7 @@ class EventFlows:
             if value in params:  # Start → the box that asks → Send
                 params[value] = f"${{box.{box}.{output}}}"
                 asking = (FlowNode(box, action, dict(fields), box=(620.0, 40.0)),)
-                wires = (FlowWire(TRIGGER, "out", box), FlowWire(box, "out", BOX))
+                wires = (FlowWire(TRIGGER, "out", box), FlowWire(box, DONE, BOX))  # a box leaves by "done"
         else:
             params, triggers, wires = {}, (), (FlowWire(START, "out", BOX),)
             said = "when this flow is started (a button, another flow, a trigger you add); fill its values"

@@ -36,7 +36,7 @@ class TestEventFlows(unittest.TestCase):
         self.assertEqual({"user": "${box.t1.user_id}", "platform": "${box.t1.platform}"}, picture.params)
         self.assertEqual("${box.%s.picture}" % picture.id, send.params["picture"])
         self.assertEqual("${box.t1.message}", send.params["message"])
-        self.assertEqual({FlowWire("t1", "out", picture.id), FlowWire(picture.id, "out", send.id)}, set(flow.wires))
+        self.assertEqual({FlowWire("t1", "out", picture.id), FlowWire(picture.id, "done", send.id)}, set(flow.wires))
 
     def test_a_chat_type_from_before_the_picture_keeps_its_old_flow(self) -> None:
         """His "only the default that will get added": settings from before get no box."""
