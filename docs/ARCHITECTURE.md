@@ -276,9 +276,14 @@ connections/             ONLY the connection classes, one per service
                          TwitchApi.helix); TwitchPictureLookup (profile picture addresses for the box "Twitch
                          profile picture": by id or name, batched, kept a day in cache/twitch_pictures.json)
 core/media/media_buffer  MediaBuffer: pictures and videos from the web kept on this PC (box "Keep media
-                         locally", media_actions): cache/media/<folder>/, an index per folder, the folder's limits
-                         (size, biggest file, days); internet addresses only. api/media_router serves them at
-                         /media/kept/<folder>/<file> (only files of the index, sandboxed)
+                         locally", media_actions). The address is the place in cache/media/: a box in a flow
+                         keeps in flows/box/<flow>/<box id>/ (its address /toolbox/media/flows/box/<flow>/<box id>/
+                         <code>_<name>.png, latest.png = its newest), a box with a Folder in shared/<folder>/
+                         (boxes.json says which box), Live / the API in shared/media/. An index per folder, the
+                         folder's limits (size, biggest file, days); internet addresses only (names looked up).
+                         A box left out at Save flow loses its folder (FlowLibrary.boxes_gone). The box knows
+                         where it runs from core/flows/current_box (set by FlowRunner). api/media_router serves
+                         them (only files of the index, sandboxed)
 core/system/github_program  GithubProgram: a program fetched from a GitHub project's releases into the settings
                          folder and kept up to date (SHA-256 checked, once a day); used for TwitchDownloaderCLI
                          (connections/twitch/twitch_clip_downloader: the Download clip box)

@@ -299,7 +299,7 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
     box_filters = BoxFilterStore(args.config.parent / "box_filters.json")
     OwnBoxes(variables, probe, NiceGuiMessageService(pages), confirm,
              config.tables.get("sound", {}).get("folder"), boxes).add_to(actions)
-    # pictures and videos from the web kept on this PC, served at /media/kept/ (his idea of 11-14)
+    # pictures and videos from the web kept on this PC, served at /toolbox/media/ (his ideas of 11-14, 11-15)
     media_buffer = MediaBuffer(args.config.parent / "cache" / "media")
     MediaActions(media_buffer).add_to(actions)
     # the alerts before the flows; each alert plays on its event (Overlay → Events, its Send box)
@@ -313,6 +313,7 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
     runner = FlowRunner(actions, variables)
     flows = FlowLibrary(FlowStore(args.config.parent / "flows"), FlowStore(args.config.parent / "flow_templates"),
                         runner, actions)
+    flows.boxes_gone.append(media_buffer.forget)  # a box left out at Save flow: its kept files go (his 11-15)
     flows.load()
     async def refund(data: dict) -> None:
         await twitch.finish_redeem(data.get("reward_id", ""), data.get("redemption_id", ""), refund=True)

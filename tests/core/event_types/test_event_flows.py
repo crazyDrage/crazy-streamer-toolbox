@@ -34,7 +34,7 @@ class TestEventFlows(unittest.TestCase):
         picture, keep, send = (next(node for node in flow.nodes if node.action == action)
                                for action in ("twitch.profile_picture", "media.keep_locally", action_name("chat")))
         self.assertEqual({"user": "${box.t1.user_id}", "platform": "${box.t1.platform}"}, picture.params)
-        self.assertEqual({"url": "${box.%s.picture}" % picture.id}, keep.params)
+        self.assertEqual({"url": "${box.%s.picture}" % picture.id, "name": "${box.t1.user_login}"}, keep.params)
         self.assertEqual("${box.%s.address}" % keep.id, send.params["picture"])
         self.assertEqual("${box.t1.message}", send.params["message"])
         self.assertEqual({FlowWire("t1", "out", picture.id), FlowWire(picture.id, "done", keep.id),

@@ -64,11 +64,17 @@ Without a step: `[rumble] multiple_accounts`, `bot_accounts` (unused: read only)
   before stays as it is ("only the default that will get added"). An older toolbox sends `picture` as one more
   value and has no `twitch.profile_picture` box.
 
-- `cache/media/<folder>/`: pictures and videos the box "Keep media locally" downloaded (his idea of 11-14), named
-  after their address, with an `index.json` (each file's address, when it was fetched and last used, its size;
-  the folder's limits from the box). Only the toolbox reads it; deleting the folder only means downloading again.
-  The chat type's own flow (made new) keeps the profile picture there: Chat → Twitch profile picture → Keep
-  media locally → Send chat, `picture` = `/media/kept/media/<file>`.
+- `cache/media/`: pictures and videos the box "Keep media locally" downloaded (his ideas of 11-14 and 11-15).
+  The place is the address: `flows/box/<flow>/<box id>/` for a box in a flow (served at
+  `/toolbox/media/flows/box/<flow>/<box id>/<file>`, `latest.png` = its newest), `shared/<folder>/` for a box
+  with a Folder and for Live / the API (`shared/media/`), `boxes.json` = which box keeps in which shared folder.
+  Files are `<code>_<name>.<ending>` (code from the address, name from the box's File name). Each folder has an
+  `index.json` (each file's address, when it was fetched and last used, its size; the folder's limits; each
+  box's newest). A box left out at Save flow, or a deleted flow, loses its own folder. Only the toolbox reads
+  it; deleting it only means downloading again. The chat type's own flow (made new) keeps the profile picture:
+  Chat → Twitch profile picture → Keep media locally (File name = `user_login`) → Send chat, `picture` =
+  `/toolbox/media/flows/box/event_chat/n3/<file>`. The dev builds' `cache/media/<folder>/` and `/media/kept/`
+  are gone without a step (never in a release); a left-over `cache/media/media/` can be deleted.
 
 An older toolbox on version 4 settings: finds no Rumble address (it looks for `rumble_address.txt`).
 

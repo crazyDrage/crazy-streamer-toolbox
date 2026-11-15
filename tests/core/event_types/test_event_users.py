@@ -132,13 +132,15 @@ class TestEventUsers(unittest.IsolatedAsyncioTestCase):
         self.actions.add_box(TwitchProfilePicture(TwitchPictureLookup(helix, wait=0)), "twitch")
         web = FakeMediaWeb()
         web.picture(KIT.replace("300x300", "70x70"))
-        MediaActions(MediaBuffer(Path(self._dir.name) / "media", web.transport)).add_to(self.actions)
+        MediaActions(MediaBuffer(Path(self._dir.name) / "media", web.transport, resolve=web.resolve)).add_to(self.actions)
         self.widgets.save(Widget("chat_box", js=CHAT_JS))
         self.users.give_events("chat_box")
         page = self.hub.listen("chat_box")
-        await self._event("twitch.chat", {"user": "Kit", "message": "hi", "user_id": "11", "platform": "twitch"})
+        await self._event("twitch.chat", {"user": "Kit", "user_login": "kit", "message": "hi", "user_id": "11",
+                                          "platform": "twitch"})
         picture = _next_event(page)["event"]["picture"]
-        self.assertTrue(picture.startswith("/media/kept/media/"), picture)  # kept on this PC
+        # kept on this PC, at the chat flow's keep box, named after the chatter (his 11-15)
+        self.assertRegex(picture, r"^/toolbox/media/flows/box/event_chat/n3/[0-9a-f]{16}_kit\.png$")
         await self._event("youtube.chat", {"user": "Ann", "message": "hey", "user_id": "UCx", "platform": "youtube"})
         told = _next_event(page)["event"]
         self.assertEqual(("hey", ""), (told["text"], told["picture"]))

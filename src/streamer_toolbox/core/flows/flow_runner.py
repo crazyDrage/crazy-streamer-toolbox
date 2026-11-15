@@ -20,6 +20,7 @@ from streamer_toolbox.core.flows.flow_skipped import FlowSkipped
 from streamer_toolbox.core.flows.flow_step_error import FlowStepError
 from streamer_toolbox.core.flows.flow_stopped import FlowStopped
 from streamer_toolbox.core.flows.flow_wire import DONE, INPUT, START
+from streamer_toolbox.core.flows.current_box import current_box
 from streamer_toolbox.core.flows.retrigger import ON_RETRIGGER
 from streamer_toolbox.core.variables.variable_store import VariableStore
 
@@ -385,7 +386,11 @@ class FlowRunner:
                 params[key] = await self._typed(value, run, pulled)
             else:
                 params[key] = await self._fill(value, run, pulled)
-        result = await self._actions.run(node.action, **params)
+        token = current_box.set((run.flow.name, node.id))
+        try:
+            result = await self._actions.run(node.action, **params)
+        finally:
+            current_box.reset(token)
         if node.save_as and not inspect.isasyncgen(result):
             self._variables.set(node.save_as, result)
         return result

@@ -20,7 +20,7 @@ ASKED: dict[str, tuple[str, tuple[tuple[str, str, dict[str, str]], ...], str]] =
         # the platform is the filter: another platform's chatter gets "" at once, and "" is kept as nothing
         ("n2", "twitch.profile_picture", {"user": f"${{box.{TRIGGER}.user_id}}",
                                           "platform": f"${{box.{TRIGGER}.platform}}"}),
-        ("n3", "media.keep_locally", {"url": "${box.n2.picture}"}),
+        ("n3", "media.keep_locally", {"url": "${box.n2.picture}", "name": f"${{box.{TRIGGER}.user_login}}"}),
     ), "${box.n3.address}"),
 }
 # an event type that comes with the toolbox → the trigger its flow starts on and that trigger's match. A gifted
