@@ -1,3 +1,4 @@
+import os
 import tempfile
 
 import httpx
@@ -218,14 +219,14 @@ class TestWidgetRouter(unittest.TestCase):
         name = design.add(0, "eventList")
         design.add_list_event(0, name, "follower")
         table = design.list_entry(0, name, "follower")
-        table.set_cell(table.add(0, "left"), kind="image", address=str(pictures) + r"\{user}.png")
+        table.set_cell(table.add(0, "left"), kind="image", address=str(pictures) + os.sep + "{user}.png")
         design.set_list_entry(0, name, "follower", table)
         self.store.save(Widget("list_box", ELEMENT_PAGE, "", design.to_js(), {}))
 
         def get(widget: str, path: str) -> httpx.Response:
             return self.client.get(f"/overlay/widget/{widget}/local", params={"path": path})
         self.assertEqual(b"fox-png", get("list_box", str(pictures / "fox.png")).content)
-        self.assertEqual(404, get("list_box", str(pictures) + "\..\other.png").status_code)
+        self.assertEqual(404, get("list_box", os.sep.join([str(pictures), "..", "other.png"])).status_code)
         self.assertEqual(404, get("list_box", str(self.folder / "other.png")).status_code)
         self.assertEqual(404, get("follow_box", str(pictures / "fox.png")).status_code)  # no Element: no list
 
