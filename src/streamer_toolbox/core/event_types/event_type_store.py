@@ -42,6 +42,32 @@ class EventTypeStore:
             self._write()
         return added
 
+    def add_values(self, event: str, values: tuple[EventValue, ...]) -> list[str]:
+        """Values a default type got after it shipped, added at the end of the type he has if it still came with
+        the toolbox (a settings upgrade does this once, so a value he takes away later stays away); the names of
+        the values added."""
+        kind = self._types.get(event)
+        if kind is None or not kind.default:
+            return []
+        there = {value.name for value in kind.values}
+        added = tuple(value for value in values if value.name not in there)
+        if added:
+            self._types[event] = replace(kind, values=(*kind.values, *added))
+            self._write()
+        return [value.name for value in added]
+
+    def remove_values(self, event: str, names: tuple[str, ...]) -> list[str]:
+        """Values a default type dropped after it shipped, taken out of the type he has if it still came with the
+        toolbox (a settings upgrade does this once); the names taken out."""
+        kind = self._types.get(event)
+        if kind is None or not kind.default:
+            return []
+        gone = [value.name for value in kind.values if value.name in names]
+        if gone:
+            self._types[event] = replace(kind, values=tuple(v for v in kind.values if v.name not in names))
+            self._write()
+        return gone
+
     def all(self) -> list[EventType]:
         return list(self._types.values())
 
@@ -57,6 +83,17 @@ class EventTypeStore:
         found = self._types.get(name)
         if found is not None and found.hidden:
             self.save(name, replace(found, hidden=False))
+
+    def restore_default(self, name: str) -> EventType | None:
+        """A type that comes with the toolbox, back (shown) if he deleted it: a connection's "Add default flows"
+        brings its events (his 11-14). The type there is left as it is. None: no such default type."""
+        default = next((t for t in DEFAULTS if t.name == name), None)
+        if default is None:
+            return None
+        if name not in self._types:
+            self._types[name] = replace(default, hidden=False)
+            self._write()
+        return self._types[name]
 
     def flow_made(self, name: str) -> bool:
         return name in self._flows_made

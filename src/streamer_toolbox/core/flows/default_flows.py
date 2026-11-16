@@ -37,3 +37,20 @@ class DefaultFlows:
             self._deck.keep()
         added = self._library.import_pack(FlowPack(folder, missing), as_is=True) if missing else []
         return [f.label for f in added], [f.label for f in flows if f.label.casefold() in have]
+
+    def update(self, file: Path, labels: Collection[str], folder: str = "") -> list[str]:
+        """His yes to "update the existing flows" (11-14): the flows of the file with those labels replace the
+        ones of the same label in the folder; each keeps its name and its on/off. Gives the labels updated."""
+        pack = FlowPack.from_text(file.read_text(encoding="utf-8"))
+        folder = folder or pack.folder
+        wanted = {label.casefold() for label in labels}
+        mine = {f.label.casefold(): f for f in self._library.all() if f.folder == folder}
+        updated = []
+        for flow in pack.flows:
+            there = mine.get(flow.label.casefold())
+            if there is None or flow.label.casefold() not in wanted:
+                continue
+            self._library.save(replace(flow, name=there.name, enabled=there.enabled, folder=folder), there.name)
+            updated.append(flow.label)
+        return updated
+

@@ -68,6 +68,11 @@ class Connection(ABC):
         "Add default flows" puts them into the folder the file names, switched off. None: it has none."""
         return None
 
+    def event_types(self) -> tuple[str, ...]:
+        """The default event types (Overlay → Events) its events fill: "Add default flows" adds them with their
+        own flows too (his 11-14). (): none."""
+        return ()
+
     def account_choice(self) -> tuple[Callable[[], bool], Callable[[], list[str]]] | None:
         """For a connection with several accounts (his plan of 2026-11-05): (is its Multiple accounts switch on,
         the accounts' names). Its boxes then get an Account field (ActionRegistry.accounts_for) and run as that

@@ -11,6 +11,7 @@ from streamer_toolbox.core.flows.flow_library import FlowLibrary
 from streamer_toolbox.core.flows.flow_outline import FlowOutline
 from streamer_toolbox.core.flows.flow_runner import FlowRunner
 from streamer_toolbox.core.flows.outline_entry import OutlineEntry
+from streamer_toolbox.gui.components.sure_to_delete import sure_to_delete
 from streamer_toolbox.gui.components.app_shell import SHOW_ALL_KEY
 from streamer_toolbox.gui.components.folder_field import FolderField
 from streamer_toolbox.gui.components.save_as import SaveAs
@@ -205,7 +206,7 @@ class FlowsPage:
 
     async def _delete_many(self, flows: list[Flow]) -> None:
         names = ", ".join(f.label for f in flows)
-        if await _sure(f"Delete {len(flows)} flow{'s' if len(flows) > 1 else ''}?",
+        if await sure_to_delete(f"Delete {len(flows)} flow{'s' if len(flows) > 1 else ''}?",
                        f"{names}. Their files and actions are deleted. SAMMI buttons and flows that call them "
                        "will fail."):
             for flow in flows:
@@ -687,7 +688,7 @@ class FlowsPage:
         self.build.refresh()
 
     async def _delete(self, flow: Flow) -> None:
-        if await _sure(f"Delete the flow {flow.label}?",
+        if await sure_to_delete(f"Delete the flow {flow.label}?",
                        f"Deletes {self._library.folder / (flow.name + '.toml')} and the action "
                        f"{flow.action_name}. SAMMI buttons that call it will fail."):
             self._library.delete(flow.name)
@@ -695,24 +696,10 @@ class FlowsPage:
             self.build.refresh()
 
     async def _delete_template(self, template: Flow) -> None:
-        if await _sure(f"Delete the template {template.label}?", "Flows made from it stay."):
+        if await sure_to_delete(f"Delete the template {template.label}?", "Flows made from it stay."):
             self._library.delete_template(template.name)
             self.build.refresh()
 
 
 def _file_name(folder: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", folder.casefold()).strip("_") or "flows"
-
-
-async def _sure(question: str, detail: str) -> bool:
-    """A yes/no on this screen only (the ConfirmService asks on every open screen)."""
-    with ui.dialog() as dialog, ui.card().classes("w-[28rem] max-w-full gap-4"):
-        ui.label(question).classes("text-lg font-semibold")
-        ui.label(detail).classes("text-sm opacity-80")
-        with ui.row().classes("w-full justify-end gap-2"):
-            ui.button("Cancel", on_click=lambda: dialog.submit(False)).props("no-caps flat")
-            ui.button("Delete", icon="delete", on_click=lambda: dialog.submit(True)) \
-                .props("no-caps unelevated color=negative")
-    result = await dialog
-    dialog.delete()
-    return bool(result)

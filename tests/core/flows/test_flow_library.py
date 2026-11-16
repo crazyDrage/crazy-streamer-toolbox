@@ -49,6 +49,30 @@ class TestFlowLibrary(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("flow.new", self.actions)
         self.assertEqual(self.library.all(), [])
 
+    def test_boxes_left_out_at_save_and_a_deleted_flows_boxes_are_told(self) -> None:
+        """His 11-15: a deleted box's kept files go at "Save flow" (the media buffer listens)."""
+        gone: list[tuple[str, list[str]]] = []
+        self.library.boxes_gone.append(lambda flow, ids: gone.append((flow, ids)))
+        three = tuple(FlowNode(f"n{i}", "a.record") for i in (1, 2, 3))
+        self.library.save(Flow("f", "F", three))
+        self.library.save(Flow("f", "F", three))  # nothing left out: nothing told
+        self.library.save(Flow("f", "F", three[:1]))
+        self.library.delete("f")
+        self.assertEqual([("f", ["n2", "n3"]), ("f", ["n1"])], gone)
+
+    async def test_a_box_knows_its_flow_and_id_while_it_runs(self) -> None:
+        from streamer_toolbox.core.flows.current_box import current_box
+        seen = []
+
+        async def where() -> None:
+            seen.append(current_box.get())
+
+        self.actions.add("a.where", where)
+        self.library.save(Flow("f", "F", (FlowNode("n7", "a.where"),), (FlowWire("start", "out", "n7"),)))
+        await self.actions.run("flow.f")
+        await self.actions.run("a.where")  # on its own (Live, the API): no box
+        self.assertEqual([("f", "n7"), None], seen)
+
     def test_load_and_free_names(self) -> None:
         self.store.save(Flow("just_chatting", "Just Chatting"))
         self.library.load()

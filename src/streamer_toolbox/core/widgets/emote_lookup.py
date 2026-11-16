@@ -35,6 +35,23 @@ class EmoteLookup:
         return {"bttvChannelEmotes": here["bttv"], "bttvGlobalEmotes": everywhere["bttv"],
                 "ffzChannelEmotes": here["ffz"], "ffzGlobalEmotes": everywhere["ffz"]}
 
+    async def bttv(self, twitch_id: str, kept: KeptAnswers) -> dict[str, str]:
+        """BetterTTV's emotes of a Twitch channel and its global ones as an emoji dictionary, {code: its picture
+        (3x)} (his 11-16: "add the betterTTV one"); the channel's own win over a global one of the same code.
+        Only BetterTTV is asked; an answer is kept in `kept`, one that can't be had is {} and isn't kept."""
+        twitch_id = str(twitch_id or "").strip()
+        found = {}
+        for key, url in ((GLOBAL, f"{BTTV}/emotes/global"),
+                         *(((twitch_id, f"{BTTV}/users/twitch/{twitch_id}"),) if twitch_id.isdigit() else ())):
+            known, answer = kept.get(f"bttv:{key}")
+            if not known:
+                asked = await self._ask(url)
+                answer = {code: emote["urls"]["4"] for code, emote in _bttv(asked or {}).items()}
+                if asked is not None:
+                    kept.keep(f"bttv:{key}", answer)
+            found.update(answer or {})
+        return found
+
     async def _part(self, kept: KeptAnswers, key: str, bttv_url: str, ffz_url: str) -> dict[str, dict[str, Any]]:
         known, answer = kept.get(key)
         if known:

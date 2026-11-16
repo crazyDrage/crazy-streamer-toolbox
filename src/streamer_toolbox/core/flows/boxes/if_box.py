@@ -19,18 +19,22 @@ class IfBox(Box):
     options = {"op": fixed_choices(OPERATORS)}
     ports = ("then", "else")
     flow_only = True
-    labels = {"left": "Value", "op": "Check", "right": "Compare with"}
+    labels = {"left": "Value", "op": "Check", "right": "Compare with", "ignore_case": "Ignore case"}
     hints = {"op": "contains = the text is somewhere in it; starts with / ends with = it begins / ends with it; "
-                   "< > need two numbers"}
+                   "< > need two numbers",
+             "ignore_case": "On: Twitch, twitch and TWITCH are the same text. Off: upper/lower case must match "
+                            "(his round 90)"}
 
-    async def run(self, left: Any, op: str = "==", right: Any = "") -> bool:
+    async def run(self, left: Any, op: str = "==", right: Any = "", ignore_case: bool = True) -> bool:
+        """ignore_case: on by default, as text was always compared before the switch came (his round 90)."""
         if op not in OPERATORS:
             raise ValueError(f"unknown check {op!r}; use one of {', '.join(OPERATORS)}")
+        text = (lambda value: str(value).casefold()) if ignore_case else str
         if op in TEXT_CHECKS:  # starts with / ends with: his notes of 10-29
-            return TEXT_CHECKS[op](str(left).casefold(), str(right).casefold())
+            return TEXT_CHECKS[op](text(left), text(right))
         a, b = to_number(left), to_number(right)
         if a is None or b is None:  # text: only equal / not equal make sense
-            a, b = str(left).casefold(), str(right).casefold()
+            a, b = text(left), text(right)
         checks = {"==": a == b, "!=": a != b}
         if op in checks:
             return checks[op]

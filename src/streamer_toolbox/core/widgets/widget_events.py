@@ -1,5 +1,6 @@
 """Toolbox events in StreamElements' words: what a custom widget's code gets in onEventReceived as
 obj.detail.listener and obj.detail.event. Keep in step with EVENT_FIELDS (what the toolbox events hold)."""
+import re
 import time
 from html import escape
 from typing import Any
@@ -11,6 +12,7 @@ TEST_CHAT = "Hello from the toolbox!"
 COMMON = {"follow": "twitch.follow", "sub": "twitch.sub", "resub": "twitch.resub", "gift": "twitch.gift",
           "cheer": "twitch.cheer", "raid": "twitch.raid", "chat": "twitch.chat"}
 EMOTE_URL = "https://static-cdn.jtvnw.net/emoticons/v2/{id}/default/dark/{size}"  # Twitch's own emote pictures
+TWITCH_EMOTE = re.compile(r"static-cdn\.jtvnw\.net/emoticons/v2/([^/]+)/")  # an emote's id in its address
 
 # Test buttons: listener → (its name in the tool, an example event)
 TEST_EVENTS: dict[str, tuple[str, dict[str, Any]]] = {
@@ -57,7 +59,9 @@ def se_event(kind: str, data: dict[str, Any]) -> tuple[str, dict[str, Any]] | No
         return "message", chat_message(name, str(data.get("user_login") or name).casefold(),
                                        str(data.get("message") or ""), str(data.get("message_id") or ""),
                                        str(data.get("role") or "viewer"), str(data.get("user_id") or ""),
-                                       str(data.get("color") or ""), data.get("emotes") or [],
+                                       str(data.get("color") or ""),
+                                       data.get("emotes") or dict_emotes(str(data.get("message") or ""),
+                                                                         data.get("emoji_dict")),
                                        str(data.get("platform") or "twitch"))
     if kind == "twitch.chat_deleted":  # one message; or every message of a chatter; or (no user) the whole chat
         if data.get("message_id"):
@@ -84,14 +88,31 @@ def chat_message(name: str, login: str, text: str, message_id: str = "", role: s
             "user-id": user_id, "room-id": "", "user-type": "mod" if role == "mod" else ""}
     badges = [{"type": badge, "version": "1", "url": "", "description": badge}] if badge else []
     listed = [{"type": "twitch", "name": str(emote.get("name") or ""), "id": str(emote["id"]), "gif": False,
-               "urls": {"1": EMOTE_URL.format(id=emote["id"], size="1.0"),
-                        "2": EMOTE_URL.format(id=emote["id"], size="2.0"),
-                        "4": EMOTE_URL.format(id=emote["id"], size="3.0")},
+               "urls": {size: emote["url"] for size in ("1", "2", "4")} if emote.get("url") else
+               {"1": EMOTE_URL.format(id=emote["id"], size="1.0"),
+                "2": EMOTE_URL.format(id=emote["id"], size="2.0"),
+                "4": EMOTE_URL.format(id=emote["id"], size="3.0")},
                "start": emote["start"], "end": emote["end"]} for emote in emotes]
     return {"service": service, "renderedText": _rendered(text, listed),
             "data": {"time": int(time.time() * 1000), "tags": tags, "nick": login, "userId": user_id,
                      "displayName": name, "displayColor": color, "badges": badges, "channel": "", "text": text,
                      "isAction": False, "emotes": listed, "msgId": message_id}}
+
+
+def dict_emotes(text: str, emoji: Any) -> list[dict[str, Any]]:
+    """A chat event's emoji dictionary (emoji_dict, his 11-16) as Twitch's list of emotes: each whole word of
+    the text that is in it, where it is, with its picture (`url`, maybe one kept on this PC) and Twitch's id
+    when the address is Twitch's (else its name), for widgets that read StreamElements' emotes."""
+    if not isinstance(emoji, dict) or not emoji:
+        return []
+    found = []
+    for word in re.finditer(r"\S+", text):
+        address = str(emoji.get(word.group()) or "").strip()
+        if address:
+            twitch = TWITCH_EMOTE.search(address)
+            found.append({"name": word.group(), "id": twitch.group(1) if twitch else word.group(),
+                          "start": word.start(), "end": word.end() - 1, "url": address})
+    return found
 
 
 def _rendered(text: str, emotes: list[dict[str, Any]]) -> str:

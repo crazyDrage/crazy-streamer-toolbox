@@ -6,7 +6,7 @@ folder = "Twitch - default"
 [[flows]]
 name = "twitch_thank_follow"
 label = "Twitch - default - thank a follow"
-description = "Thanks every new follower in chat. Change the words in the box."
+description = "Thanks every new follower in chat. Change the words in the Build text box."
 wires = [
     {from = "follow", port = "out", to = "thank"},
 ]
@@ -20,7 +20,13 @@ box = [320, 40]
 id = "thank"
 action = "twitch.send_chat"
 box = [620, 40]
-params = {message = "Thanks for the follow, ${box.follow.user}!"}
+params = {message = "${box.text}"}
+
+[[flows.nodes]]
+id = "text"
+action = "text.build"
+box = [620, 260]
+params = {text = "Thanks for the follow, {user}!", user = "${box.follow.user}"}
 
 [[flows]]
 name = "twitch_thank_raid"
@@ -40,13 +46,19 @@ box = [320, 40]
 id = "thank"
 action = "twitch.send_chat"
 box = [620, 40]
-params = {message = "${box.raid.user} is raiding with ${box.raid.viewers} viewers! Thank you, and welcome everyone!"}
+params = {message = "${box.text}"}
 
 [[flows.nodes]]
 id = "shoutout"
 action = "twitch.shoutout"
 box = [920, 40]
 params = {user = "${box.raid.user_login}"}
+
+[[flows.nodes]]
+id = "text"
+action = "text.build"
+box = [620, 260]
+params = {text = "{user} is raiding with {viewers} viewers! Thank you, and welcome everyone!", user = "${box.raid.user}", viewers = "${box.raid.viewers}"}
 
 [[flows]]
 name = "twitch_so_command"
@@ -76,13 +88,19 @@ params = {user = "${box.so.args}"}
 id = "tell"
 action = "twitch.send_chat"
 box = [920, 40]
-params = {message = "Go check out ${box.who.name}: https://twitch.tv/${box.who.name}"}
+params = {message = "${box.text}"}
 
 [[flows.nodes]]
 id = "shoutout"
 action = "twitch.shoutout"
 box = [1220, 40]
 params = {user = "${box.who.name}"}
+
+[[flows.nodes]]
+id = "text"
+action = "text.build"
+box = [920, 260]
+params = {text = "Go check out {name}: https://twitch.tv/{name}", name = "${box.who.name}"}
 
 [[flows]]
 name = "twitch_thank_cheer"
@@ -149,7 +167,13 @@ params = {seconds = "${box.channel.uptime_seconds}"}
 id = "tell"
 action = "twitch.send_chat"
 box = [1220, 40]
-params = {message = "Live for ${box.time}"}
+params = {message = "${box.text}"}
+
+[[flows.nodes]]
+id = "text"
+action = "text.build"
+box = [1220, 480]
+params = {text = "Live for {time}", time = "${box.time}"}
 
 [[flows.nodes]]
 id = "offline"
@@ -184,7 +208,13 @@ params = {}
 id = "tell"
 action = "twitch.send_chat"
 box = [920, 40]
-params = {message = "Clipped by ${box.clip_cmd.user}: ${box.clip.url}"}
+params = {message = "${box.text}"}
+
+[[flows.nodes]]
+id = "text"
+action = "text.build"
+box = [920, 260]
+params = {text = "Clipped by {user}: {url}", user = "${box.clip_cmd.user}", url = "${box.clip.url}"}
 
 [[flows]]
 name = "twitch_marker_command"

@@ -20,6 +20,7 @@ from streamer_toolbox.core.flows.flow_skipped import FlowSkipped
 from streamer_toolbox.core.flows.flow_step_error import FlowStepError
 from streamer_toolbox.core.flows.flow_stopped import FlowStopped
 from streamer_toolbox.core.flows.flow_wire import DONE, INPUT, START
+from streamer_toolbox.core.flows.current_box import current_box, started_at
 from streamer_toolbox.core.flows.retrigger import ON_RETRIGGER
 from streamer_toolbox.core.variables.variable_store import VariableStore
 
@@ -211,6 +212,8 @@ class FlowRunner:
             node = run.flow.node(target)
             if node is not None and entry in self._lines(node):
                 starts.append((node, entry))
+            elif node is not None and entry in self._start_dots(node):
+                starts.append((node, entry))  # one of its `starts` (Remembered value's set)
             elif node is not None and self._starts_it(run, node, entry):
                 starts.append((node, ""))  # a Loop's switch while it doesn't loop: it starts
             else:
@@ -261,6 +264,10 @@ class FlowRunner:
     @staticmethod
     def _alongside(action, node: FlowNode) -> bool:
         return action.alongside == ALWAYS or (bool(action.alongside) and node.params.get(action.alongside) == ALONGSIDE)
+
+    def _start_dots(self, node: FlowNode) -> dict[str, tuple[str, ...]]:
+        """The extra run dots that start the box and tell it which one it was (`starts`); {} for others."""
+        return self._actions.get(node.action).starts if node.action in self._actions else {}
 
     def _lines(self, node: FlowNode) -> list[str]:
         """The run dots of a box with lines (Choose value's value_1, value_2, ...); [] for others."""
@@ -374,6 +381,9 @@ class FlowRunner:
             fill = self._typed if action.entry_fields in typed else self._fill
             params[action.entry_fields] = await fill(arrived, run, pulled)
         skip = {*entry_lines, count_field(action.entry_fields)} if entry_lines else set()
+        dot = line if action and line in action.starts else ""
+        if action and action.starts:  # a field only another start dot reads isn't read (or pulled) here
+            skip |= action.start_only(dot)
         for key, value in node.params.items():
             if key in skip:
                 continue
@@ -385,7 +395,12 @@ class FlowRunner:
                 params[key] = await self._typed(value, run, pulled)
             else:
                 params[key] = await self._fill(value, run, pulled)
-        result = await self._actions.run(node.action, **params)
+        token, dot_token = current_box.set((run.flow.name, node.id)), started_at.set(dot)
+        try:
+            result = await self._actions.run(node.action, **params)
+        finally:
+            started_at.reset(dot_token)
+            current_box.reset(token)
         if node.save_as and not inspect.isasyncgen(result):
             self._variables.set(node.save_as, result)
         return result

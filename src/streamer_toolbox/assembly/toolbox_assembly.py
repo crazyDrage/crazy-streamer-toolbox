@@ -7,6 +7,7 @@ from nicegui import Client, app, ui
 
 from streamer_toolbox.api.action_router import build_action_router
 from streamer_toolbox.api.caller_auth import CallerAuth
+from streamer_toolbox.api.media_router import build_media_router
 from streamer_toolbox.api.overlay_router import build_overlay_router
 from streamer_toolbox.api.widget_router import build_widget_router
 from streamer_toolbox.api.widget_sandbox_middleware import WidgetSandboxMiddleware
@@ -19,6 +20,8 @@ from streamer_toolbox.connections.mixitup_connection import MixItUpConnection
 from streamer_toolbox.connections.oauth.account_tokens import AccountTokens
 from streamer_toolbox.connections.oauth.oauth_token_store import OAuthTokenStore
 from streamer_toolbox.connections.sammi.toolbox_deck import toolbox_deck
+from streamer_toolbox.connections.twitch.boxes.bttv_emotes import BttvEmotes
+from streamer_toolbox.connections.twitch.boxes.twitch_emotes import TwitchEmotes
 from streamer_toolbox.connections.twitch_connection import TwitchConnection
 from streamer_toolbox.core.actions.action_registry import PLUGINS, SERVICES, ActionRegistry
 from streamer_toolbox.core.actions.box_filter_store import BoxFilterStore
@@ -33,8 +36,11 @@ from streamer_toolbox.core.event_types.events_upgrade import EventsUpgrade
 from streamer_toolbox.core.event_types.event_flows import EventFlows
 from streamer_toolbox.core.event_types.event_sender import EventSender
 from streamer_toolbox.core.event_types.event_type_store import EventTypeStore
+from streamer_toolbox.core.event_types.event_value import EventValue
 from streamer_toolbox.core.event_types.event_users import EventUsers
 from streamer_toolbox.core.app_name import APP_NAME
+from streamer_toolbox.core.cache.remembered_actions import RememberedActions
+from streamer_toolbox.core.cache.remembered_values import RememberedValues
 from streamer_toolbox.core.config.config_table_writer import ConfigTableWriter
 from streamer_toolbox.core.config.toolbox_config import ToolboxConfig
 from streamer_toolbox.core.connections.connection_manager import ConnectionManager
@@ -70,6 +76,8 @@ from streamer_toolbox.core.flows.timer_clock import TimerClock
 from streamer_toolbox.core.history.event_history import EventHistory
 from streamer_toolbox.core.history.history_actions import HistoryActions
 from streamer_toolbox.core.learn.learn_library import LearnLibrary
+from streamer_toolbox.core.media.media_actions import MediaActions
+from streamer_toolbox.core.media.media_buffer import MediaBuffer
 from streamer_toolbox.core.media.mp4_header_probe import Mp4HeaderProbe
 from streamer_toolbox.core.points.local_point_bank import LocalPointBank
 from streamer_toolbox.core.points.point_actions import PointActions
@@ -90,6 +98,9 @@ from streamer_toolbox.core.system.settings_backup import UPGRADES, SettingsBacku
 from streamer_toolbox.core.system.upgrade_backup_policy import UpgradeBackupPolicy
 from streamer_toolbox.core.upgrades.accounts_upgrade import AccountsUpgrade
 from streamer_toolbox.core.upgrades.settings_upgrades import SettingsUpgrades
+from streamer_toolbox.core.upgrades.chat_emotes_upgrade import ChatEmotesUpgrade
+from streamer_toolbox.core.upgrades.emoji_dict_upgrade import EmojiDictUpgrade
+from streamer_toolbox.core.upgrades.profile_picture_upgrade import ProfilePictureUpgrade
 from streamer_toolbox.core.upgrades.settings_version import SETTINGS_VERSION
 from streamer_toolbox.core.upgrades.youtube_accounts_upgrade import YouTubeAccountsUpgrade
 from streamer_toolbox.core.upgrades.rumble_accounts_upgrade import RumbleAccountsUpgrade
@@ -97,7 +108,9 @@ from streamer_toolbox.connections.rumble_connection import MOVED as RUMBLE_MOVED
 from streamer_toolbox.core.variables.variable_store import VariableStore
 from streamer_toolbox.core.widgets.channel_lookup import ChannelLookup
 from streamer_toolbox.core.widgets.emote_lookup import EmoteLookup
+from streamer_toolbox.core.widgets.kept_answers import KeptAnswers
 from streamer_toolbox.core.widgets.latest_followers import LatestFollowers
+from streamer_toolbox.core.widgets.entry_files import EntryFiles
 from streamer_toolbox.core.widgets.missed_subscribers import MissedSubscribers
 from streamer_toolbox.core.widgets.streamelements_cleaner import StreamElementsCleaner
 from streamer_toolbox.core.widgets.streamelements_elements import StreamElementsElements
@@ -295,6 +308,20 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
     box_filters = BoxFilterStore(args.config.parent / "box_filters.json")
     OwnBoxes(variables, probe, NiceGuiMessageService(pages), confirm,
              config.tables.get("sound", {}).get("folder"), boxes).add_to(actions)
+    # pictures and videos from the web kept on this PC, served at /toolbox/media/ (his ideas of 11-14, 11-15)
+    media_buffer = MediaBuffer(args.config.parent / "cache" / "media")
+    MediaActions(media_buffer).add_to(actions)
+    # a Twitch chat message's emotes, their pictures kept there too (his 11-16: "we save bandwidth")
+    actions.add_box(TwitchEmotes(media_buffer), "twitch")
+    # ... and its BetterTTV ones (his 11-16), BetterTTV asked once in a while
+    def twitch_id() -> str:
+        token = twitch_tokens.load()
+        return token.user_id if token else ""
+    actions.add_box(BttvEmotes(EmoteLookup(), KeptAnswers(args.config.parent / "cache" / "bttv_emotes.json", 50),
+                               twitch_id, media_buffer), "twitch")
+    # values a flow keeps a while under a name (his round 90: a chatter's picture isn't asked every message)
+    remembered = RememberedValues(args.config.parent / "cache" / "remembered_values.json")
+    RememberedActions(remembered).add_to(actions)
     # the alerts before the flows; each alert plays on its event (Overlay → Events, its Send box)
     alert_queue = AlertQueue()
     alert_store = AlertStore(args.config.parent / "alerts.json")
@@ -306,6 +333,8 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
     runner = FlowRunner(actions, variables)
     flows = FlowLibrary(FlowStore(args.config.parent / "flows"), FlowStore(args.config.parent / "flow_templates"),
                         runner, actions)
+    flows.boxes_gone.append(media_buffer.forget)  # a box left out at Save flow: its kept files go (his 11-15)
+    flows.boxes_gone.append(remembered.forget)  # ... and its own remembered values
     flows.load()
     async def refund(data: dict) -> None:
         await twitch.finish_redeem(data.get("reward_id", ""), data.get("redemption_id", ""), refund=True)
@@ -332,7 +361,7 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
     events.subscribe(missed_subs.handle)
     # Overlay → Events (his round 78): widgets and alerts get event types; one Send box and flow per type
     event_types = EventTypeStore(args.config.parent / "event_types.json")
-    event_flows = EventFlows(flows, event_types)
+    event_flows = EventFlows(flows, event_types, variables)
     event_users = EventUsers(event_types, widget_store, alert_store, event_flows)
     conversion = EventConversion(event_types, widget_store, alert_store, flows)
     def upgrade_backup(old: int, new: int) -> Path:
@@ -350,7 +379,13 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
         YouTubeAccountsUpgrade(lambda: built_in.youtube_tokens.move_single_file(
             OAuthTokenStore(secrets.path("youtube_token.json")))),
         RumbleAccountsUpgrade(lambda: built_in.rumble_keys.move_single_file(
-            secrets.path("rumble_address.txt"), RUMBLE_MOVED))], back_up=upgrade_backup)
+            secrets.path("rumble_address.txt"), RUMBLE_MOVED)),
+        ProfilePictureUpgrade(flows, lambda: event_flows.update_default("chat"),
+                              args.config.parent / "cache" / "twitch_pictures.json"),
+        EmojiDictUpgrade(lambda: event_types.add_values("chat", (EventValue("picture"), EventValue("emoji_dict"))),
+                         flows, lambda: event_flows.update_default("chat")),
+        ChatEmotesUpgrade(flows, lambda: event_types.remove_values("chat", ("emotes",)))],
+        back_up=upgrade_backup)
     for line in upgrades.run() + conversion.leftovers():
         log.info("settings upgrade %s", line)
     flows.upgrade = upgrades.flow  # an imported flow from an older toolbox gets the same upgrades
@@ -443,10 +478,13 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
     ui.page("/login", title=f"Sign in · {APP_NAME}")(LoginPage(access, LoginThrottle(), devices).build)
     app.include_router(build_action_router(actions, CallerAuth(list(config.callers)), activity.add))
     app.include_router(build_overlay_router(alert_queue))
+    app.include_router(build_media_router(media_buffer))
+    channel_lookup = ChannelLookup(twitch.helix, channel_info)
     app.include_router(build_widget_router(widget_store, widget_hub, WidgetPage(widget_hub.session, channel_info),
-                                           ChannelLookup(twitch.helix, channel_info), widget_fallback,
+                                           channel_lookup, widget_fallback,
                                            EmoteLookup(), LatestFollowers(twitch.helix, channel_info),
-                                           SubscriberCount(twitch.helix, channel_info)))
+                                           SubscriberCount(twitch.helix, channel_info),
+                                           EntryFiles(Path(__file__).resolve().parents[3])))
     deck_images = DeckImages(args.config.parent / "deck_images")
     deck_images.folder.mkdir(parents=True, exist_ok=True)
     app.add_static_files(DECK_IMAGES_URL, deck_images.folder)
@@ -502,7 +540,8 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
     shell.sub_items["/tools"] = lambda: [(title, f"/tools?show={tool_slug(title)}", icon or "handyman")
                                          for _, title, icon, *_ in tools_page.shown()]
     default_flows = DefaultFlows(flows, deck_store)
-    connections_page = ConnectionsPage(config, args.config, ui_registry, connections, test_view, default_flows)
+    connections_page = ConnectionsPage(config, args.config, ui_registry, connections, test_view, default_flows,
+                                       event_flows)
     shell.sub_items["/connections"] = lambda: [("Toolbox", "/connections?show=toolbox", "lan")] + [
         (c.title, f"/connections?show={c.id}", c.icon) for c in connections_page.shown()]
     shell.page("Connections", "/connections", connections_page.build)

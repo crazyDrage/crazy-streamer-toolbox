@@ -34,6 +34,26 @@ class TestLogicBoxes(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             await compare("a", "<", "b")
 
+    async def test_set_variable_create_if_none_leaves_an_existing_one_alone(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:  # his round 90: "creat if none", so Get variable finds it
+            variables = VariableStore(Path(tmp) / "variables")
+            box = SetVariable(variables)
+            self.assertEqual([], await box.run("platforms", [], only_if_new=True))
+            self.assertEqual([], variables.get("platforms"))
+            variables.set("platforms", ["twitch"])
+            self.assertEqual(["twitch"], await box.run("platforms", [], only_if_new=True))
+            self.assertEqual(["twitch"], variables.get("platforms"))
+            self.assertEqual([], await box.run("platforms", []))  # off: it sets, as always
+            self.assertEqual([], variables.get("platforms"))
+
+    async def test_if_with_ignore_case_off_wants_the_same_upper_and_lower_case(self) -> None:
+        compare = IfBox().run  # his round 90: "we need an `ignore case` switch for text comparison"
+        self.assertFalse(await compare("Twitch", "==", "twitch", ignore_case=False))
+        self.assertTrue(await compare("twitch", "==", "twitch", ignore_case=False))
+        self.assertTrue(await compare("Twitch", "!=", "twitch", ignore_case=False))
+        self.assertFalse(await compare("!Lizard 5", "starts with", "!lizard", ignore_case=False))
+        self.assertTrue(await compare("10", "==", 10.0, ignore_case=False))  # numbers stay numbers
+
     async def test_set_variable(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             store = VariableStore(Path(tmp) / "v.json")

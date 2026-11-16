@@ -32,9 +32,22 @@ class KeptAnswers:
             return True, kept[1]
         return False, None
 
+    def old(self, key: str) -> tuple[bool, Any]:
+        """(whether any answer is kept, even one that is too old, the answer): for when asking again fails."""
+        kept = self._kept.get(key)
+        return (True, kept[1]) if kept else (False, None)
+
     def keep(self, key: str, answer: Any) -> None:
-        self._kept.pop(key, None)  # asked again: it's the newest now
-        self._kept[key] = (self._clock(), answer)
+        self.keep_all({key: answer})
+
+    def keep_all(self, answers: dict[str, Any]) -> None:
+        """Several answers, written to the file once."""
+        if not answers:
+            return
+        now = self._clock()
+        for key, answer in answers.items():
+            self._kept.pop(key, None)  # asked again: it's the newest now
+            self._kept[key] = (now, answer)
         while len(self._kept) > self._keep_count:
             del self._kept[next(iter(self._kept))]
         if self._path is not None:

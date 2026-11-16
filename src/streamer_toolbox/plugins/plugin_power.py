@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from collections.abc import Callable
 
@@ -6,6 +7,7 @@ from streamer_toolbox.core.interfaces.toolbox_plugin import ToolboxPlugin
 from streamer_toolbox.plugins.plugin_switches import PluginSwitches
 
 log = logging.getLogger(__name__)
+STOP_LIMIT = 5.0  # seconds a plugin gets for its stop() when the toolbox closes
 
 
 class PluginPower:
@@ -43,7 +45,7 @@ class PluginPower:
         """When the toolbox closes: stop() of every plugin that is on (the others were stopped already)."""
         for plugin_id, plugin in self._plugins().items():
             if not self.is_off(plugin_id):
-                await self._call(plugin_id, plugin.stop)
+                await self._call(plugin_id, plugin.stop, STOP_LIMIT)
 
     async def switch(self, plugin_id: str, on: bool) -> None:
         if self.is_off(plugin_id) != on:
@@ -63,9 +65,13 @@ class PluginPower:
                 await self._call(plugin_id, plugin.stop)
 
     @staticmethod
-    async def _call(plugin_id: str, step: Callable) -> None:
-        """One plugin's start or stop; one that fails is logged, the others still get theirs."""
+    async def _call(plugin_id: str, step: Callable, limit: float | None = None) -> None:
+        """One plugin's start or stop; one that fails (or takes longer than limit seconds) is logged, the others
+        still get theirs."""
         try:
-            await step()
+            await asyncio.wait_for(step(), limit)
+        except TimeoutError:
+            log.warning("plugin %s: %s didn't finish within %s s: closing without it", plugin_id, step.__name__,
+                        limit)
         except Exception as e:
             log.warning("plugin %s: %s failed: %s: %s", plugin_id, step.__name__, type(e).__name__, e)

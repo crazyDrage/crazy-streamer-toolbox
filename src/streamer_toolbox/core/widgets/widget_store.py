@@ -1,6 +1,7 @@
 import json
 import re
 import shutil
+import threading
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -41,6 +42,7 @@ class WidgetStore:
 
     def __init__(self, folder: Path) -> None:
         self._folder = folder
+        self._keeping = threading.Lock()  # the store's routes run side by side (two event lists save at once)
         self.on_change: Callable[[], None] = lambda: None  # a widget made, deleted, or its events changed
 
     def names(self) -> list[str]:
@@ -107,9 +109,10 @@ class WidgetStore:
         folder = self._path(name)
         if folder is None or not folder.is_dir():
             raise KeyError(f"there's no widget {name!r}")
-        (folder / DATA).mkdir(exist_ok=True)
-        _write(folder / DATA / KEPT, {**self._all_kept(folder), key: value})
-        (folder / KEPT).unlink(missing_ok=True)  # where it was before there was a data folder
+        with self._keeping:  # read, add, write: one at a time, else one write loses the other's key
+            (folder / DATA).mkdir(exist_ok=True)
+            _write(folder / DATA / KEPT, {**self._all_kept(folder), key: value})
+            (folder / KEPT).unlink(missing_ok=True)  # where it was before there was a data folder
 
     def save_media(self, name: str, file: str, content: bytes) -> None:
         """Puts a file into the widget's media folder."""

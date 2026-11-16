@@ -1,6 +1,8 @@
+import asyncio
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.actions.switched_off_error import SwitchedOffError
@@ -78,6 +80,17 @@ class TestPluginPower(unittest.IsolatedAsyncioTestCase):
             await self.power.stop_all()
         self.assertEqual(self.calls[2:], ["broken stop", "lamp stop"])
         self.assertIn("plugin broken: stop failed: RuntimeError: socket stuck", logged.output[0])
+
+    async def test_a_plugin_that_never_finishes_stopping_doesn_t_keep_the_toolbox_open(self) -> None:
+        """His 11-14: the toolbox didn't close; each plugin gets STOP_LIMIT seconds."""
+        async def hangs() -> None:
+            await asyncio.sleep(10)
+
+        self.plugins["broken"].stop = hangs
+        with mock.patch("streamer_toolbox.plugins.plugin_power.STOP_LIMIT", 0.05),                 self.assertLogs("streamer_toolbox.plugins.plugin_power", "WARNING") as logged:
+            await self.power.stop_all()
+        self.assertIn("plugin broken: hangs didn't finish within 0.05 s", logged.output[0])
+        self.assertEqual(self.calls, ["lamp stop", "quiet stop"])
 
     async def test_a_switched_off_plugin_s_connection_isn_t_started_with_the_toolbox(self) -> None:
         self.switches.switch("lamp", False)

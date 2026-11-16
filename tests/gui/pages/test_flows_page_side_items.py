@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from streamer_toolbox.core.flows.flow import Flow
 from streamer_toolbox.core.flows.flow_library import FlowLibrary
@@ -18,7 +18,10 @@ class TestFlowsPageSideItems(unittest.TestCase):
         # his "hide in list": a hidden flow, and the flows of a hidden folder, are left out
         library.hidden.side_effect = lambda flow: flow.hidden or flow.folder == "Alerts"
         page = FlowsPage(library, Mock(), Mock())
-        self.assertEqual(page.side_items(), [
+        # "show hidden" off, whatever this PC's own storage says (it is on in his toolbox)
+        with patch.object(FlowsPage, "_showing_hidden", return_value=False):
+            items = page.side_items()
+        self.assertEqual(items, [
             ("Fun", "/flows?show=Fun", "folder"),
             ("Bonk", "/flows/edit?flow=b", "account_tree", True),
             ("Clap", "/flows/edit?flow=c", "account_tree", True),

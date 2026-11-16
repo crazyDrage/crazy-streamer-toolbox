@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from streamer_toolbox.core.widgets.element_design import ElementDesign
+from streamer_toolbox.core.widgets.entry_table import EntryTable
 
 
 @dataclass(frozen=True)
@@ -9,7 +10,9 @@ class DesignPreset:
     """One thing in the widget editor's add list (his round 85: "the items to add should be on the left side in a
     list; we should try to support as much as possible there"): a kind of piece (ElementDesign.KINDS), set up
     for one job, e.g. a text that says the latest follower or a goal bar for subs. `where`: "" anywhere,
-    "alert" only in an alert layer (its event's values)."""
+    "alert" only in an alert layer (its event's values), "always" only in a layer that is always there (an event
+    list). `events`: what an event list shows, `look` a ready-made look for them ("chat": the name on top,
+    the message under it)."""
 
     group: str
     title: str
@@ -21,9 +24,12 @@ class DesignPreset:
     ticker: str = ""
     style: dict[str, Any] = field(default_factory=dict)
     size: tuple[float, ...] = ()  # width, height
+    events: tuple[str, ...] = ()
+    look: str = ""
+    settings: dict[str, Any] = field(default_factory=dict)
 
     def fits(self, alert: bool) -> bool:
-        return not self.where or alert
+        return not self.where or (self.where == "alert") == alert
 
     def add_to(self, design: ElementDesign, layer: int) -> str:
         """The piece, in the middle of the canvas; its name: the preset's title, with 2, 3, ... when it is taken."""
@@ -42,7 +48,23 @@ class DesignPreset:
             design.resize(layer, name, self.size[0], height=self.size[1])
         if self.style:
             design.set_style(layer, name, **self.style)
+        for event in self.events:
+            design.add_list_event(layer, name, event)
+            if self.look == "chat":
+                design.set_list_entry(layer, name, event, _chat_look(design.list_entry(layer, name, event)))
+        if self.settings:
+            design.set_event_list(layer, name, **self.settings)
         return design.rename(layer, name, wanted)
+
+
+def _chat_look(table: EntryTable) -> EntryTable:
+    """The name on top, the message under it. A profile picture is no chat value: a flow can give one."""
+    table.set_cell(0, text="{event.data.username}")
+    table.set_style(0, fontWeight="bold", color="#ffb347")
+    message = table.add(0, "bottom")  # under the name
+    table.set_cell(message, text="{event.data.message}")
+    table.set_style(None, fontSize="24px", padding="8px 12px")
+    return table
 
 
 def _value(title: str, words: str, code: str) -> DesignPreset:
@@ -88,4 +110,11 @@ PRESETS = (
     DesignPreset("Recent names", "Recent cheers", "view_carousel", "latestTicker", ticker="cheer"),
     DesignPreset("Recent names", "Recent raiders", "view_carousel", "latestTicker", ticker="raid"),
     DesignPreset("Recent names", "Recent tips", "view_carousel", "latestTicker", ticker="tip"),
+    DesignPreset("Lists", "Event history", "view_list", "eventList", "always",
+                 events=("follower", "subscriber", "communityGiftPurchase", "cheer", "raid", "tip")),
+    DesignPreset("Lists", "Chat history", "forum", "eventList", "always", events=("message",), look="chat",
+                 settings={"newest": "bottom", "count": 15, "enter": "slide"}),
+    DesignPreset("Lists", "Follower list", "group_add", "eventList", "always", events=("follower",),
+                 size=(400, 500)),
+    DesignPreset("Lists", "Empty list", "view_list", "eventList", "always"),
 )

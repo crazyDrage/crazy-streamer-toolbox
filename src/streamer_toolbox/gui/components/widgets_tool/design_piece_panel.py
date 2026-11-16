@@ -8,6 +8,7 @@ from streamer_toolbox.core.widgets.element_design import (ANIMATIONS_IN, ANIMATI
                                                           ElementDesign)
 from streamer_toolbox.core.widgets.element_settings import _number
 from streamer_toolbox.gui.components.widgets_tool.design_live_panel import DesignLivePanel
+from streamer_toolbox.gui.components.widgets_tool.emoji_help import EMOJI_HELP
 
 FIELD = "outlined dense options-dense"
 FONTS = ["Arial", "Arial Black", "Verdana", "Tahoma", "Trebuchet MS", "Segoe UI", "Georgia", "Times New Roman",
@@ -31,12 +32,13 @@ Change = Callable[[str, Callable[[ElementDesign], Any]], None]
 class DesignPiecePanel:
     """The settings of the piece picked in the widget editor (WidgetDesigner): its text and the values in it,
     its file, look, place and how it moves; a shape's colours, a goal bar's and a ticker's settings
-    (DesignLivePanel). Each change goes through `change`, which redraws the canvas and saves; the panel itself
+    (DesignLivePanel), an event list's (DesignListPanel, through `list_panel`). Each change goes through `change`, which redraws the canvas and saves; the panel itself
     is drawn again only when another piece is picked."""
 
     def __init__(self, design: ElementDesign, layer: int, name: str, change: Change,
                  pick_file: Callable[[], Awaitable[None]], upload: Callable[[Any], Awaitable[None]],
-                 try_reaction: Callable[[list[str]], None], align: Callable[[str], None]) -> None:
+                 try_reaction: Callable[[list[str]], None], align: Callable[[str], None],
+                 list_panel: Callable[[], None] | None = None) -> None:
         self._design = design
         self._layer = layer
         self._name = name
@@ -45,6 +47,7 @@ class DesignPiecePanel:
         self._upload = upload
         self._try = try_reaction
         self._align = align
+        self._list_panel = list_panel
 
     def build(self) -> None:
         piece = self._design.piece(self._layer, self._name)
@@ -65,6 +68,8 @@ class DesignPiecePanel:
             self._look(kind)
         if kind == "shape":
             self._shape()
+        if kind == "eventList" and self._list_panel:
+            self._list_panel()
         if kind in ("image", "video", "audio"):
             self._file(kind)
         if kind in ("video", "audio"):
@@ -82,7 +87,7 @@ class DesignPiecePanel:
             self._place(kind)
         if alert and kind != "audio":
             self._animation()
-        elif not alert:
+        elif not alert and kind != "eventList":  # his: the event list shows events already, no reaction
             self._reaction()
 
     def _set(self, key: str, what: Callable[[ElementDesign], Any]) -> None:
@@ -109,6 +114,26 @@ class DesignPiecePanel:
         ui.select(names, label="Add a value to the text", on_change=add_value).props(FIELD).classes("w-full") \
             .tooltip("A value shows as [its name] in the text and is filled in on stream"
                      + ("; in an alert the event's own values too (their name, the amount)" if alert else ""))
+        if alert:
+            self._emoji()
+
+    def _emoji(self) -> None:
+        """His 11-16: an alert's text shows the words of the event's emoji dictionary as their pictures."""
+        now = self._design.emoji(self._layer, self._name)
+        with ui.row().classes("w-full no-wrap items-center gap-2"):
+            ui.select(sorted({"", "emoji_dict", now["dict"]}), value=now["dict"], label="Emoji dictionary",
+                      new_value_mode="add-unique",
+                      on_change=lambda e: self._set("emoji", lambda d: d.set_emoji(
+                          self._layer, self._name, dict=e.value or ""))) \
+                .props(FIELD + " use-input clearable").classes("flex-1 min-w-0") \
+                .tooltip("The event's value that holds the emoji dictionary (emoji_dict); type another name")
+            ui.number("Emoji size", value=now["size"] or None, min=0, step=1, suffix="px",
+                      on_change=lambda e: self._set("emoji_size", lambda d: d.set_emoji(
+                          self._layer, self._name, size=e.value or 0))) \
+                .props(FIELD + " clearable").classes("w-28").tooltip("Empty: as high as the words")
+        with ui.expansion("How the emoji dictionary works", icon="info").classes("w-full text-xs") \
+                .props("dense header-class='px-0 text-xs opacity-70'"):
+            ui.markdown(EMOJI_HELP).classes("text-xs")
 
     def _look(self, kind: str) -> None:
         piece = self._design.piece(self._layer, self._name)
@@ -200,7 +225,8 @@ class DesignPiecePanel:
                 ui.button(icon=icon, on_click=lambda h=how: self._align(h)).props("flat round dense size=sm") \
                     .tooltip(tip)
         sides = (("left", "X"), ("top", "Y"), ("width", "Width")) + ((("height", "Height"),)
-                                                                    if kind in ("shape", "goal") else ())
+                                                                    if kind in ("shape", "goal", "eventList")
+                                                                    else ())
         with ui.row().classes("w-full no-wrap gap-2"):
             for side, label in sides:
                 ui.number(label, value=_number(style.get(side)), step=1,

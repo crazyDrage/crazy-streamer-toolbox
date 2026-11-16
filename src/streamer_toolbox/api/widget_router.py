@@ -7,7 +7,9 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 
 from streamer_toolbox.api import overlay_line
 from streamer_toolbox.core.widgets.channel_lookup import ChannelLookup
+from streamer_toolbox.core.widgets.element_design import ElementDesign
 from streamer_toolbox.core.widgets.emote_lookup import EmoteLookup
+from streamer_toolbox.core.widgets.entry_files import EntryFiles
 from streamer_toolbox.core.widgets.kept_answers import KeptAnswers
 from streamer_toolbox.core.widgets.latest_followers import LatestFollowers
 from streamer_toolbox.core.widgets.streamelements_fallback import StreamElementsFallback
@@ -28,11 +30,14 @@ def build_widget_router(store: WidgetStore, hub: WidgetHub, page: WidgetPage,
                         fallback: StreamElementsFallback | None = None,
                         emote_lookup: EmoteLookup | None = None,
                         followers: LatestFollowers | None = None,
-                        subscribers: SubscriberCount | None = None) -> APIRouter:
+                        subscribers: SubscriberCount | None = None,
+                        entry_files: EntryFiles | None = None) -> APIRouter:
     """A widget's overlay for OBS's Browser source: GET /overlay/widget/<name> (a shell page of the toolbox's
     own that holds the widget in a frame and keeps that frame from going to another site), .../page (the page
     built from its parts, served into that frame), .../ws (the page listens for events), .../file/<field> (the picture / video / sound he picked for that field,
-    and nothing else from this PC), .../media/<file> (a file of the widget's own media folder) and .../store/<key> (what the widget's code keeps with SE_API.store).
+    and nothing else from this PC), .../media/<file> (a file of the widget's own media folder), .../store/<key> (what the widget's code keeps with SE_API.store)
+    and .../local?path=<path> (a picture or
+    video on this PC an event list's cell shows: only a path one of its own addresses makes, EntryFiles).
     GET /overlay/widget/<name>/streamelements/<host>/<path>: that widget's stand-in for
     <host>.streamelements.com/<path> (streamelements_links turns the widget's StreamElements addresses into
     these). The answers kept for it are in the widget's own data folder (channels.json, emotes.json). api/kappa/v2/channels/<name
@@ -100,6 +105,14 @@ def build_widget_router(store: WidgetStore, hub: WidgetHub, page: WidgetPage,
         if path is None:
             raise HTTPException(status_code=404, detail="no such file in that widget's media folder")
         return FileResponse(path)
+
+    @router.get("/overlay/widget/{name}/local")
+    def entry_file(name: str, path: str = "") -> FileResponse:
+        design = ElementDesign.of(_widget(store, name))
+        found = entry_files.find(design.addresses(), path) if entry_files and design else None
+        if found is None:
+            raise HTTPException(status_code=404, detail="not a file that widget's event lists show")
+        return FileResponse(found)
 
     @router.get("/overlay/widget/{name}/store/{key}")
     def kept(name: str, key: str) -> Any:

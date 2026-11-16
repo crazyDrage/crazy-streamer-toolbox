@@ -101,6 +101,19 @@ class TestConnectionManager(unittest.IsolatedAsyncioTestCase):
         await manager.stop_all()
         self.assertGreater(connection.calls.count("start"), 1)
 
+    async def test_a_connection_that_never_finishes_stopping_doesn_t_keep_the_toolbox_open(self) -> None:
+        """His 11-14: "stopping the toolbox will not close the window, and will not close the tray icon"."""
+        async def hangs() -> None:
+            await asyncio.sleep(10)
+
+        stuck, fine = FakeConnection({"url": "good"}), FakeConnection({"url": "good"})
+        stuck.id, stuck.stop = "stuck", hangs
+        manager = ConnectionManager([stuck, fine], ConfigTableWriter(self.path), stop_limit=0.05)
+        with self.assertLogs("streamer_toolbox.core.connections.connection_manager", "WARNING") as logged:
+            await manager.stop_all()
+        self.assertIn("connection stuck didn't stop within 0.05 s", logged.output[0])
+        self.assertEqual(fine.calls, ["stop"])
+
 
 if __name__ == "__main__":
     unittest.main()

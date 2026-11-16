@@ -85,7 +85,10 @@ class RegisteredAction:
     the left, read like a `typed` field and handed to the handler under its name (**values). `lines_from`
     ("obs.get_source_settings:Get settings": an action, then the button's text) gives such a box a button
     that runs that action with the box's matching fields and adds a line per key of its answer (an object)
-    that the box doesn't have yet (Set source settings, his round 81).
+    that the box doesn't have yet (Set source settings, his round 81). `starts` names extra run dots that each
+    start the box ({dot: the fields only it reads}): the handler asks Box.started_at() which one it was ("" =
+    the normal one), and the fields named there are read only when the box starts at that dot (Remembered
+    value's "set" with its value; his round 90).
 
     `is_tested`, `is_understandable` and `is_usable` are his three checks of the box (works, understandable,
     usable). No box sets them itself: they are read from the test record at start (TestGate), and TestView
@@ -133,6 +136,7 @@ class RegisteredAction:
     alongside: str = ""
     freeze: bool | None = False  # None: the box can't be frozen (see freezable)
     lines_from: str = ""
+    starts: dict[str, tuple[str, ...]] = field(default_factory=dict)
     # set by the registry for a connection with several accounts (ActionRegistry.accounts_for): is its Multiple
     # accounts switch on; the box then has an Account field (AccountHandler)
     accounts: Callable[[], bool] | None = None
@@ -151,8 +155,13 @@ class RegisteredAction:
         return numbered_fields(self.entry_fields, params) if self.entry_fields else []
 
     def starts_at(self, params: Mapping[str, Any]) -> list[str]:
-        """The extra run dots a wire into can start the box: its lines (entry_fields) and its toggles."""
-        return [*self.entry_lines(params), *self.toggles]
+        """The extra run dots a wire into can start the box: its lines (entry_fields), its toggles and its
+        starts."""
+        return [*self.entry_lines(params), *self.toggles, *self.starts]
+
+    def start_only(self, dot: str) -> set[str]:
+        """The fields the box doesn't read when it starts at `dot`: those another of its `starts` names."""
+        return {name for other, names in self.starts.items() if other != dot for name in names}
 
     def lines_named(self, params: Mapping[str, Any]) -> list[str]:
         """The lines he named (named_lines: the params that aren't the handler's own), in their order; else none."""
@@ -197,6 +206,7 @@ class RegisteredAction:
         Wait for all) or only works out a value (it has nothing to ask). A handler that says it gives nothing
         (-> None) counts as freeze = None without saying so."""
         steers = len(self.ports) > 1 or self.port_fields or self.entries or self.entry_fields or self.join \
+            or self.starts \
             or self.ends_flow or self.named_lines or self.value_lines
         returns = inspect.signature(self.handler).return_annotation
         gives_nothing = returns in (None, "None", type(None))

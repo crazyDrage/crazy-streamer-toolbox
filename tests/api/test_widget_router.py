@@ -1,3 +1,4 @@
+import os
 import tempfile
 
 import httpx
@@ -10,7 +11,9 @@ from fastapi.testclient import TestClient
 from streamer_toolbox.api.widget_router import build_widget_router
 from streamer_toolbox.api.widget_sandbox_middleware import WidgetSandboxMiddleware
 from streamer_toolbox.core.widgets.channel_lookup import ChannelLookup
+from streamer_toolbox.core.widgets.element_design import ElementDesign
 from streamer_toolbox.core.widgets.emote_lookup import EmoteLookup
+from streamer_toolbox.core.widgets.entry_files import EntryFiles
 from streamer_toolbox.core.widgets.streamelements_fallback import StreamElementsFallback
 from streamer_toolbox.core.widgets.widget import Widget
 from streamer_toolbox.core.widgets.widget_hub import WidgetHub
@@ -19,6 +22,7 @@ from streamer_toolbox.core.widgets.widget_safety import WidgetSafety
 from streamer_toolbox.core.widgets.widget_store import WidgetStore
 from tests.fakes.fake_helix import FakeHelix
 
+ELEMENT_PAGE = '<div id="toolbox-element"></div><script src="/static/overlay/element.js"></script>'
 FIELDS = {"title": {"type": "text", "label": "Title", "value": "Latest"},
           "color": {"type": "colorpicker", "label": "Colour", "value": "#ff0000"},
           "ding": {"type": "sound-input", "label": "Sound"}}
@@ -44,12 +48,13 @@ class TestWidgetRouter(unittest.TestCase):
             return httpx.Response(404, json={"message": "not known here"})
         app = FastAPI()
         app.add_middleware(WidgetSandboxMiddleware)
+        channels = ChannelLookup(FakeHelix({("GET", "users"): lambda params: {"data": [
+            {"id": "42", "login": "dragon", "display_name": "Dragon", "profile_image_url": "https://pic/d.png"}
+        ] if params.get("login") == "dragon" else []}}))
         app.include_router(build_widget_router(self.store, self.hub, WidgetPage(
             self.hub.session, lambda: {"username": "dragon", "providerId": "42"}),
-            ChannelLookup(FakeHelix({("GET", "users"): lambda params: {"data": [
-                {"id": "42", "login": "dragon", "display_name": "Dragon", "profile_image_url": "https://pic/d.png"}
-            ] if params.get("login") == "dragon" else []}})), self.fallback,
-            EmoteLookup(httpx.MockTransport(emote_services))))
+            channels, self.fallback, EmoteLookup(httpx.MockTransport(emote_services)),
+            entry_files=EntryFiles(self.folder / "toolbox")))
         self.client = TestClient(app)
         self.store.save(Widget("follow_box", '<div class="t">{{title}} {title} {other}</div>',
                                ".t { color: {{color}}; }",
@@ -94,6 +99,9 @@ class TestWidgetRouter(unittest.TestCase):
         self.assertEqual(self.store.clear_data("follow_box"), 2)
         self.assertEqual(self.store.data_files("follow_box"), {})
         self.assertIsNotNone(self.store.get("follow_box"))
+
+    def test_there_is_no_profile_picture_route(self) -> None:  # his 11-13: the flow gives a picture
+        self.assertEqual(self.client.get("/overlay/widget/follow_box/picture/dragon").status_code, 404)
 
     def test_with_the_switch_on_streamelements_answers_what_the_toolbox_cant(self) -> None:
         self.fallback.set(True)
@@ -201,6 +209,26 @@ class TestWidgetRouter(unittest.TestCase):
         self.assertEqual(self.client.get("/overlay/widget/follow_box/media/ab12.png").content, b"png-bytes")
         for path in ("follow_box/media/other.png", "follow_box/media/..%2Fvalues.json", "nobody/media/ab12.png"):
             self.assertEqual(self.client.get("/overlay/widget/" + path).status_code, 404)
+
+    def test_an_event_list_shows_a_file_on_this_pc_only_its_own_address_makes(self) -> None:
+        pictures = self.folder / "pics"
+        pictures.mkdir()
+        (pictures / "fox.png").write_bytes(b"fox-png")
+        (self.folder / "other.png").write_bytes(b"other-png")
+        design = ElementDesign.new()
+        name = design.add(0, "eventList")
+        design.add_list_event(0, name, "follower")
+        table = design.list_entry(0, name, "follower")
+        table.set_cell(table.add(0, "left"), kind="image", address=str(pictures) + os.sep + "{user}.png")
+        design.set_list_entry(0, name, "follower", table)
+        self.store.save(Widget("list_box", ELEMENT_PAGE, "", design.to_js(), {}))
+
+        def get(widget: str, path: str) -> httpx.Response:
+            return self.client.get(f"/overlay/widget/{widget}/local", params={"path": path})
+        self.assertEqual(b"fox-png", get("list_box", str(pictures / "fox.png")).content)
+        self.assertEqual(404, get("list_box", os.sep.join([str(pictures), "..", "other.png"])).status_code)
+        self.assertEqual(404, get("list_box", str(self.folder / "other.png")).status_code)
+        self.assertEqual(404, get("follow_box", str(pictures / "fox.png")).status_code)  # no Element: no list
 
     def test_a_media_field_serves_only_the_file_he_picked(self) -> None:
         sound = self.folder / "ding.ogg"

@@ -1,5 +1,6 @@
 import logging
 import subprocess
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -12,6 +13,9 @@ from streamer_toolbox.core.system.update_starter import UPDATE_EXIT_CODE
 log = logging.getLogger(__name__)
 QUICK = 15  # seconds: a restart sooner than this after its start counts as quick
 QUICK_RESTARTS = 3  # that many quick ones in a row: it is broken, not restarting; the launcher gives up
+# seconds a stopped toolbox gets to end by itself before it is ended: one that hung while closing kept its window
+# and the tray icon open (his 11-14). Its connections get 5 s together, each plugin 5 s, to stop inside it
+STOP_GRACE = 45.0
 
 
 def answers(url: str) -> bool:
@@ -31,12 +35,13 @@ class ToolboxLauncher:
     UPDATE_EXIT_CODE: `update` (UpdateStarter.start) starts the swap and the launcher ends; without one ready,
     the toolbox is started again as it is.
     stop() (the window's X) closes the child's stdin: it shuts down cleanly (ParentWatch) and isn't started again.
+    A child that hasn't ended stop_grace seconds after a stop or restart is ended (killed).
     """
 
     def __init__(self, command: list[str], url: str, opener: PageOpener | None = None,
                  launch: Callable[..., subprocess.Popen] = subprocess.Popen,
                  ready: Callable[[str], bool] = answers, ready_timeout: float = 60, poll: float = 0.25,
-                 update: Callable[[], bool] | None = None) -> None:
+                 update: Callable[[], bool] | None = None, stop_grace: float = STOP_GRACE) -> None:
         self._command = command
         self._url = url
         self._opener = opener
@@ -45,6 +50,7 @@ class ToolboxLauncher:
         self._ready_timeout = ready_timeout
         self._poll = poll
         self._update = update
+        self._stop_grace = stop_grace
         self._child: subprocess.Popen | None = None
         self._stopping = False
         self._restarting = False  # restart() asked: the next end starts it again whatever its code
@@ -97,9 +103,21 @@ class ToolboxLauncher:
         self._close_stdin()
 
     def _close_stdin(self) -> None:
-        if self._child is not None and self._child.stdin is not None:
+        child = self._child
+        if child is not None and child.stdin is not None:
             try:
-                self._child.stdin.close()
+                child.stdin.close()
+            except OSError:
+                pass
+            threading.Thread(target=self._end_if_stuck, args=(child,), name="toolbox-stop-grace", daemon=True).start()
+
+    def _end_if_stuck(self, child: subprocess.Popen) -> None:
+        try:
+            child.wait(timeout=self._stop_grace)
+        except subprocess.TimeoutExpired:
+            log.warning("the toolbox didn't close within %s s of being stopped: ending it", self._stop_grace)
+            try:
+                child.kill()
             except OSError:
                 pass
 

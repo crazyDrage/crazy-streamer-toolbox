@@ -1,6 +1,8 @@
 import re
 from typing import Any
 
+from streamer_toolbox.core.event_types.event_type import EventType
+
 # what a text that is always there can show: (its name in the editor, its code in the Element's text)
 ALWAYS = (
     ("Latest follower", "{session.twitch.follower-latest.name}"),
@@ -38,6 +40,20 @@ ALERT = (
 SAMPLE_NAME = "TestViewer"
 SAMPLE_EVENT = {"username": SAMPLE_NAME, "displayName": SAMPLE_NAME, "amount": 3, "message": "Hello there!",
                 "currency": "$"}
+SAMPLE_MESSAGES = ("Hello there!", "What a play!", "Good luck today")
+# an event list's event (StreamElements' word, what a widget hears) → the event types (Overlay → Events) it
+# comes as. An entry's values are theirs, 1:1 by their names (his 11-13: "the values should be 1to1 the same
+# name as the event values"); a widget's code reads them under their "also known as" names too
+LIST_TYPES = {"follower": ("follow",), "subscriber": ("sub", "resub", "gift"),
+              "communityGiftPurchase": ("community_gift",), "cheer": ("cheer",), "raid": ("raid",),
+              "tip": ("tip",), "message": ("chat",)}
+# the first event lists' codes ({event.data.username}) → the value's name; amount was each event's own
+OLD_KEYS = {"username": "user", "service": "platform", "login": "user_login", "time": ""}
+OLD_AMOUNTS = {"subscriber": "months", "cheer": "bits", "raid": "viewers"}
+OLD_CODE = re.compile(r"\{event\.data\.([\w-]+)\}")
+# an example of each value the editor's preview fills in where the event type's default is empty
+SAMPLE_VALUES = {"user": SAMPLE_NAME, "message": "Hello there!", "platform": "twitch", "currency": "$",
+                 "role": "viewer"}
 CODE = re.compile(r"\{([^{}]+)\}")
 WORD = re.compile(r"\[([^\[\]]+)\]")
 
@@ -53,16 +69,40 @@ class DesignValues:
         return [*(ALERT if alert else ()), *ALWAYS]
 
     @staticmethod
-    def to_words(text: str) -> str:
-        """{session.twitch.follower-latest.name} → [Latest follower]."""
-        names = {code: name for name, code in (*ALWAYS, *ALERT)}
+    def list_values(event: str, kinds: list[EventType]) -> list[dict[str, Any]]:
+        """What an event list's entry of that event can show: the values of its event types (LIST_TYPES; kinds:
+        the event types there are now), each once, in their order: {"name", "aka": its other names, "default"}.
+        A text has them as {name}."""
+        values: dict[str, dict[str, Any]] = {}
+        for kind in kinds:
+            if kind.name not in LIST_TYPES.get(event, ()):
+                continue
+            for value in kind.values:
+                one = values.setdefault(value.name, {"name": value.name, "aka": [], "default": value.default})
+                one["aka"] = list(dict.fromkeys((*one["aka"], *value.also_known_as)))
+        return list(values.values())
+
+    @staticmethod
+    def old_codes(text: str, event: str) -> str:
+        """A text of the first event lists ({event.data.username} followed) with the values' names
+        ({user} followed); {event.data.time} (no event had it) is gone."""
+        def name(found: re.Match[str]) -> str:
+            key = found.group(1)
+            key = OLD_AMOUNTS.get(event, key) if key == "amount" else OLD_KEYS.get(key, key)
+            return f"{{{key}}}" if key else ""
+        return OLD_CODE.sub(name, text)
+
+    @staticmethod
+    def to_words(text: str, names: list[tuple[str, str]] | None = None) -> str:
+        """{session.twitch.follower-latest.name} → [Latest follower]; names: those (name, code) instead."""
+        names = {code: name for name, code in (names if names is not None else (*ALWAYS, *ALERT))}
         return CODE.sub(lambda found: f"[{names[found.group(0)]}]" if found.group(0) in names else found.group(0),
                         text)
 
     @staticmethod
-    def to_codes(text: str) -> str:
+    def to_codes(text: str, names: list[tuple[str, str]] | None = None) -> str:
         """[Latest follower] → {session.twitch.follower-latest.name}; [anything else] stays."""
-        codes = {name.casefold(): code for name, code in (*ALWAYS, *ALERT)}
+        codes = {name.casefold(): code for name, code in (names if names is not None else (*ALWAYS, *ALERT))}
         return WORD.sub(lambda found: codes.get(found.group(1).strip().casefold(), found.group(0)), text)
 
     @staticmethod
@@ -76,6 +116,28 @@ class DesignValues:
                 continue
             parts.append((_value(piece, session), True))
         return parts
+
+    @staticmethod
+    def list_samples(settings: dict[str, Any]) -> list[dict[str, Any]]:
+        """What the editor's canvas shows in an event list (ElementDesign.event_list): three example events, of
+        the events it shows in turn, the newest last (in the order they would have come)."""
+        entries = [entry for entry in settings.get("entries") or [] if entry.get("on", True)]
+        if not entries:
+            return []
+        samples = []
+        for nth in range(min(3, settings.get("count") or 3)):
+            entry = entries[nth % len(entries)]
+            name = SAMPLE_NAME + ("" if nth == 0 else f" {nth + 1}")
+            samples.append({"kind": entry["event"],
+                            "data": {**DesignValues.list_sample(entry.get("values") or []), "user": name,
+                                     "message": SAMPLE_MESSAGES[nth % len(SAMPLE_MESSAGES)]}})
+        return samples
+
+    @staticmethod
+    def list_sample(values: list[dict[str, Any]]) -> dict[str, Any]:
+        """An example of an entry's values (list_values) for the editor's preview: each value's default, an
+        example where that is empty."""
+        return {value["name"]: value.get("default") or SAMPLE_VALUES.get(value["name"], "") for value in values}
 
     @staticmethod
     def ticker(ticker: dict[str, Any], session: dict[str, Any], currency: str = "$") -> list[tuple[str, bool]]:

@@ -35,6 +35,9 @@ class FlowLibrary:
         self.folder_settings = FlowFolders(store.folder.parent / "flow_folders.json")
         runner.folder_off = self.folder_settings.off  # a switched-off folder: none of its flows starts
         self.upgrade: Callable[[Flow, int], Flow] | None = None
+        # told (flow name, box ids) when Save flow leaves boxes out or a flow is deleted: what they kept goes
+        # too (his 11-15: the media buffer's files of a deleted box go at "Save flow")
+        self.boxes_gone: list[Callable[[str, list[str]], None]] = []
 
     @property
     def folder(self) -> Path:
@@ -106,7 +109,10 @@ class FlowLibrary:
 
     def save(self, flow: Flow, old_name: str | None = None) -> None:
         """Writes the flow and makes its action current. old_name: its name before a rename."""
+        before = self._flows.get(flow.name)
         self._store.save(flow)
+        if before is not None:
+            self._gone(flow.name, {n.id for n in before.nodes} - {n.id for n in flow.nodes})
         if old_name and old_name != flow.name:
             self.delete(old_name)
         self._register(flow)
@@ -118,6 +124,11 @@ class FlowLibrary:
         flow = self._flows.pop(name, None)
         if flow is not None:
             self._actions.remove(flow.action_name)
+            self._gone(name, {n.id for n in flow.nodes})
+
+    def _gone(self, name: str, ids: set[str]) -> None:
+        for listener in self.boxes_gone if ids else ():
+            listener(name, sorted(ids))
 
     def export_text(self, name: str) -> str:
         """The flow as its .toml file text, to download and keep or share."""

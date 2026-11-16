@@ -9,7 +9,8 @@ sub folder named after what uses them.
 ## Folder map (`src/streamer_toolbox/`)
 
 ```
-__main__.py              the start: arguments, the launcher (runs the toolbox as a child, restarts it), ui.run
+__main__.py              the start: arguments, the launcher (runs the toolbox as a child, restarts it, shows
+                         the tray icon: gui/services/ToolboxTray, not with --tied), ui.run
 starter/                 the starter (his round 84; start-settings.bat / .sh): a Tkinter window + pystray tray icon to
                          start the toolbox with (how it opens, Open / Restart / Stop, backups). StarterApp does the
                          work without the window (ToolboxLauncher in a thread, the daily backup); loads none of
@@ -272,7 +273,23 @@ connections/             ONLY the connection classes, one per service
   twitch/                what TwitchConnection uses: TwitchAuth (login, refresh, validate), TwitchApi (Helix),
                          EventSubClient (websocket)
                          TwitchChannelActions (channel info, title, category, ads, users, followers; via
-                         TwitchApi.helix)
+                         TwitchApi.helix); TwitchPictureLookup (profile picture addresses for the box "Twitch
+                         profile picture": by id, batched, nothing kept: Remembered value keeps them, round 90)
+core/cache/remembered_values  RememberedValues: values a flow keeps a while under a name (box "Remembered
+                         value", cache.value; his round 90), by group with its own most count, each with the max
+                         age it was kept with (none = a month, never forever), in cache/remembered_values.json.
+                         The box's run dots: start (look up → found / no_value) and set (one of its `starts`,
+                         Box.started_at()); its value field is read only at set. A box's own group goes with
+                         the box (FlowLibrary.boxes_gone)
+core/media/media_buffer  MediaBuffer: pictures and videos from the web kept on this PC (box "Keep media
+                         locally", media_actions). The address is the place in cache/media/: a box in a flow
+                         keeps in flows/box/<flow>/<box id>/ (its address /toolbox/media/flows/box/<flow>/<box id>/
+                         <code>_<name>.png, latest.png = its newest), a box with a Folder in shared/<folder>/
+                         (boxes.json says which box), Live / the API in shared/media/. An index per folder, the
+                         folder's limits (size, biggest file, days); internet addresses only (names looked up).
+                         A box left out at Save flow loses its folder (FlowLibrary.boxes_gone). The box knows
+                         where it runs from core/flows/current_box (set by FlowRunner). api/media_router serves
+                         them (only files of the index, sandboxed)
 core/system/github_program  GithubProgram: a program fetched from a GitHub project's releases into the settings
                          folder and kept up to date (SHA-256 checked, once a day); used for TwitchDownloaderCLI
                          (connections/twitch/twitch_clip_downloader: the Download clip box)
@@ -327,7 +344,8 @@ gui/
                          socket: another device gets /login until signed in, and a socket only for a login page;
                          the API keeps its own tokens), OpenPages (every open page; AppShell attaches each one), confirm
                          dialog service and message service (both show on every open page), activity log, UI registry,
-                         plugin context, page openers (window/browser); MessageLog (every message, flow run and box
+                         plugin context, page openers (window/browser), ToolboxTray (the launcher's tray icon:
+                         open, restart, stop; OPEN 130) and tray_picture (its icon, the starter's too); MessageLog (every message, flow run and box
                          error; the last 10 kept in cache/messages.json) and NotifyCatcher (replaces ui.notify: each
                          message goes into the MessageLog and the InfoBar of its page, gui/components/info_bar: the
                          bar at the bottom, its Debug panel and DebugList, also at /debug, the pop-out window;
