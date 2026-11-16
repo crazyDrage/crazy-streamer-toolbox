@@ -5,6 +5,7 @@ from typing import Any, Optional
 from streamer_toolbox.core.actions.registered_action import (FillProvider, HintProvider, LightProvider,
                                                              OptionsProvider, RegisteredAction)
 from streamer_toolbox.core.flows.box_signals import BoxSignals
+from streamer_toolbox.core.flows.current_box import started_at
 from streamer_toolbox.core.flows.retrigger import Retrigger, current_retrigger
 
 # what RegisteredAction holds besides the name, the handler, the texts and his three checks: every one is an
@@ -71,6 +72,7 @@ class Box(ABC):
     port_fields: str = ""                                    # a field it can have any number of, each a run output
     entries: tuple[str, ...] = ()                            # extra run dots on the left (a Loop's stop)
     toggles: tuple[str, ...] = ()                            # entries that start it when it isn't running
+    starts: dict[str, tuple[str, ...]] = {}                  # run dots that start it: {dot: fields only it reads}
     entry_fields: str = ""                                   # a field it can have any number of, each a run dot
     value_lines: str = ""                                    # lines of name + value, each a data dot (Value)
     named_lines: bool = False                                # lines he names, handed over as **values (End)
@@ -100,6 +102,12 @@ class Box(ABC):
         """While it runs in a flow: what arrived at its `entries` (.has("stop"), await .wait_for(seconds,
         "stop")). None outside a flow (Test box, API)."""
         return BoxSignals.current()
+
+    @staticmethod
+    def started_at() -> str:
+        """In a box with `starts`: the run dot a wire started it at ("set"); "" = its normal one (and outside a
+        flow)."""
+        return started_at.get()
 
     @staticmethod
     def started_again() -> Optional[Retrigger]:

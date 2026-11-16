@@ -1,11 +1,8 @@
 import asyncio
-import tempfile
 import unittest
-from pathlib import Path
 
 from streamer_toolbox.connections.twitch.twitch_api_error import TwitchApiError
-from streamer_toolbox.connections.twitch.twitch_picture_lookup import KEEP_SECONDS, TwitchPictureLookup
-from streamer_toolbox.core.widgets.kept_answers import KeptAnswers
+from streamer_toolbox.connections.twitch.twitch_picture_lookup import TwitchPictureLookup
 from tests.fakes.fake_helix import FakeHelix
 
 KIT = "https://static-cdn.jtvnw.net/jtv_user_pictures/kit-profile_image-300x300.png"
@@ -18,44 +15,29 @@ def users(params: dict) -> dict:
 
 
 class TestTwitchPictureLookup(unittest.IsolatedAsyncioTestCase):
-    """A profile picture's address: by id or name, many new people in one request, kept a day, never an error."""
+    """A profile picture's address: by id or name, many people in one request, nothing kept, never an error."""
 
     async def asyncSetUp(self) -> None:
-        self.now = 1000.0
         self.helix = FakeHelix({("GET", "users"): users})
-        self.temp = tempfile.TemporaryDirectory()
-        self.path = Path(self.temp.name) / "twitch_pictures.json"
-        self.kept = KeptAnswers(self.path, 5000, KEEP_SECONDS, clock=lambda: self.now)
-        self.lookup = TwitchPictureLookup(self.helix, wait=0.01, kept=self.kept)
+        self.lookup = TwitchPictureLookup(self.helix, wait=0.01)
 
-    async def asyncTearDown(self) -> None:
-        self.temp.cleanup()
-
-    async def test_many_new_people_are_one_request(self) -> None:
+    async def test_many_people_are_one_request(self) -> None:
         found = await asyncio.gather(self.lookup.picture("11"), self.lookup.picture("@Fox"),
                                      self.lookup.picture("11"), self.lookup.picture("nobody"))
         self.assertEqual([KIT.replace("300x300", "70x70"), FOX.replace("300x300", "70x70"),
                           KIT.replace("300x300", "70x70"), ""], found)
         self.assertEqual([({"id": ["11"], "login": ["fox", "nobody"]}, {})], self.helix.sent("GET", "users"))
 
-    async def test_kept_for_a_day_also_after_a_restart(self) -> None:
-        await self.lookup.picture("kit", "300x300")
-        again = TwitchPictureLookup(self.helix, wait=0.01, kept=KeptAnswers(self.path, 5000, KEEP_SECONDS,
-                                                                             clock=lambda: self.now))
-        self.assertEqual(KIT, await again.picture("11", "300x300"))  # asked by name, known by id too
-        self.assertEqual(1, len(self.helix.sent("GET", "users")))
-        self.now += KEEP_SECONDS
-        await again.picture("11")
-        self.assertEqual(2, len(self.helix.sent("GET", "users")))  # a day later: asked again
+    async def test_nothing_is_kept_here_a_second_time_asks_again(self) -> None:
+        await self.lookup.picture("11", "300x300")  # his round 90: Remembered value keeps it, in the flow
+        self.assertEqual(KIT, await self.lookup.picture("11", "300x300"))
+        self.assertEqual(2, len(self.helix.sent("GET", "users")))
 
-    async def test_twitch_down_gives_the_old_address_or_nothing(self) -> None:
-        await self.lookup.picture("11", "150x150")
-        self.now += KEEP_SECONDS
+    async def test_twitch_down_gives_nothing(self) -> None:
         self.helix.answers[("GET", "users")] = TwitchApiError(500, "down")
-        self.assertEqual(KIT.replace("300x300", "150x150"), await self.lookup.picture("11", "150x150"))
         self.assertEqual("", await self.lookup.picture("22"))
         self.assertEqual("", await self.lookup.picture("../x"))  # not a name: Twitch isn't asked
-        self.assertEqual(3, len(self.helix.sent("GET", "users")))
+        self.assertEqual(1, len(self.helix.sent("GET", "users")))
 
 
 if __name__ == "__main__":

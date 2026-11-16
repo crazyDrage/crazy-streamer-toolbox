@@ -1,15 +1,10 @@
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
-from pathlib import Path
 from typing import Any
-
-from streamer_toolbox.core.widgets.kept_answers import KeptAnswers
 
 log = logging.getLogger(__name__)
 Helix = Callable[..., Awaitable[dict[str, Any]]]
-KEEP_COUNT = 5000  # people; ~120 bytes each in the file
-KEEP_SECONDS = 24 * 60 * 60  # then Twitch is asked again (a new picture shows the next day)
 WAIT = 0.15  # seconds the questions of many new chatters are gathered into one request
 MOST = 100  # users per Helix request
 SIZES = ("70x70", "150x150", "300x300")  # Twitch keeps each profile picture in these sizes
@@ -17,16 +12,13 @@ SIZES = ("70x70", "150x150", "300x300")  # Twitch keeps each profile picture in 
 
 class TwitchPictureLookup:
     """A Twitch user's profile picture address (his note temp/notes/humam/twitch-pfp.md): Helix `users` by id (or
-    by name), only Twitch itself. The address is kept for a day, in memory and in `path` (a restart keeps it).
-    New people asked within WAIT go to Twitch in one request (up to MOST each); the same person asked twice
-    at once is one question. When Twitch can't be reached, an address kept before is used even when old;
-    without one the answer is "" (never an error: a chat must go on). The picture itself isn't downloaded:
-    the page loads it from Twitch, and the browser keeps it."""
+    by name), only Twitch itself. People asked within WAIT go to Twitch in one request (up to MOST each); the
+    same person asked twice at once is one question. When Twitch can't be reached the answer is "" (never an
+    error: a chat must go on). Nothing is kept here: a flow keeps the address with the box Remembered value
+    (his round 90: "remove it and replace it with the new system")."""
 
-    def __init__(self, helix: Helix, path: Path | None = None, wait: float = WAIT,
-                 kept: KeptAnswers | None = None) -> None:
+    def __init__(self, helix: Helix, wait: float = WAIT) -> None:
         self._helix = helix
-        self._kept = kept if kept is not None else KeptAnswers(path, KEEP_COUNT, KEEP_SECONDS)
         self._wait = wait
         self._waiting: dict[str, asyncio.Future] = {}
         self._batch: asyncio.Task | None = None
@@ -36,10 +28,7 @@ class TwitchPictureLookup:
         key = _key(user)
         if not key:
             return ""
-        found, address = self._kept.get(key)
-        if not found:
-            address = await self._ask(key)
-        return _sized(address or "", size)
+        return _sized(await self._ask(key) or "", size)
 
     def _ask(self, key: str) -> asyncio.Future:
         if key not in self._waiting:
@@ -65,15 +54,14 @@ class TwitchPictureLookup:
         try:
             answer = await self._helix("GET", "users", params={**({"id": ids} if ids else {}),
                                                                **({"login": logins} if logins else {})})
-        except Exception as e:  # Twitch down, not connected, a token gone: the old addresses, else none
+        except Exception as e:  # Twitch down, not connected, a token gone: no pictures this time
             log.warning("no Twitch profile pictures this time: %s", e)
-            return {key: self._kept.old(key)[1] or "" for key in keys}
-        found = {key: "" for key in keys}  # asked and not there: kept too, so it isn't asked again today
+            return {key: "" for key in keys}
+        found = {key: "" for key in keys}  # asked and not there
         for user in answer.get("data") or [] if isinstance(answer, dict) else []:
             address = str(user.get("profile_image_url") or "")
             found[f"id:{user.get('id', '')}"] = address
             found[f"login:{str(user.get('login', '')).lower()}"] = address
-        self._kept.keep_all(found)
         return found
 
 

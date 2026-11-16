@@ -486,15 +486,42 @@ class ElementDesign:
         changes.pop("entries", None)
         self._keep_list(layer, name, {**self.event_list(layer, name), **changes})
 
-    def add_list_event(self, layer: int, name: str, event: str) -> None:
-        """An event the list shows (LIST_EVENTS), with a first look: a cell that says what happened."""
+    def add_list_event(self, layer: int, name: str, event: str,
+                       copy_from: tuple[int, str, str] | None = None) -> None:
+        """An event the list shows (LIST_EVENTS), with a first look: a cell that says what happened, or (his
+        11-16: "copy from") a copy of the look of an event of a list of this widget, (layer, list, event)."""
         if event not in LIST_EVENTS:
             raise ValueError(f"an event list can't show {event!r}")
         now = self.event_list(layer, name)
         if any(entry["event"] == event for entry in now["entries"]):
             raise ValueError(f"the list shows {LIST_EVENTS[event]} already")
-        now["entries"].append({"event": event, "on": True, "table": EntryTable.new(ENTRY_TEXTS[event]).data})
+        table = self.list_entry(*copy_from) if copy_from else EntryTable.new(ENTRY_TEXTS[event])
+        now["entries"].append({"event": event, "on": True, "table": copy.deepcopy(table.data)})
         self._keep_list(layer, name, now)
+
+    def change_list_event(self, layer: int, name: str, event: str, new: str) -> None:
+        """The list shows another event in that one's place, with its look and on / off (his 11-16: "chat ->
+        follow"). The look's texts keep the values they name: a value the new event doesn't have shows as it is
+        written until it is changed."""
+        if new not in LIST_EVENTS:
+            raise ValueError(f"an event list can't show {new!r}")
+        now = self.event_list(layer, name)
+        if new != event and any(entry["event"] == new for entry in now["entries"]):
+            raise ValueError(f"the list shows {LIST_EVENTS[new]} already")
+        for entry in now["entries"]:
+            if entry["event"] == event:
+                entry["event"] = new
+                entry.pop("values", None)  # the new event's values come at the next save (set_list_values)
+                self._keep_list(layer, name, now)
+                return
+        raise KeyError(f"the list doesn't show {event!r}")
+
+    def list_looks(self) -> list[tuple[int, str, str]]:
+        """Every event of every event list of this widget, (layer, list, event): what a new event's look can be
+        copied from."""
+        return [(number, name, entry["event"]) for number in range(len(self.config["configStates"]))
+                for name, piece in self.pieces(number).items() if piece.get("type") == "eventList"
+                for entry in self.event_list(number, name)["entries"]]
 
     def remove_list_event(self, layer: int, name: str, event: str) -> None:
         now = self.event_list(layer, name)
@@ -601,6 +628,28 @@ class ElementDesign:
         enter["animationDelay"] = _seconds(now["delay"])
         hold["animationDuration"] = _seconds(now["stays"])
         exit_["animationDuration"] = _seconds(now["out_seconds"])
+
+    def emoji(self, layer: int, name: str) -> dict[str, Any]:
+        """A text's emoji dictionary (his 11-16): {dict: the name of the event's value that holds it ("" none),
+        size: the pictures' height in pixels (0: as high as the words)}."""
+        found = (self.piece(layer, name).get("toolbox") or {}).get("emoji") or {}
+        try:
+            size = max(0, min(int(float(found.get("size") or 0)), 500))
+        except (TypeError, ValueError):
+            size = 0
+        return {"dict": str(found.get("dict") or ""), "size": size}
+
+    def set_emoji(self, layer: int, name: str, **changes: Any) -> None:
+        """Changes dict and / or size of emoji(); no dict: none."""
+        now = {**self.emoji(layer, name), **changes}
+        piece = self.piece(layer, name)
+        own = piece.setdefault("toolbox", {})
+        if str(now["dict"] or "").strip():
+            own["emoji"] = {"dict": str(now["dict"]).strip(), "size": max(0, min(int(float(now["size"] or 0)), 500))}
+        else:
+            own.pop("emoji", None)
+        if not own:
+            piece.pop("toolbox", None)
 
     def reaction(self, layer: int, name: str) -> dict[str, Any]:
         """What a piece that is always there does on an event: {events, animation, seconds}; no events: nothing."""

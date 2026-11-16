@@ -27,9 +27,69 @@
     return opts.local ? opts.local + encodeURIComponent(address) : "";
   }
 
+  // an emoji dictionary, {"Kappa": a picture's address}: an object, or one written as JSON text
+  function dictionary(found) {
+    if (typeof found === "string") {
+      try { found = JSON.parse(found); } catch { return null; }
+    }
+    return found && typeof found === "object" && !Array.isArray(found) ? found : null;
+  }
+
+  // the words as text and, where a word is in the dictionary, its picture (his 2026-11-16: the text's
+  // emoji_dict). Only whole words (between spaces), with their capitals: "Kappa" but not "kappa" or "Kappas".
+  // Chat is what anyone writes: it only ever goes in as text, never as HTML
+  function withEmoji(box, text, emoji, size, opts) {
+    for (const part of text.split(/(\s+)/)) {
+      const address = part && Object.prototype.hasOwnProperty.call(emoji, part) ? String(emoji[part] || "").trim() : "";
+      const src = address ? source(address, opts) : "";
+      if (!src) {
+        box.append(document.createTextNode(part));
+        continue;
+      }
+      const seen = document.createElement("img");
+      seen.alt = seen.title = part;
+      seen.draggable = false;
+      seen.style.cssText = "display: inline-block; vertical-align: middle; width: auto";
+      seen.style.height = size ? size + "px" : "1.4em";
+      seen.onerror = () => seen.replaceWith(document.createTextNode(part));  // no picture: the word again
+      seen.src = src;
+      box.append(seen);
+    }
+  }
+
   // a style's value can be one of the event's too ({color}: their name colour)
   function filled(style, data) {
     return Object.fromEntries(Object.entries(style || {}).map(([key, value]) => [key, typeof value === "string" ? fill(value, data) : value]));
+  }
+
+  // where a picture or video (a cell's, a layer's) comes from: its address filled in, else its file
+  function sourceOf(own, data, opts) {
+    const address = fill(own.address, data).trim();
+    return address ? source(address, opts) : own.file ? (opts.media || (f => f))(own.file) : "";
+  }
+
+  // a layer behind (z 0) or in front (z 2) of the cells (z 1): covers the whole entry, its corners too
+  // (his round 90: a picture as every event's background, a glass in front)
+  function layer(own, z, data, opts) {
+    const src = sourceOf(own, data, opts);
+    if (!src) return null;
+    const fit = own.fit || "cover";
+    const seen = document.createElement(own.kind === "video" ? "video" : "div");
+    seen.style.cssText = "position: absolute; inset: 0; width: 100%; height: 100%; border-radius: inherit; pointer-events: none";
+    seen.style.zIndex = String(z);
+    seen.style.opacity = String(own.opacity ?? 1);
+    if (own.kind === "video") {
+      Object.assign(seen, {muted: true, autoplay: true, loop: true, playsInline: true});
+      seen.style.objectFit = fit === "repeat" ? "cover" : fit;
+      seen.onerror = () => seen.remove();
+      seen.src = src;
+    } else {
+      seen.style.backgroundImage = `url(${JSON.stringify(src)})`;
+      seen.style.backgroundPosition = "center";
+      seen.style.backgroundRepeat = fit === "repeat" ? "repeat" : "no-repeat";
+      seen.style.backgroundSize = {cover: "cover", contain: "contain", fill: "100% 100%", repeat: "auto"}[fit] || "cover";
+    }
+    return seen;
   }
 
   // one event as its table: a CSS grid, each cell where its column and row say; opts.values(data): values it
@@ -37,8 +97,11 @@
   function draw(table, given, opts = {}) {
     const data = {...given, ...(opts.values ? opts.values(given) : {})};
     const entry = document.createElement("div");
-    entry.style.cssText = "display: grid; flex-shrink: 0; box-sizing: border-box; align-items: center";
-    entry.style.gridTemplateColumns = `repeat(${table.columns || 1}, auto)`;
+    entry.style.cssText = "display: grid; flex-shrink: 0; box-sizing: border-box; align-items: center; position: relative; isolation: isolate";
+    // the last column takes what is left over (a long message under a picture and a name): the others stay as
+    // narrow as what they hold, so a 25px picture has its name right next to it (his 11-16)
+    const columns = Math.max(Number(table.columns) || 1, 1);
+    entry.style.gridTemplateColumns = columns > 1 ? `repeat(${columns - 1}, auto) 1fr` : "auto";
     entry.style.columnGap = entry.style.rowGap = "6px";
     Object.assign(entry.style, filled(table.style, data));
     for (const cell of table.cells || []) {
@@ -46,15 +109,18 @@
       box.style.gridColumn = `${cell.col + 1} / span ${cell.cols}`;
       box.style.gridRow = `${cell.row + 1} / span ${cell.rows}`;
       box.style.minWidth = "0";
+      box.style.position = "relative";
+      box.style.zIndex = "1";
       box.style.overflowWrap = "anywhere";
       box.style.whiteSpace = "pre-wrap";
       Object.assign(box.style, filled(cell.style, data));
       if (cell.kind === "text") {
-        box.textContent = fill(cell.text, data);
+        const emoji = cell.emoji_dict ? dictionary(data[cell.emoji_dict]) : null;
+        if (emoji) withEmoji(box, fill(cell.text, data), emoji, Number(cell.emoji_size) || 0, opts);
+        else box.textContent = fill(cell.text, data);
       } else {
         // the first lists' own kind "picture": the {picture} value (a flow can give it)
-        const address = fill(cell.kind === "picture" ? "{picture}" : cell.address, data).trim();
-        const src = address ? source(address, opts) : cell.file ? (opts.media || (f => f))(cell.file) : "";
+        const src = sourceOf(cell.kind === "picture" ? {address: "{picture}"} : cell, data, opts);
         if (src) {
           const seen = document.createElement(cell.kind === "video" ? "video" : "img");
           seen.style.cssText = "display: block; width: 100%; height: 100%; object-fit: cover; border-radius: inherit";
@@ -66,6 +132,11 @@
         }
       }
       entry.append(box);
+    }
+    const layers = table.layers || {};
+    for (const [side, z] of [["back", 0], ["front", 2]]) {
+      const seen = layers[side] && layer(layers[side], z, data, opts);
+      if (seen) entry.append(seen);  // absolute: not a grid item
     }
     return entry;
   }
@@ -142,5 +213,5 @@
     };
   }
 
-  window.TOOLBOX_ENTRY = {draw, list, fill};
+  window.TOOLBOX_ENTRY = {draw, list, fill, withEmoji, dictionary};  // the last two: alert texts too (element.js)
 })();

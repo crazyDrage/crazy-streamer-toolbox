@@ -7,8 +7,10 @@ from streamer_toolbox.core.event_types.event_value import EventValue as V
 DEFAULTS: tuple[EventType, ...] = tuple(EventType(name, values, aka, default=True, hidden=True) for name, values, aka in (
     ("chat", (V("user", also_known_as=("displayName",)), V("message", also_known_as=("text",)),
               V("color", "#ffffff", "colour", ("displayColor",)), V("role"), V("platform"),
-              V("user_id", also_known_as=("userId",)), V("message_id", also_known_as=("msgId",)), V("emotes"),
-              V("picture")),  # their profile picture's address: the type's own flow fills it (his 11-14)
+              V("user_id", also_known_as=("userId",)), V("message_id", also_known_as=("msgId",)),
+              V("picture"),  # their profile picture's address: the type's own flow fills it (his 11-14)
+              V("emoji_dict")),  # their emotes as an emoji dictionary, {"Kappa": a picture} (his 11-16; it
+     # took the place of the value emotes, Twitch's list: "we don't need emotes and emoji_dict")
      ("message",)),
     # one message (delete-message); every message of one chatter (delete-messages, a ban or timeout)
     ("chat_deleted", (V("message_id", also_known_as=("msgId",)), V("user_id", also_known_as=("userId",))),

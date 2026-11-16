@@ -7,8 +7,13 @@ SIDES = ("top", "right", "bottom", "left")
 # a side → the step it is: (columns, rows)
 STEP = {"top": (0, -1), "right": (1, 0), "bottom": (0, 1), "left": (-1, 0)}
 # what a cell holds (moves with it); where it is stays
-CONTENT = ("kind", "text", "file", "address", "style")
+CONTENT = ("kind", "text", "file", "address", "style", "emoji_dict", "emoji_size")
 PICTURE = "{picture}"  # what the first lists' own "picture" cell showed: a flow can give that value
+# his round 90: a picture or video behind the whole entry and one in front of it (a glass, a frame)
+LAYERS = {"back": "Behind", "front": "In front"}
+LAYER_KINDS = {"image": "Picture or GIF", "video": "Video"}
+# how a layer's picture fills the entry
+FITS = {"cover": "Fill (cut to fit)", "fill": "Stretch", "contain": "Whole picture", "repeat": "Repeat"}
 
 
 class EntryTable:
@@ -31,8 +36,17 @@ class EntryTable:
     - put: a new cell on an empty spot
     - remove: the cell goes, its spots are empty
 
+    Behind and in front of the whole entry it can have a layer (his round 90: a picture as every event's
+    background, a glass in front): a picture or video like a cell's, that covers the entry (`fit`, FITS) and
+    can be see-through (`opacity`).
+
+    A text cell can show words as pictures (his 2026-11-16): `emoji_dict` names the event's value that holds an
+    emoji dictionary, {"Kappa": a picture's address} (Twitch emotes gives one); `emoji_size` is their height in
+    pixels (0: as high as the words).
+
     Plain data, kept in the piece's settings: {"columns", "rows", "cells": [{"col", "row", "cols", "rows",
-    "kind", "text", "file", "address", "style"}], "style": the look of the whole entry}."""
+    "kind", "text", "file", "address", "style", "emoji_dict", "emoji_size"}], "style": the look of the whole entry, "layers": {"back",
+    "front": {"kind", "file", "address", "fit", "opacity"}} (only the ones it has)}."""
 
     def __init__(self, data: dict[str, Any]) -> None:
         self.data = data
@@ -56,9 +70,10 @@ class EntryTable:
         for cell in table.data["cells"]:
             if not isinstance(cell, dict):
                 continue
-            for key in ("text", "file", "address"):
+            for key in ("text", "file", "address", "emoji_dict"):
                 cell.setdefault(key, "")
             cell.setdefault("style", {})
+            cell["emoji_size"] = _size(cell.get("emoji_size"))
             if cell.get("kind") == "picture":  # the first event list's own kind: now a picture with that value
                 cell.update(kind="image", address=PICTURE)
             if cell.get("kind") not in CELL_KINDS:
@@ -71,6 +86,12 @@ class EntryTable:
             cells.append(cell)
         if not cells:
             return cls.new()
+        layers = table.data.get("layers")
+        table.data["layers"] = {side: _layer(layers[side]) for side in LAYERS
+                                if isinstance(layers, dict) and isinstance(layers.get(side), dict)
+                                and layers[side].get("kind") in LAYER_KINDS}
+        if not table.data["layers"]:
+            table.data.pop("layers")
         kept: list[dict[str, Any]] = []
         for cell in sorted(cells, key=lambda each: not _holds_something(each)):
             if all(not _overlap(cell, other) or _cut(cell, other) for other in kept):
@@ -185,13 +206,16 @@ class EntryTable:
         self._tidy()
 
     def set_cell(self, number: int, **changes: Any) -> None:
-        """kind (CELL_KINDS), text, file, address."""
+        """kind (CELL_KINDS), text, file, address, emoji_dict (the name of the event's value with the emoji
+        dictionary, "" for none), emoji_size (pixels, 0: as high as the words)."""
         cell = self.cell(number)
         if "kind" in changes and changes["kind"] not in CELL_KINDS:
             raise ValueError(f"a cell can't hold {changes['kind']!r}")
-        for key in ("kind", "text", "file", "address"):
+        for key in ("kind", "text", "file", "address", "emoji_dict"):
             if key in changes:
                 cell[key] = str(changes[key] or "")
+        if "emoji_size" in changes:
+            cell["emoji_size"] = _size(changes["emoji_size"])
 
     def set_style(self, number: int | None, **style: Any) -> None:
         """CSS of a cell, or (None) of the whole entry; None or "" takes it away."""
@@ -202,14 +226,38 @@ class EntryTable:
             else:
                 own[key] = value
 
+    def layer(self, side: str) -> dict[str, Any] | None:
+        """The layer behind ("back") or in front ("front") of the whole entry: {kind, file, address, fit,
+        opacity}; None when it has none."""
+        if side not in LAYERS:
+            raise ValueError(f"not a layer: {side!r}")
+        found = (self.data.get("layers") or {}).get(side)
+        return dict(found) if found else None
+
+    def set_layer(self, side: str, **changes: Any) -> None:
+        """kind (LAYER_KINDS, or "" for no layer there), file, address, fit (FITS), opacity (0 to 1)."""
+        now = self.layer(side) or _layer({})
+        if "kind" in changes and not changes["kind"]:
+            layers = self.data.get("layers") or {}
+            layers.pop(side, None)
+            if not layers:
+                self.data.pop("layers", None)
+            return
+        if changes.get("kind", now["kind"]) not in LAYER_KINDS:
+            raise ValueError(f"a layer can't hold {changes['kind']!r}")
+        if "fit" in changes and changes["fit"] not in FITS:
+            raise ValueError(f"not a fit: {changes['fit']!r}")
+        self.data.setdefault("layers", {})[side] = _layer({**now, **changes})
+
     def files(self) -> set[str]:
-        """The files of the widget's media folder its cells use."""
-        return {cell["file"] for cell in self.cells() if cell.get("file") and "/" not in cell["file"]}
+        """The files of the widget's media folder its cells and layers use."""
+        return {own["file"] for own in [*self.cells(), *(self.data.get("layers") or {}).values()]
+                if own.get("file") and "/" not in own["file"]}
 
     def addresses(self) -> set[str]:
-        """The addresses its picture and video cells have (with the event's values in them)."""
-        return {cell["address"].strip() for cell in self.cells()
-                if cell.get("kind") in ("image", "video") and str(cell.get("address") or "").strip()}
+        """The addresses its picture and video cells and its layers have (with the event's values in them)."""
+        return {own["address"].strip() for own in [*self.cells(), *(self.data.get("layers") or {}).values()]
+                if own.get("kind") in ("image", "video") and str(own.get("address") or "").strip()}
 
     def _insert(self, across: bool, line: int) -> None:
         """An empty column (across) or row at that line; the cells it goes through get bigger."""
@@ -240,7 +288,26 @@ class EntryTable:
 
 def _cell(col: int, row: int, kind: str, text: str) -> dict[str, Any]:
     return {"col": col, "row": row, "cols": 1, "rows": 1, "kind": kind, "text": text, "file": "", "address": "",
-            "style": {}}
+            "style": {}, "emoji_dict": "", "emoji_size": 0}
+
+
+def _size(found: Any) -> int:
+    """An emoji's height in pixels: 0 (as high as the words) for nothing or anything else."""
+    try:
+        return max(0, min(int(float(found or 0)), 500))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _layer(found: dict[str, Any]) -> dict[str, Any]:
+    """A layer's settings, put right."""
+    try:
+        opacity = max(0.0, min(float(found.get("opacity", 1)), 1.0))
+    except (TypeError, ValueError):
+        opacity = 1.0
+    return {"kind": found.get("kind") if found.get("kind") in LAYER_KINDS else "image",
+            "file": str(found.get("file") or ""), "address": str(found.get("address") or ""),
+            "fit": found.get("fit") if found.get("fit") in FITS else "cover", "opacity": opacity}
 
 
 def _side(side: str) -> str:

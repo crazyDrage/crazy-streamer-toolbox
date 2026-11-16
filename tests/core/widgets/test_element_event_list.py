@@ -18,6 +18,40 @@ class TestElementEventList(unittest.TestCase):
         self.assertEqual([], found["entries"])
         self.assertEqual("600px", self.design.piece(0, self.name)["style"]["height"])
 
+    def test_another_event_in_its_place_keeps_the_look_and_on_off(self):
+        """His 11-16: "it should be possible to change the event in the settings. For example chat -> follow"."""
+        self.design.add_list_event(0, self.name, "message")
+        self.design.add_list_event(0, self.name, "cheer")
+        table = self.design.list_entry(0, self.name, "message")
+        table.set_cell(0, text="{user} says hi")
+        self.design.set_list_entry(0, self.name, "message", table)
+        self.design.set_list_event_on(0, self.name, "message", False)
+        self.design.change_list_event(0, self.name, "message", "follower")
+        entries = self.design.event_list(0, self.name)["entries"]
+        self.assertEqual([("follower", False), ("cheer", True)], [(e["event"], e["on"]) for e in entries])
+        self.assertEqual("{user} says hi", self.design.list_entry(0, self.name, "follower").cell(0)["text"])
+        with self.assertRaisesRegex(ValueError, "already"):
+            self.design.change_list_event(0, self.name, "follower", "cheer")
+        with self.assertRaises(ValueError):
+            self.design.change_list_event(0, self.name, "follower", "dance")
+        with self.assertRaises(KeyError):
+            self.design.change_list_event(0, self.name, "raid", "tip")
+
+    def test_a_new_events_look_copied_from_another_events(self):
+        """His 11-16: "add a `copy from` drop down", also from another list of the widget."""
+        other = self.design.add(0, "eventList")
+        self.design.add_list_event(0, other, "message")
+        table = self.design.list_entry(0, other, "message")
+        table.set_cell(0, text="{user}: {message}")
+        self.design.set_list_entry(0, other, "message", table)
+        self.assertEqual([(0, other, "message")], self.design.list_looks())
+        self.design.add_list_event(0, self.name, "cheer", copy_from=(0, other, "message"))
+        self.assertEqual("{user}: {message}", self.design.list_entry(0, self.name, "cheer").cell(0)["text"])
+        copied = self.design.list_entry(0, self.name, "cheer")  # a copy: changing it leaves the first as it is
+        copied.set_cell(0, text="changed")
+        self.design.set_list_entry(0, self.name, "cheer", copied)
+        self.assertEqual("{user}: {message}", self.design.list_entry(0, other, "message").cell(0)["text"])
+
     def test_settings_are_kept_within_bounds(self):
         self.design.set_event_list(0, self.name, count=500, gap=-3, newest="sideways", stays=12)
         found = self.design.event_list(0, self.name)

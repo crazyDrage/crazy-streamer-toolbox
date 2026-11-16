@@ -274,7 +274,13 @@ connections/             ONLY the connection classes, one per service
                          EventSubClient (websocket)
                          TwitchChannelActions (channel info, title, category, ads, users, followers; via
                          TwitchApi.helix); TwitchPictureLookup (profile picture addresses for the box "Twitch
-                         profile picture": by id or name, batched, kept a day in cache/twitch_pictures.json)
+                         profile picture": by id, batched, nothing kept: Remembered value keeps them, round 90)
+core/cache/remembered_values  RememberedValues: values a flow keeps a while under a name (box "Remembered
+                         value", cache.value; his round 90), by group with its own most count, each with the max
+                         age it was kept with (none = a month, never forever), in cache/remembered_values.json.
+                         The box's run dots: start (look up → found / no_value) and set (one of its `starts`,
+                         Box.started_at()); its value field is read only at set. A box's own group goes with
+                         the box (FlowLibrary.boxes_gone)
 core/media/media_buffer  MediaBuffer: pictures and videos from the web kept on this PC (box "Keep media
                          locally", media_actions). The address is the place in cache/media/: a box in a flow
                          keeps in flows/box/<flow>/<box id>/ (its address /toolbox/media/flows/box/<flow>/<box id>/

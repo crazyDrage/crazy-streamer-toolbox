@@ -38,24 +38,38 @@ class DesignListPanel:
         ui.label("The events").classes("text-sm font-semibold pt-1")
         if not now["entries"]:
             ui.label("None yet: add one below.").classes("text-sm opacity-70")
+        used = {entry["event"] for entry in now["entries"]}
         for entry in now["entries"]:
             event = entry["event"]
             with ui.row().classes("w-full items-center no-wrap gap-1"):
                 ui.switch(value=entry["on"], on_change=lambda e, ev=event: self._whole(
                     f"on/{ev}", lambda d: d.set_list_event_on(self._layer, self._name, ev, e.value))) \
                     .props("dense").tooltip("Off: not shown in the list on stream; its look stays")
-                ui.label(LIST_EVENTS[event]).classes("flex-1 min-w-0 truncate text-sm")
+                # his 11-16: another event in its place ("chat -> follow"), the look stays
+                ui.select({key: title for key, title in LIST_EVENTS.items() if key == event or key not in used},
+                          value=event, on_change=lambda e, ev=event: e.value and e.value != ev and self._whole(
+                              "", lambda d: d.change_list_event(self._layer, self._name, ev, e.value))) \
+                    .props(FIELD + " borderless").classes("flex-1 min-w-0") \
+                    .tooltip("Another event in its place: its look stays (change the values its texts name)")
                 ui.button("Look", icon="table_chart", on_click=lambda ev=event: self._look(ev)) \
                     .props("no-caps flat dense").tooltip("How it looks in the list: a table of cells")
                 ui.button(icon="delete", on_click=lambda ev=event: self._whole(
                     "", lambda d: d.remove_list_event(self._layer, self._name, ev))) \
                     .props("flat round dense size=sm").tooltip("Take it out of the list (Undo brings it back)")
-        left = {key: title for key, title in LIST_EVENTS.items()
-                if key not in {entry["event"] for entry in now["entries"]}}
+        left = {key: title for key, title in LIST_EVENTS.items() if key not in used}
         if left:
-            ui.select(left, label="Add an event", on_change=lambda e: e.value and self._whole(
-                "", lambda d: d.add_list_event(self._layer, self._name, e.value))) \
-                .props(FIELD).classes("w-full")
+            looks = {"": "A new look"}
+            for layer, name, event in self._design.list_looks():
+                here = (layer, name) == (self._layer, self._name)
+                looks["\t".join((str(layer), name, event))] = LIST_EVENTS.get(event, event) + (
+                    "" if here else f" ({name})")
+            with ui.row().classes("w-full no-wrap items-center gap-2"):
+                adding = ui.select(left, label="Add an event").props(FIELD).classes("flex-1 min-w-0")
+                source = ui.select(looks, value="", label="Copy the look from").props(FIELD) \
+                    .classes("flex-1 min-w-0").tooltip("Its look starts as a copy of that event's (his 11-16); "
+                                                       "in brackets: another list of this widget")
+                ui.button(icon="add", on_click=lambda: adding.value and self._added(adding.value, source.value)) \
+                    .props("flat round dense").tooltip("Add it")
 
         ui.label("The list").classes("text-sm font-semibold pt-1")
         with ui.row().classes("w-full no-wrap gap-2"):
@@ -86,6 +100,11 @@ class DesignListPanel:
             .tooltip("Off: the list starts empty each time OBS loads the widget")
         ui.label("The list's biggest size is the piece's width and height: what doesn't fit is cut off.") \
             .classes("text-xs opacity-60")
+
+    def _added(self, event: str, source: str) -> None:
+        layer, name, copied = source.split("\t") if source else ("", "", "")
+        copy_from = (int(layer), name, copied) if source else None
+        self._whole("", lambda d: d.add_list_event(self._layer, self._name, event, copy_from))
 
     def _set(self, key: str, value: Any) -> None:
         self._change(f"{self._layer}/{self._name}/list/{key}",

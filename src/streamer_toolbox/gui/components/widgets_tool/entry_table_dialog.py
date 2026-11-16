@@ -8,7 +8,8 @@ from nicegui import ui
 from streamer_toolbox.core.widgets.design_values import DesignValues
 from streamer_toolbox.core.widgets.element_design import ENDINGS, LIST_EVENTS, ElementDesign
 from streamer_toolbox.core.widgets.element_settings import _number
-from streamer_toolbox.core.widgets.entry_table import CELL_KINDS, EntryTable
+from streamer_toolbox.core.widgets.entry_table import CELL_KINDS, FITS, LAYER_KINDS, LAYERS, EntryTable
+from streamer_toolbox.gui.components.widgets_tool.emoji_help import EMOJI_HELP
 
 FIELD = "outlined dense options-dense"
 # the arrow buttons: side → (icon, words)
@@ -20,7 +21,14 @@ CELL_ICONS = {"text": "title", "image": "image", "video": "movie"}
 FONTS = ["Arial", "Arial Black", "Verdana", "Tahoma", "Trebuchet MS", "Segoe UI", "Georgia", "Times New Roman",
          "Courier New", "Impact", "Comic Sans MS", "Consolas"]
 # what the preview fills in besides the values' defaults: a chat message's own words
-SAMPLES = {"message": {"message": "Hello chat, how is everyone?"}}
+SAMPLES = {"message": {"message": "Hello chat Kappa how is everyone?"}}
+# the preview's emoji dictionary for a text that has one (the event's own on stream)
+SAMPLE_EMOJI = {"Kappa": "https://static-cdn.jtvnw.net/emoticons/v2/25/default/dark/3.0"}
+
+# what each layer is for (his round 90)
+LAYER_TIPS = {"back": "A picture or video behind the whole entry, under its cells: e.g. every event's own background",
+              "front": "A picture or video over the whole entry: e.g. a glass or a frame (a PNG with see-through "
+                       "parts)"}
 
 # change(key, what, whole=..., group=...): WidgetDesigner._change
 Change = Callable[..., None]
@@ -31,7 +39,8 @@ class EntryTableDialog:
     text, like a table where you can combine cells; you can add picture, video, text to every cell"): the table
     of cells on the left (click one to pick it; arrows add a cell on that side, move what it holds there or
     join it with the cells there), the picked cell's settings on the right (what it holds, its look), the look
-    of the whole entry, and a preview drawn by event_entry.js, as OBS draws it. The values a text or an
+    of the whole entry, a layer behind it and one in front (his round 90), and a preview drawn by
+    event_entry.js, as OBS draws it. The values a text or an
     address can have are that event's own, by their names as Overlay → Events has them ({user}; his 11-13:
     "1to1 the same name as the event values"): `values`, DesignValues.list_values. Every change goes through
     the editor's undo."""
@@ -81,6 +90,9 @@ class EntryTableDialog:
                     with ui.expansion("The whole entry", icon="crop_free").classes("w-full") \
                             .props("dense header-class=px-0"):
                         self._entry_panel()
+                    with ui.expansion("Behind and in front", icon="layers").classes("w-full") \
+                            .props("dense header-class=px-0"):
+                        self._layers_panel()
             with ui.row().classes("w-full justify-end"):
                 ui.button("Done", on_click=dialog.close).props("unelevated no-caps")
         dialog.on("show", self._preview)
@@ -188,25 +200,16 @@ class EntryTableDialog:
                                   self._picked, text=e.value or ""), whole=False)) \
                 .props(FIELD + " autogrow").classes("w-full")
             self._value_list(box, " ")
+            self._emoji(cell)
         else:
             box = ui.input("Address", value=cell["address"],
                            on_change=lambda e: self._edit(f"address/{self._picked}", lambda t: t.set_cell(
                                self._picked, address=e.value or ""), whole=False)) \
                 .props(FIELD + " clearable").classes("w-full")
             self._value_list(box, "")
-            ui.label("A web address (https://...), a path on this PC (C:\\Pictures\\{user}.png) or in the "
-                     "toolbox's folder (pictures\\cat.gif), with values in it.").classes("text-xs opacity-60")
-            ui.label(f"Or a file: {cell['file']}" + (" (the address comes first)" if cell["address"] else "")
-                     if cell["file"] else "Or a file of the widget:").classes("text-xs break-all")
-            with ui.row().classes("w-full items-center gap-2"):
-                ui.button("Pick a file on the PC", icon="folder_open",
-                          on_click=lambda: self._file_from_pc(cell["kind"])).props("no-caps outline dense")
-                if cell["file"]:
-                    ui.button(icon="close", on_click=lambda: self._edit("file", lambda t: t.set_cell(
-                        self._picked, file=""))).props("flat round dense").tooltip("No file")
-            accept = "image/*" if cell["kind"] == "image" else "video/webm,video/mp4"
-            ui.upload(on_upload=self._uploaded, auto_upload=True, max_files=1) \
-                .props(f'accept="{accept}" flat bordered dense label="Or from this device"').classes("w-full")
+            picked = self._picked
+            self._file_choice(cell, lambda t, f: t.set_cell(picked, file=f, address="") if f
+                              else t.set_cell(picked, file=""))
         ui.label("Its look").classes("text-sm font-semibold pt-1")
         with ui.row().classes("w-full no-wrap gap-2"):
             for key, label in (("width", "Width"), ("height", "Height")):
@@ -232,6 +235,25 @@ class EntryTableDialog:
         ui.number("Inner space", value=_number(style.get("padding")) or 0, min=0, step=1, suffix="px",
                   on_change=lambda e: self._style("padding", f"{e.value}px" if e.value else None)) \
             .props(FIELD).classes("w-full")
+
+    def _emoji(self, cell: dict[str, Any]) -> None:
+        """His 2026-11-16: the text's emoji dictionary (a value of the event) and how high its pictures are."""
+        names = {"": "Nothing", **{name: name for name in self._names()}}
+        if cell["emoji_dict"] and cell["emoji_dict"] not in names:
+            names[cell["emoji_dict"]] = f"{cell['emoji_dict']} (the event has no such value)"
+        with ui.row().classes("w-full no-wrap items-center gap-2"):
+            ui.select(names, value=cell["emoji_dict"], label="Emoji dictionary",
+                      on_change=lambda e: self._edit("emoji", lambda t: t.set_cell(
+                          self._picked, emoji_dict=e.value or ""))).props(FIELD).classes("flex-1 min-w-0") \
+                .tooltip("The event's value that holds the emoji dictionary (emoji_dict)")
+            if cell["emoji_dict"]:
+                ui.number("Emoji size", value=cell["emoji_size"] or None, min=0, step=1, suffix="px",
+                          on_change=lambda e: self._edit("emoji_size", lambda t: t.set_cell(
+                              self._picked, emoji_size=e.value or 0), whole=False)) \
+                    .props(FIELD + " clearable").classes("w-28").tooltip("Empty: as high as the words")
+        with ui.expansion("How the emoji dictionary works", icon="info").classes("w-full text-xs") \
+                .props("dense header-class='px-0 text-xs opacity-70'"):
+            ui.markdown(EMOJI_HELP).classes("text-xs")
 
     def _value_list(self, box: ui.input, before: str) -> None:
         """Adds the value picked in it to the box (a text or an address)."""
@@ -304,21 +326,71 @@ class EntryTableDialog:
         ui.label("The words (a cell's own look comes first)").classes("text-xs opacity-70 pt-1")
         self._words_look(style, set_)
 
+    # behind and in front
+
+    @ui.refreshable_method
+    def _layers_panel(self) -> None:
+        table = self._table()
+        for side, title in LAYERS.items():
+            own = table.layer(side)
+            ui.label(title).classes("text-sm font-semibold pt-1").tooltip(LAYER_TIPS[side])
+            ui.toggle({"none": "Nothing", **LAYER_KINDS}, value=own["kind"] if own else "none",
+                      on_change=lambda e, s=side, o=own: e.value != (o["kind"] if o else "none") and self._edit(
+                          f"layer/{s}", lambda t: t.set_layer(s, kind="" if e.value == "none" else e.value))) \
+                .props("dense no-caps spread").classes("w-full flex-wrap")
+            if not own:
+                ui.label(LAYER_TIPS[side] + ".").classes("text-xs opacity-60")
+                continue
+            box = ui.input("Address", value=own["address"],
+                           on_change=lambda e, s=side: self._edit(f"layer/{s}/address", lambda t: t.set_layer(
+                               s, address=e.value or ""), whole=False)) \
+                .props(FIELD + " clearable").classes("w-full")
+            self._value_list(box, "")
+            self._file_choice(own, lambda t, f, s=side: t.set_layer(s, file=f, address="") if f
+                              else t.set_layer(s, file=""))
+            with ui.row().classes("w-full no-wrap items-center gap-2"):
+                ui.select(FITS, value=own["fit"], label="Fits",
+                          on_change=lambda e, s=side: self._edit(f"layer/{s}/fit", lambda t: t.set_layer(
+                              s, fit=e.value), whole=False)).props(FIELD).classes("w-40 shrink-0")
+                ui.label("See-through").classes("text-xs opacity-70 shrink-0")
+                ui.slider(min=0, max=100, step=5, value=round((1 - own["opacity"]) * 100),
+                          on_change=lambda e, s=side: self._edit(f"layer/{s}/opacity", lambda t: t.set_layer(
+                              s, opacity=round(1 - (e.value or 0) / 100, 2)), whole=False)) \
+                    .props("label").classes("flex-1")
+
     # files
 
-    async def _file_from_pc(self, kind: str) -> None:
+    def _file_choice(self, own: dict[str, Any], put: Callable[[EntryTable, str], Any]) -> None:
+        """A cell's or a layer's file of the widget: picked on the PC or sent from this device. put(table, file)
+        sets it ("" for none)."""
+        kind = own["kind"]
+        ui.label("A web address (https://...), a path on this PC (C:\\Pictures\\{user}.png) or in the "
+                 "toolbox's folder (pictures\\cat.gif), with values in it.").classes("text-xs opacity-60")
+        ui.label(f"Or a file: {own['file']}" + (" (the address comes first)" if own["address"] else "")
+                 if own["file"] else "Or a file of the widget:").classes("text-xs break-all")
+        with ui.row().classes("w-full items-center gap-2"):
+            ui.button("Pick a file on the PC", icon="folder_open",
+                      on_click=lambda: self._file_from_pc(kind, put)).props("no-caps outline dense")
+            if own["file"]:
+                ui.button(icon="close", on_click=lambda: self._edit("file", lambda t: put(t, ""))) \
+                    .props("flat round dense").tooltip("No file")
+        accept = "image/*" if kind == "image" else "video/webm,video/mp4"
+
+        async def uploaded(e) -> None:
+            self._use_file(e.file.name, await e.file.read(), put)
+        ui.upload(on_upload=uploaded, auto_upload=True, max_files=1) \
+            .props(f'accept="{accept}" flat bordered dense label="Or from this device"').classes("w-full")
+
+    async def _file_from_pc(self, kind: str, put: Callable[[EntryTable, str], Any]) -> None:
         endings = tuple(ending for ending, mime in ENDINGS.items() if mime.startswith(f"{kind}/"))
         found = await self._pick_file(endings)
         if found:
-            self._use_file(*found)
+            self._use_file(*found, put)
 
-    async def _uploaded(self, e) -> None:
-        self._use_file(e.file.name, await e.file.read())
-
-    def _use_file(self, file_name: str, content: bytes) -> None:
+    def _use_file(self, file_name: str, content: bytes, put: Callable[[EntryTable, str], Any]) -> None:
         stored = self._take_file(file_name, content)
         if stored:
-            self._edit("file", lambda t: t.set_cell(self._picked, file=stored, address=""))
+            self._edit("file", lambda t: put(t, stored))
 
     # changes
 
@@ -334,13 +406,17 @@ class EntryTableDialog:
         self._grid.refresh()
         if whole:
             self._cell_panel.refresh()
+            self._layers_panel.refresh()
         self._preview()
-        if key.startswith("address"):  # a path on this PC: the toolbox gives it once the editor saved it
+        if "address" in key:  # a path on this PC: the toolbox gives it once the editor saved it
             ui.timer(1.5, self._preview, once=True)
 
     def _preview(self) -> None:
         table = self._table().data
         sample = {**DesignValues.list_sample(self._values), **SAMPLES.get(self._event, {})}
+        for cell in table["cells"]:
+            if cell.get("emoji_dict") and not isinstance(sample.get(cell["emoji_dict"]), dict):
+                sample[cell["emoji_dict"]] = SAMPLE_EMOJI
         media = self._media("")  # /overlay/widget/<name>/media/
         local = media.rsplit("/media/", 1)[0] + "/local?path="
         ui.run_javascript(

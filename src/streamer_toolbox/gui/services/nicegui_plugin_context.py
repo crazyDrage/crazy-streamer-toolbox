@@ -13,6 +13,7 @@ from streamer_toolbox.core.connections.secrets_folder import SecretsFolder
 from streamer_toolbox.core.events.event_bus import EventBus, EventHandler
 from streamer_toolbox.core.events.event_fields import EVENT_FIELDS
 from streamer_toolbox.core.flows.box_signals import BoxSignals
+from streamer_toolbox.core.flows.current_box import started_at
 from streamer_toolbox.core.flows.retrigger import Retrigger, current_retrigger
 from streamer_toolbox.core.interfaces.confirm_service import ConfirmService
 from streamer_toolbox.core.interfaces.connection import Connection
@@ -65,6 +66,9 @@ class NiceGuiPluginContext(PluginContext):
 
     def box_signals(self) -> Optional[BoxSignals]:
         return BoxSignals.current()
+
+    def started_at(self) -> str:
+        return started_at.get()
 
     def retrigger(self) -> Optional[Retrigger]:
         return current_retrigger.get()

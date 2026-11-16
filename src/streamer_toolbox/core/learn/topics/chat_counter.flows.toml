@@ -26,4 +26,10 @@ params = {name = "lizards", op = "+", amount = 1}
 id = "tell"
 action = "twitch.send_chat"
 box = [920, 40]
-params = {message = "Lizards so far: ${box.count}"}
+params = {message = "${box.text}"}
+
+[[flows.nodes]]
+id = "text"
+action = "text.build"
+box = [920, 260]
+params = {text = "Lizards so far: {count}", count = "${box.count}"}

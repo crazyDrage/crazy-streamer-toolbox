@@ -206,6 +206,59 @@ class TestEntryTable(unittest.TestCase):
         self.assertEqual([(0, 0, 1, 1)], spots(EntryTable.of({"cells": []})))
         self.assertEqual([(0, 0, 1, 1)], spots(EntryTable.of(None)))
 
+    def test_a_layer_behind_and_one_in_front(self):
+        """His round 90: a picture as every event's background, a glass in front."""
+        table = EntryTable.new()
+        self.assertIsNone(table.layer("back"))
+        table.set_layer("back", kind="image", address="C:\\backs\\{user}.png")
+        table.set_layer("front", kind="image", file="glass.png", fit="fill", opacity=0.5)
+        self.assertEqual({"kind": "image", "file": "", "address": "C:\\backs\\{user}.png", "fit": "cover",
+                          "opacity": 1.0}, table.layer("back"))
+        self.assertEqual({"kind": "image", "file": "glass.png", "address": "", "fit": "fill", "opacity": 0.5},
+                         table.layer("front"))
+        self.assertEqual({"glass.png"}, table.files())
+        self.assertEqual({"C:\\backs\\{user}.png"}, table.addresses())
+        again = EntryTable.of(table.data)  # kept and read back
+        self.assertEqual(table.layer("front"), again.layer("front"))
+
+    def test_no_layer_takes_it_away(self):
+        table = EntryTable.new()
+        table.set_layer("front", kind="video", file="shine.webm")
+        table.set_layer("front", kind="")
+        self.assertIsNone(table.layer("front"))
+        self.assertNotIn("layers", table.data)
+        self.assertEqual(set(), table.files())
+
+    def test_a_text_cells_emoji_dictionary_moves_with_what_it_holds(self):
+        """His 2026-11-16: a text names the event's value with the emoji dictionary."""
+        table = EntryTable.new("{message}")
+        self.assertEqual(("", 0), (table.cell(0)["emoji_dict"], table.cell(0)["emoji_size"]))
+        table.set_cell(0, emoji_dict="emoji_dict", emoji_size="28")
+        self.assertEqual(("emoji_dict", 28), (table.cell(0)["emoji_dict"], table.cell(0)["emoji_size"]))
+        table.add(0, "left")
+        table.move(0, "left")  # the cell goes left, its emoji dictionary with it
+        moved = next(c for c in table.cells() if c["text"] == "{message}")
+        self.assertEqual(("emoji_dict", 28), (moved["emoji_dict"], moved["emoji_size"]))
+        self.assertEqual(0, EntryTable.of({**table.data, "cells": [{**moved, "emoji_size": "big"}]})
+                         .cell(0)["emoji_size"])
+
+    def test_an_older_cell_has_no_emoji_dictionary(self):
+        table = EntryTable.of({"columns": 1, "rows": 1, "cells": [cell(0, 0, 1, 1)]})
+        self.assertEqual(("", 0), (table.cell(0)["emoji_dict"], table.cell(0)["emoji_size"]))
+
+    def test_wrong_layer_settings(self):
+        table = EntryTable.new()
+        with self.assertRaises(ValueError):
+            table.set_layer("middle", kind="image")
+        with self.assertRaises(ValueError):
+            table.set_layer("back", kind="text")
+        with self.assertRaises(ValueError):
+            table.set_layer("back", kind="image", fit="squash")
+        read = EntryTable.of({**table.data, "layers": {"back": {"kind": "text"}, "front": {
+            "kind": "image", "fit": "?", "opacity": "lots"}}})
+        self.assertIsNone(read.layer("back"))
+        self.assertEqual(("cover", 1.0), (read.layer("front")["fit"], read.layer("front")["opacity"]))
+
 
 if __name__ == "__main__":
     unittest.main()

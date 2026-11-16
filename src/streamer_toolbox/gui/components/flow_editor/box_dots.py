@@ -53,7 +53,7 @@ class BoxDots:
         """The box's extra run dots on the left, after its normal one: a Loop's "stop", a run dot per line of a box
         with lines (Choose value's value_1, value_2, ...)."""
         action = self.action(node.action)
-        return [*action.entries, *action.entry_lines(node.params)] if action else []
+        return [*action.entries, *action.starts, *action.entry_lines(node.params)] if action else []
 
     def lines(self, name: str, params: dict[str, Any]) -> list[str]:
         """The run dots of a box with lines (Choose value, End), each starting it with its own value; else []."""

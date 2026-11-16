@@ -122,12 +122,18 @@
     box.replaceChildren();
     if (field.type === "latestTicker" && (field.toolbox || {}).ticker) return fillTicker(box, field);
     const content = (field.text || []).map(line => line.content || "").join("\n");
+    // the text's emoji dictionary (his 11-16): one of the event's values; its words show as their pictures
+    const emoji = ((field.toolbox || {}).emoji) || null;
+    const words = emoji && emoji.dict && event && window.TOOLBOX_ENTRY
+      ? TOOLBOX_ENTRY.dictionary((event.data || {})[emoji.dict]) : null;
+    const put = (into, text) => words ? TOOLBOX_ENTRY.withEmoji(into, text, words, Number(emoji.size) || 0, {})
+      : into.append(text);
     const say = (text, nth) => {
       text.split(/\{([^{}]+)\}/).forEach((piece, index) => {
-        if (index % 2 === 0) return box.append(piece);
+        if (index % 2 === 0) return put(box, piece);
         const filled = document.createElement("span");
         Object.assign(filled.style, field.highlightedStyle || {});
-        filled.textContent = lookup(piece, event, nth);
+        put(filled, lookup(piece, event, nth));
         box.append(filled);
       });
     };
@@ -396,7 +402,8 @@
     const kind = listener.replace(/-latest$/, "");
     if (kind === listener || !told) return null;
     const type = kind === "follower" ? "follow" : kind === "subscriber" && told.bulkGifted ? "communityGiftPurchase" : kind;
-    return {topic: "event", type, provider: "twitch", data: {
+    // the event's other values (an emoji dictionary, ...) by their names too (his 11-16)
+    return {topic: "event", type, provider: "twitch", data: {...told,
       username: told.name, displayName: told.name, amount: told.amount, message: told.message || "",
       gifted: Boolean(told.gifted), tier: told.tier, sender: told.sender, currency,
     }};
@@ -417,10 +424,11 @@
     entryCode().then(() => config.configStates.filter(state => always(state) && on(state)).forEach(stand));
   }
 
-  // event_entry.js, only for a widget with an event list (it is loaded once, before the layers stand)
+  // event_entry.js, only for a widget with an event list or a text with an emoji dictionary (it is loaded once,
+  // before the layers stand)
   function entryCode() {
     const needed = config.configStates.some(state => Object.values((state.settings || {}).compositeFields || {})
-      .some(field => field.type === "eventList"));
+      .some(field => field.type === "eventList" || ((field.toolbox || {}).emoji || {}).dict));
     if (!needed || window.TOOLBOX_ENTRY) return Promise.resolve();
     return new Promise(done => {
       const script = document.createElement("script");

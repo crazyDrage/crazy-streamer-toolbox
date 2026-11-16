@@ -2,6 +2,7 @@ import unittest
 
 from streamer_toolbox.core.data.boxes.build_object import BuildObject
 from streamer_toolbox.core.data.boxes.get_from_object import GetFromObject
+from streamer_toolbox.core.data.boxes.join_objects import JoinObjects
 from streamer_toolbox.core.data.boxes.object_has_key import ObjectHasKey
 from streamer_toolbox.core.data.boxes.object_keys import ObjectKeys
 from streamer_toolbox.core.data.boxes.object_values import ObjectValues
@@ -12,6 +13,14 @@ SETTINGS = {"right_arm": {"id": 0, "bool": False}, "left_arm": {"id": 1, "bool":
 
 
 class TestObjectActions(unittest.IsolatedAsyncioTestCase):
+    async def test_join_two_objects_the_second_wins(self) -> None:
+        """His 11-16: "a different dict, and then add the 2 dicts together"."""
+        first, second = {"Kappa": "bttv", "catJAM": "bttv"}, {"Kappa": "twitch"}
+        self.assertEqual({"Kappa": "twitch", "catJAM": "bttv"}, await JoinObjects().run(first, second))
+        self.assertEqual({"Kappa": "bttv", "catJAM": "bttv"}, first)  # the two stay as they were
+        self.assertEqual({"a": 1}, await JoinObjects().run('{"a": 1}', ""))
+        self.assertEqual({}, await JoinObjects().run())
+
     async def test_get_by_key_or_path(self) -> None:
         self.assertEqual(await GetFromObject().run(SETTINGS, "left_arm"), {"id": 1, "bool": True})
         self.assertEqual(await GetFromObject().run(SETTINGS, "left_arm.id"), 1)

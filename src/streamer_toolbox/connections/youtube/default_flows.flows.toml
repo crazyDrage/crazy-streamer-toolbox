@@ -6,7 +6,7 @@ folder = "YouTube - default"
 [[flows]]
 name = "youtube_thank_member"
 label = "YouTube - default - thank a member"
-description = "Welcomes every new member in chat. Change the words in the box."
+description = "Welcomes every new member in chat. Change the words in the Build text box."
 wires = [
     {from = "member", port = "out", to = "thank"},
 ]
@@ -20,7 +20,13 @@ box = [320, 40]
 id = "thank"
 action = "youtube.send_chat"
 box = [620, 40]
-params = {message = "Welcome to the members, ${box.member.user}!"}
+params = {message = "${box.text}"}
+
+[[flows.nodes]]
+id = "text"
+action = "text.build"
+box = [620, 260]
+params = {text = "Welcome to the members, {user}!", user = "${box.member.user}"}
 
 [[flows]]
 name = "youtube_thank_superchat"
@@ -39,4 +45,10 @@ box = [320, 40]
 id = "thank"
 action = "youtube.send_chat"
 box = [620, 40]
-params = {message = "Thanks for the Super Chat, ${box.superchat.user}!"}
+params = {message = "${box.text}"}
+
+[[flows.nodes]]
+id = "text"
+action = "text.build"
+box = [620, 260]
+params = {text = "Thanks for the Super Chat, {user}!", user = "${box.superchat.user}"}

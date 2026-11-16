@@ -11,6 +11,7 @@ from streamer_toolbox.core.actions.registered_action import ActionHandler, Optio
 from streamer_toolbox.core.connections.secret_file import SecretFile
 from streamer_toolbox.core.events.event_bus import EventHandler
 from streamer_toolbox.core.flows.box_signals import BoxSignals
+from streamer_toolbox.core.flows.current_box import started_at
 from streamer_toolbox.core.flows.retrigger import Retrigger, current_retrigger
 from streamer_toolbox.core.interfaces.connection import Connection
 from streamer_toolbox.core.interfaces.field_editor import FieldEditor
@@ -61,6 +62,9 @@ class FakePluginContext(PluginContext):
 
     def box_signals(self) -> Optional[BoxSignals]:
         return BoxSignals.current()
+
+    def started_at(self) -> str:
+        return started_at.get()
 
     def retrigger(self) -> Optional[Retrigger]:
         return current_retrigger.get()

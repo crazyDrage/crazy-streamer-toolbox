@@ -23,8 +23,8 @@ class DesignValuesTest(unittest.TestCase):
     def test_an_event_lists_entry_has_its_event_types_values_by_their_names(self) -> None:
         # his 11-13: "the values should be 1to1 the same name as the event values"
         names = [value["name"] for value in DesignValues.list_values("message", list(DEFAULTS))]
-        self.assertEqual(["user", "message", "color", "role", "platform", "user_id", "message_id", "emotes",
-                          "picture"], names)
+        self.assertEqual(["user", "message", "color", "role", "platform", "user_id", "message_id", "picture",
+                          "emoji_dict"], names)
         cheer = {value["name"]: value for value in DesignValues.list_values("cheer", list(DEFAULTS))}
         self.assertEqual(["user", "bits", "message", "platform"], list(cheer))
         self.assertEqual((["amount"], "100"), (cheer["bits"]["aka"], cheer["bits"]["default"]))

@@ -69,6 +69,7 @@ class ThingActions:
 | `editors={"animation": "vts_animation"}` | the field keeps a value of its own, edited in its own window (a `FieldEditor`; a plugin adds one with `ctx.add_field_editor`) |
 | `entries=("stop",)` | extra run dots on the left: a wire arriving while the box runs is passed to it (`BoxSignals`: `ctx.box_signals()` in a plugin, `.has("stop")`, `await .wait_for(seconds, "stop")`); it doesn't start the box. The box's own dot is drawn "start" then |
 | `toggles=("switch",)` | entries that start the box when it isn't running (Loop's switch) |
+| `starts={"set": ("value",)}` | extra run dots that each start the box, after its normal one; the handler asks which one it was (`Box.started_at()`, `ctx.started_at()` in a plugin: `"set"`, `""` = the normal dot). The fields named for a dot are read only when the box starts there (Remembered value: `start` looks up, `set` keeps its `value`) |
 | `entries=("next",)` on a box that yields rounds | a wire into `next` starts the next round right away; the round goes on alongside, with its own copy of the box values (For each) |
 | `alongside="*"` | every run of the flow gets its own copy of the box, without a field to choose it |
 | `port_fields="case"` | a field the box can have any number of (case_1, case_2, ...), each also a run output, before `ports` |

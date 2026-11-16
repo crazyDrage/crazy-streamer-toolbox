@@ -386,8 +386,7 @@ class TwitchConnection(ConnectionBase, RewardManager, AccountHolder):
         question = TwitchClipQuestion(self._folder / "cache" / "twitch_clip_question.json" if self._folder else None,
                                       self._transport)
         TwitchClipActions(TwitchClipFiles(self._transport, question=question), downloader).add_to(actions)
-        pictures = TwitchPictureLookup(self._helix, self._folder / "cache" / "twitch_pictures.json"
-                                       if self._folder else None)
+        pictures = TwitchPictureLookup(self._helix)
         for box in (SendChatMessage(self), CreateReward(self), PauseReward(self), RewardOnOff(self),
                     GetRewards(self), FinishRefundRedeem(self), StreamMarker(self), TwitchProfilePicture(pictures)):
             actions.add_box(box, "twitch")

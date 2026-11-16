@@ -8,6 +8,7 @@ from streamer_toolbox.core.widgets.element_design import (ANIMATIONS_IN, ANIMATI
                                                           ElementDesign)
 from streamer_toolbox.core.widgets.element_settings import _number
 from streamer_toolbox.gui.components.widgets_tool.design_live_panel import DesignLivePanel
+from streamer_toolbox.gui.components.widgets_tool.emoji_help import EMOJI_HELP
 
 FIELD = "outlined dense options-dense"
 FONTS = ["Arial", "Arial Black", "Verdana", "Tahoma", "Trebuchet MS", "Segoe UI", "Georgia", "Times New Roman",
@@ -86,7 +87,7 @@ class DesignPiecePanel:
             self._place(kind)
         if alert and kind != "audio":
             self._animation()
-        elif not alert:
+        elif not alert and kind != "eventList":  # his: the event list shows events already, no reaction
             self._reaction()
 
     def _set(self, key: str, what: Callable[[ElementDesign], Any]) -> None:
@@ -113,6 +114,26 @@ class DesignPiecePanel:
         ui.select(names, label="Add a value to the text", on_change=add_value).props(FIELD).classes("w-full") \
             .tooltip("A value shows as [its name] in the text and is filled in on stream"
                      + ("; in an alert the event's own values too (their name, the amount)" if alert else ""))
+        if alert:
+            self._emoji()
+
+    def _emoji(self) -> None:
+        """His 11-16: an alert's text shows the words of the event's emoji dictionary as their pictures."""
+        now = self._design.emoji(self._layer, self._name)
+        with ui.row().classes("w-full no-wrap items-center gap-2"):
+            ui.select(sorted({"", "emoji_dict", now["dict"]}), value=now["dict"], label="Emoji dictionary",
+                      new_value_mode="add-unique",
+                      on_change=lambda e: self._set("emoji", lambda d: d.set_emoji(
+                          self._layer, self._name, dict=e.value or ""))) \
+                .props(FIELD + " use-input clearable").classes("flex-1 min-w-0") \
+                .tooltip("The event's value that holds the emoji dictionary (emoji_dict); type another name")
+            ui.number("Emoji size", value=now["size"] or None, min=0, step=1, suffix="px",
+                      on_change=lambda e: self._set("emoji_size", lambda d: d.set_emoji(
+                          self._layer, self._name, size=e.value or 0))) \
+                .props(FIELD + " clearable").classes("w-28").tooltip("Empty: as high as the words")
+        with ui.expansion("How the emoji dictionary works", icon="info").classes("w-full text-xs") \
+                .props("dense header-class='px-0 text-xs opacity-70'"):
+            ui.markdown(EMOJI_HELP).classes("text-xs")
 
     def _look(self, kind: str) -> None:
         piece = self._design.piece(self._layer, self._name)

@@ -104,7 +104,7 @@ class PluginContext(ABC):
 
         label is the button text on the Live page (default: the name, humanised); description shows under it.
         **box is what a box in the flow editor can have besides its fields: every keyword of ActionRegistry.add
-        (group, options, outputs, ports, entries, toggles, port_fields, entry_fields, value_lines, named_lines,
+        (group, options, outputs, ports, entries, toggles, starts, port_fields, entry_fields, value_lines, named_lines,
         data_only, join, ends_flow, gives_back, once_per_flow, retrigger, variable_fields, editors, ...; all of
         them in docs/ai/code/action.md). The toolbox's own boxes use nothing a plugin can't: a Loop, an End or a
         Wait can be made the same way (tests/test_plugin_parity.py).
@@ -114,6 +114,11 @@ class PluginContext(ABC):
     def box_signals(self) -> Optional[BoxSignals]:
         """Inside a box's handler while it runs in a flow: what arrived at its extra run dots (`entries`, e.g.
         a "stop": has("stop"), await wait_for(seconds, "stop")). None outside a flow (Test box, API)."""
+
+    @abstractmethod
+    def started_at(self) -> str:
+        """Inside a box's handler with `starts`: the run dot a wire started it at (e.g. "set"); "" = its normal
+        one, and outside a flow."""
 
     @abstractmethod
     def retrigger(self) -> Optional[Retrigger]:

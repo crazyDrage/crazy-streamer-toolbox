@@ -34,6 +34,18 @@ class ElementDesignTest(unittest.TestCase):
         self.assertEqual(["Picture", "Picture 2", "Picture 3"],
                          [self.design.add(self.always, "image") for _ in range(3)])
 
+    def test_an_alert_text_has_an_emoji_dictionary(self) -> None:
+        """His 11-16: a text names the event's value with the emoji dictionary, and the pictures' height."""
+        name = self.design.add(self.always, "text")
+        self.assertEqual({"dict": "", "size": 0}, self.design.emoji(self.always, name))
+        self.design.set_emoji(self.always, name, dict=" emoji_dict ", size="32")
+        self.assertEqual({"dict": "emoji_dict", "size": 32}, self.design.emoji(self.always, name))
+        self.design.set_emoji(self.always, name, size=0)
+        self.assertEqual({"dict": "emoji_dict", "size": 0}, self.design.emoji(self.always, name))
+        self.design.set_emoji(self.always, name, dict="")
+        self.assertEqual({"dict": "", "size": 0}, self.design.emoji(self.always, name))
+        self.assertNotIn("emoji", self.design.piece(self.always, name).get("toolbox") or {})
+
     def test_an_alert_for_an_event_once(self) -> None:
         layer = self.design.add_alert("follower")
         self.assertEqual(layer, self.design.add_alert("follower"))
