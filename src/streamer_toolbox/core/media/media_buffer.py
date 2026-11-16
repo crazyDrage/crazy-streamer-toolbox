@@ -88,21 +88,32 @@ class MediaBuffer:
         if box is not None:
             self._map(box, folder)
         key = hashlib.sha256(url.encode("utf-8")).hexdigest()[:CODE]
+        # one lock per file (the same picture asked twice at once is one download) and one per folder around its
+        # index: pictures kept at the same time (a message's emotes) each read and write the index whole, so
+        # without it one's entry was written over by the other's (his 11-16: "only one emote at the time")
         async with self._locks.setdefault((place, key), asyncio.Lock()):
-            index = self._index(place)
-            index["limits"] = {"max_mb": max_mb, "file_mb": file_mb, "days": days}
-            found = self._good(place, index, key, days)
+            async with self._locks.setdefault((place, ""), asyncio.Lock()):
+                found = self._good(place, self._index(place), key, days)
             if found is None:
                 found = await self._download(place, url, key, _name_part(name), int(file_mb * MB))
-                index["files"][found.name] = {"url": url, "fetched": self._clock(), "used": self._clock(),
-                                              "size": found.stat().st_size}
+                entry = {"url": url, "fetched": self._clock(), "used": self._clock(), "size": found.stat().st_size}
             else:
-                index["files"][found.name]["used"] = self._clock()
-            index["latest"][""] = found.name
-            if box is not None:
-                index["latest"]["/".join(box)] = found.name
-            self._tidy(place, index, keeping=found.name)
-            self._save(place, index)
+                entry = None
+            async with self._locks.setdefault((place, ""), asyncio.Lock()):
+                index = self._index(place)  # as it is now: others may have kept theirs meanwhile
+                index["limits"] = {"max_mb": max_mb, "file_mb": file_mb, "days": days}
+                if entry is not None:
+                    index["files"][found.name] = entry
+                elif found.name in index["files"]:
+                    index["files"][found.name]["used"] = self._clock()
+                elif found.is_file():  # it went from the index meanwhile, its file is still there: in again
+                    index["files"][found.name] = {"url": url, "fetched": self._clock(), "used": self._clock(),
+                                                  "size": found.stat().st_size}
+                index["latest"][""] = found.name
+                if box is not None:
+                    index["latest"]["/".join(box)] = found.name
+                self._tidy(place, index, keeping=found.name)
+                self._save(place, index)
         if box is not None:
             return Kept(f"{ROUTE}/{BOX_PLACE}/{box[0]}/{box[1]}/{found.name}", found)
         return Kept(f"{ROUTE}/{place}/{found.name}", found)

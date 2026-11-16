@@ -1,3 +1,4 @@
+import asyncio
 import json
 import tempfile
 import unittest
@@ -34,6 +35,20 @@ class TestMediaBuffer(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([PIC], self.web.asked)
         self.assertEqual(kept.file, self.buffer.find_shared("media", kept.file.name))
         self.assertEqual(kept.file, self.buffer.find_shared("media", "latest.png"))
+
+    async def test_pictures_kept_at_the_same_time_are_all_served(self) -> None:
+        """His 11-16: "only one emote at the time will be loaded": a message's emotes are kept at once; each one
+        read and wrote the folder's index whole, so the last one written over the others' entries."""
+        emotes = [f"https://cdn.betterttv.net/emote/e{number}/3x" for number in range(4)]
+        for url in emotes:
+            self.web.picture(url)
+        self.web.slow = 0.02  # they overlap, as on the real web
+        kept = await asyncio.gather(*(self.buffer.keep(url, name=f"e{n}", box=CHAT) for n, url in enumerate(emotes)))
+        for one in kept:
+            self.assertEqual(one.file, self.buffer.find_for_box(*CHAT, one.file.name), one.address)
+        again = await asyncio.gather(*(self.buffer.keep(url, name=f"e{n}", box=CHAT) for n, url in enumerate(emotes)))
+        self.assertEqual(kept, again)
+        self.assertEqual(4, len(self.web.asked))  # each downloaded once
 
     async def test_a_box_in_a_flow_keeps_in_its_own_folder_at_its_own_address(self) -> None:
         kept = await self.buffer.keep(PIC, name="kit", box=CHAT)
