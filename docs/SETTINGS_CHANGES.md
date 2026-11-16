@@ -44,6 +44,9 @@ Without a step:
 - The flow "Twitch pfp and chat emotes" reads its inputs as wires from the Input box (`${box.input.…}`); one made
   before reads `${input.…}` (both work). "Add default flows" → "Update them" makes it new.
 - An event list's event can be changed in place, and a new one's look copied from another (no new settings).
+- The boxes Twitch emotes and BetterTTV emotes have a field `folder` (shared folder of the kept pictures; missing:
+  `twitch_emotes` / `bttv_emotes`, empty: the box's own). Flows made before keep working; their pictures are
+  downloaded once more into the shared folder.
 
 ## Version 6 (2026-11-16)
 

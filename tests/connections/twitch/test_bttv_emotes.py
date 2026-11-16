@@ -1,3 +1,4 @@
+import inspect
 import unittest
 
 import httpx
@@ -48,6 +49,12 @@ class TestBttvEmotes(unittest.IsolatedAsyncioTestCase):
 
     async def test_another_channel(self) -> None:
         self.assertEqual({"catJAM": picture("g1")}, await self._run(message="catJAM crazyLurk", channel="7"))
+
+    async def test_its_folder_is_bttv_emotes_and_a_wrong_name_stops_it(self) -> None:
+        """His 11-16: a folder name of its own, for flows other than ours too."""
+        self.assertEqual("bttv_emotes", inspect.signature(BttvEmotes.run).parameters["folder"].default)
+        with self.assertRaisesRegex(ValueError, "folder name"):
+            await self._run(message="catJAM", folder="no/slashes")
 
     async def test_no_message_no_question_and_bttv_down_no_failure(self) -> None:
         self.assertEqual({}, await self._run(message=""))

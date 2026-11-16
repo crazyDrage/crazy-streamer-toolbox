@@ -68,8 +68,10 @@ def twitch_pfp_and_chat_emotes(name: str) -> Flow:
                  box=(920.0, 300.0)),
         FlowNode("n5", "logic.choose", {"values": 2, "value_1": "${box.n2.value}", "value_2": ""},
                  note="the picture, or none", box=(1220.0, 40.0)),
-        FlowNode("n6", "twitch.emotes", {"emotes": "${box.input.emotes}"}, box=(1520.0, 40.0)),
-        FlowNode("n8", "twitch.bttv_emotes", {"message": "${box.input.message}"}, box=(1820.0, 40.0)),
+        FlowNode("n6", "twitch.emotes", {"emotes": "${box.input.emotes}", "folder": "twitch_emotes"},
+                 box=(1520.0, 40.0)),
+        FlowNode("n8", "twitch.bttv_emotes", {"message": "${box.input.message}", "folder": "bttv_emotes"},
+                 box=(1820.0, 40.0)),
         # his 11-16: a dictionary of each, then the two together (Twitch's win: its own emote of the same word)
         FlowNode("n9", "object.join", {"first": "${box.n8.emoji_dict}", "second": "${box.n6.emoji_dict}"},
                  box=(1820.0, 300.0)),

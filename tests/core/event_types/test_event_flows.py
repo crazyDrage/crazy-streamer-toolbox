@@ -66,6 +66,8 @@ class TestEventFlows(unittest.TestCase):
         self.assertEqual({"picture": "${box.n5}", "emoji_dict": "${box.n9}"}, made.nodes[-1].params)
         self.assertIn(FlowWire("n1", "else", "n5", "value_2"), made.wires)  # no user id: no picture, no failure
         self.assertIn(FlowWire("n4", "done", "n2", "set"), made.wires)
+        # his 11-16: the emote pictures in folders of their own name, shared with any other flow that names them
+        self.assertEqual(("twitch_emotes", "bttv_emotes"), (made.nodes[5].params["folder"], made.nodes[6].params["folder"]))
         for flow in (main, twitch, made):  # rule 36: every field a plain value or one whole wire
             for node in flow.nodes:
                 for value in node.params.values():
