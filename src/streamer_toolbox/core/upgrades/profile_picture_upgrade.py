@@ -38,7 +38,7 @@ class ProfilePictureUpgrade(SettingsUpgrade):
                 self._rebuild_chat()
                 if any(node.action == REMEMBER for made in self._flows.all() for node in made.nodes):
                     said.append(f"flow {flow.label!r}: made new, with \"Event: chat · Twitch\" for Twitch's chat "
-                                "(Remembered value → Twitch profile picture)")
+                                "(the box Twitch pfp and chat emotes)")
                     continue
                 self._flows.save(flow, flow.name)  # a chat type without its picture value: the boxes stay
             changed = self.flow(flow)

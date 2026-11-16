@@ -51,7 +51,9 @@ Step: `EmojiDictUpgrade` (`core/upgrades/emoji_dict_upgrade.py`). His emoji dict
 
 | Before (version 5) | After (version 6) |
 |---|---|
-| the chat event type that came with the toolbox: user … picture | the value `emoji_dict` at its end (a type he made himself, or one that has it, stays as it is) |
+| the chat event type that came with the toolbox | the values `picture` (v0.4.1 and before never got it) and `emoji_dict` at its end, those it hasn't (a type he made himself stays as it is) |
+| v0.4.1's `Event: chat`, unchanged (the chat Start box straight into Send chat) | made new: `Event: chat` for every platform but Twitch, `Event: chat · Twitch` with the picture and the emotes |
+| `Event: chat · Twitch` as step 5 made it from dev.5 to dev.7's chat flow (its Send without `emoji_dict`) | made new with `emoji_dict` |
 
 Without a step:
 - `Event: chat · Twitch` (made new by "Add default flows" → "Update them"): Start → the box "Twitch pfp and chat

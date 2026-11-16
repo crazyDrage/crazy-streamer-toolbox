@@ -382,7 +382,8 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
             secrets.path("rumble_address.txt"), RUMBLE_MOVED)),
         ProfilePictureUpgrade(flows, lambda: event_flows.update_default("chat"),
                               args.config.parent / "cache" / "twitch_pictures.json"),
-        EmojiDictUpgrade(lambda: event_types.add_values("chat", (EventValue("emoji_dict"),))),
+        EmojiDictUpgrade(lambda: event_types.add_values("chat", (EventValue("picture"), EventValue("emoji_dict"))),
+                         flows, lambda: event_flows.update_default("chat")),
         ChatEmotesUpgrade(flows, lambda: event_types.remove_values("chat", ("emotes",)))],
         back_up=upgrade_backup)
     for line in upgrades.run() + conversion.leftovers():
