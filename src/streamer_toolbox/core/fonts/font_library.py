@@ -70,6 +70,9 @@ class FontLibrary:
             raise ValueError(f"not a font file the toolbox can host: use {', '.join(FORMATS)}")
         if len(data) > MOST_BYTES:
             raise ValueError(f"too big ({len(data) // 1024 // 1024} MB; at most {MOST_BYTES // 1024 // 1024} MB)")
+        same = self._same_file(data)
+        if same is not None:  # his 11-18: Orbitron uploaded three times was kept three times
+            raise ValueError(f"it is already in the toolbox as {same.name}")
         self.folder.mkdir(parents=True, exist_ok=True)
         stem = UNSAFE.sub("_", Path(name).stem).strip(" .") or "font"
         path = self.folder / f"{stem}{suffix}"
@@ -129,6 +132,15 @@ class FontLibrary:
                          f'{f" {face.weight_most}" if face.weight_most else ""}; '
                          f'font-style: {"italic" if face.italic else "normal"}; font-display: swap; }}')
         return "\n".join(rules) + "\n"
+
+    def _same_file(self, data: bytes) -> Path | None:
+        """A file of the folder with exactly these bytes (only files of the same size are read)."""
+        if not self.folder.is_dir():
+            return None
+        for path in sorted(self.folder.iterdir()):
+            if path.suffix.casefold() in FORMATS and path.is_file() and path.stat().st_size == len(data)                     and path.read_bytes() == data:
+                return path
+        return None
 
     def _names(self) -> list[str]:
         if not self._by_name.exists():

@@ -6,6 +6,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from streamer_toolbox.core.files.write_whole import write_whole
+
 log = logging.getLogger(__name__)
 
 
@@ -69,9 +71,7 @@ class LastEvents:
         path = self.path(kind)
         try:
             self._folder.mkdir(parents=True, exist_ok=True)
-            half = path.with_name(path.name + ".tmp")
-            half.write_text(json.dumps(entry, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
-            half.replace(path)
+            write_whole(path, json.dumps(entry, ensure_ascii=False, indent=2, default=str))
         except OSError as e:
             log.warning("last event of %s not saved: %s", kind, e)
             return

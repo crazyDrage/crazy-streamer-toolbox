@@ -1,8 +1,8 @@
 import json
-import os
 from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 
+from streamer_toolbox.core.files.write_whole import write_whole
 from streamer_toolbox.core.system.backup_policy import BackupPolicy
 
 FILE = "starter.json"  # in the settings folder; the starter window is where it is changed (rule: no files)
@@ -44,6 +44,4 @@ class StarterSettings:
     def write(self, settings: Path) -> None:
         """Written whole to a temp file, then swapped in: a backup or a crash never sees half a file."""
         settings.mkdir(parents=True, exist_ok=True)
-        temp = settings / (FILE + ".tmp")
-        temp.write_text(json.dumps(asdict(self), indent=1), encoding="utf-8")
-        os.replace(temp, settings / FILE)
+        write_whole(settings / FILE, json.dumps(asdict(self), indent=1))

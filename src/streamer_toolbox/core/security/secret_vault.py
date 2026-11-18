@@ -2,6 +2,7 @@ import base64
 import json
 import logging
 import os
+import uuid
 from pathlib import Path
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -126,7 +127,9 @@ def _key(password: str, salt: bytes, n: int = SCRYPT_N, r: int = SCRYPT_R, p: in
 
 
 def _replace(file: Path, data: bytes) -> None:
-    """Writes the whole file or nothing: a cut-short write must not leave half a token."""
-    half = file.with_name(file.name + ".tmp")
+    """Writes the whole file or nothing: a cut-short write must not leave half a token. Not write_whole: its
+    last way out writes straight into the file. Each write has its own .tmp (two at once can't take each
+    other's, his 11-18)."""
+    half = file.with_name(f"{file.name}.{uuid.uuid4().hex[:8]}.tmp")
     half.write_bytes(data)
     half.replace(file)

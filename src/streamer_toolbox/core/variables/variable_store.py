@@ -4,6 +4,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from streamer_toolbox.core.files.write_whole import write_whole
+
 log = logging.getLogger(__name__)
 NAME_CHARS = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")
 MOVED = ".old"  # what the one file of before is renamed to, once its variables are files of their own
@@ -87,9 +89,7 @@ class VariableStore:
     def _write(self, name: str, value: Any) -> None:
         text = json.dumps(value, indent=2, ensure_ascii=False)  # only what fits in a file
         self._folder.mkdir(parents=True, exist_ok=True)
-        half = self._path(name).with_name(f"{name}.json.tmp")
-        half.write_text(text, encoding="utf-8")
-        half.replace(self._path(name))
+        write_whole(self._path(name), text)
 
     def _tell(self) -> None:
         for listener in list(self._listeners):
