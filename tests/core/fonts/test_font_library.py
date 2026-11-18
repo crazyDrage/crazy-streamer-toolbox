@@ -49,6 +49,14 @@ class TestFontLibrary(unittest.TestCase):
         pc = {name: [FontFace(name, Path(f"{name}.ttf"))] for name in ("Arial", "bangers", "IMPACT", "Orbitron")}
         self.assertEqual(list(self.library.not_added(pc)), ["Arial", "Orbitron"])
 
+    def test_the_same_file_twice_is_kept_once(self) -> None:
+        """His 11-18: Orbitron uploaded three times showed three files."""
+        data = self._font("o.ttf", "Orbitron")
+        self.library.add_file("Orbitron-VariableFont_wght.ttf", data)
+        with self.assertRaisesRegex(ValueError, "already in the toolbox as Orbitron-VariableFont_wght.ttf"):
+            self.library.add_file("Orbitron (copy).ttf", data)
+        self.assertEqual(["Orbitron-VariableFont_wght.ttf"], [p.name for p in self.library.folder.iterdir()])
+
     def test_what_is_not_taken(self) -> None:
         with self.assertRaises(ValueError):
             self.library.add_file("virus.exe", b"MZ")
@@ -57,9 +65,8 @@ class TestFontLibrary(unittest.TestCase):
         self.assertEqual(list(self.library.folder.glob("*")), [])  # the bad file didn't stay
 
     def test_same_name_twice_keeps_both_and_odd_names_are_made_safe(self) -> None:
-        data = self._font("b.ttf", "Bangers")
-        self.library.add_file("../../evil name?.ttf", data)
-        self.library.add_file("evil name_.ttf", data)
+        self.library.add_file("../../evil name?.ttf", self._font("b.ttf", "Bangers"))
+        self.library.add_file("evil name_.ttf", self._font("bb.ttf", "Bangers", weight=700))
         self.assertEqual(sorted(p.name for p in self.library.folder.glob("*")),
                          ["evil name_ (2).ttf", "evil name_.ttf"])
 
