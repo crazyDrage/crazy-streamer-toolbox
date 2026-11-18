@@ -1,6 +1,7 @@
 import asyncio
 import json
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 
@@ -49,6 +50,31 @@ class TestMediaBuffer(unittest.IsolatedAsyncioTestCase):
         again = await asyncio.gather(*(self.buffer.keep(url, name=f"e{n}", box=CHAT) for n, url in enumerate(emotes)))
         self.assertEqual(kept, again)
         self.assertEqual(4, len(self.web.asked))  # each downloaded once
+
+    async def test_many_kept_files_asked_at_once_after_an_hour_are_all_served(self) -> None:
+        """His 11-18: a kept chat list showed its emotes only after 2-3 loads. Its ~40 pictures are asked at once
+        in the web server's threads; an hour after their last use each writes the index ("last used"), and with
+        one shared .tmp most of them failed."""
+        emotes = [f"https://cdn.betterttv.net/emote/e{number}/3x" for number in range(30)]
+        for url in emotes:
+            self.web.picture(url)
+        kept = await asyncio.gather(*(self.buffer.keep(url, name=f"e{n}", box=CHAT) for n, url in enumerate(emotes)))
+        self.now += 2 * 60 * 60
+        found, start = {}, threading.Barrier(len(kept))
+
+        def ask(name: str) -> None:
+            start.wait()
+            try:
+                found[name] = self.buffer.find_for_box(*CHAT, name)
+            except Exception as error:  # what the web server answered with a 500
+                found[name] = error
+
+        threads = [threading.Thread(target=ask, args=(one.file.name,)) for one in kept]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        self.assertEqual({one.file.name: one.file for one in kept}, found)
 
     async def test_a_box_in_a_flow_keeps_in_its_own_folder_at_its_own_address(self) -> None:
         kept = await self.buffer.keep(PIC, name="kit", box=CHAT)

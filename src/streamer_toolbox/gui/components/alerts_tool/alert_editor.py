@@ -18,6 +18,7 @@ from streamer_toolbox.core.alerts.alert_variation import AlertVariation
 from streamer_toolbox.core.event_types.event_type_store import EventTypeStore
 from streamer_toolbox.core.event_types.event_users import EventUsers
 from streamer_toolbox.core.files.file_types import AUDIO_TYPES
+from streamer_toolbox.gui.components.font_picker import FontPicker
 from streamer_toolbox.gui.components.file_dialog import FileDialog
 from streamer_toolbox.gui.components.split_panes import SplitPanes
 
@@ -188,9 +189,8 @@ class AlertEditor:
                 ui.color_input("Name colour", value=look.accent_color,
                                on_change=lambda e: self._change_look(accent_color=e.value or "")) \
                     .props(FIELD + " clearable").classes("flex-1")
-            ui.input("Font", value=look.font, placeholder="e.g. Comic Sans MS (one installed on this PC)",
-                     on_change=lambda e: self._change_look(font=e.value or "")).props(FIELD + " debounce=400") \
-                .classes("w-full")
+            FontPicker.build(look.font, lambda value: self._change_look(font=value), empty="The overlay's own") \
+                .props(FIELD).classes("w-full")
             ui.label("Empty colours and font = the overlay's own (white, purple names).") \
                 .classes("text-xs opacity-60")
 

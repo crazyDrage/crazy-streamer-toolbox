@@ -9,6 +9,7 @@ from streamer_toolbox.gui.components.app_shell import AppShell
 from streamer_toolbox.gui.components.box_filter_panel import BoxFilterPanel
 from streamer_toolbox.gui.components.event_recording_panel import EventRecordingPanel
 from streamer_toolbox.gui.components.export_panel import ExportPanel
+from streamer_toolbox.gui.components.fonts_panel import FontsPanel
 from streamer_toolbox.gui.components.role_loading_panel import RoleLoadingPanel
 from streamer_toolbox.gui.components.secrets_login_panel import SecretsLoginPanel
 from streamer_toolbox.gui.components.test_view_panel import TestViewPanel
@@ -21,7 +22,7 @@ class SettingsPage:
     """How the toolbox looks, where its settings file is, Restart, who may open it from other devices, his own
     filters for the Add box window, what he sees by his checks (TestViewPanel), when viewer roles are loaded
     (RoleLoadingPanel), the event recording's switch (EventRecordingPanel), the toolbox's own login
-    (SecretsLoginPanel), the toolbox's update (UpdatePanel), Export / Import (ExportPanel). A plugin's settings panels are under Plugins →
+    (SecretsLoginPanel), the toolbox's update (UpdatePanel), the fonts (FontsPanel), Export / Import (ExportPanel). A plugin's settings panels are under Plugins →
     that plugin (since 2026-10-14)."""
 
     def __init__(self, config_path: Path, ui_registry: UiRegistry, access: RemoteAccess, devices: SignedInDevices,
@@ -29,8 +30,9 @@ class SettingsPage:
                  box_filters: BoxFilterPanel | None = None, seen: TestViewPanel | None = None,
                  roles: RoleLoadingPanel | None = None, recording: EventRecordingPanel | None = None,
                  login: SecretsLoginPanel | None = None, update: UpdatePanel | None = None,
-                 export: ExportPanel | None = None) -> None:
+                 export: ExportPanel | None = None, fonts: FontsPanel | None = None) -> None:
         self._export = export
+        self._fonts = fonts
         self._login = login
         self._update = update
         self._roles = roles
@@ -58,6 +60,8 @@ class SettingsPage:
             parts.append(("Viewer roles", "roles", "groups"))
         if self._recording is not None:
             parts.append(("Event recording", "recording", "fiber_manual_record"))
+        if self._fonts is not None:
+            parts.append(("Fonts", "fonts", "font_download"))
         if self._export is not None:
             parts.append(("Export / Import", "export", "import_export"))
         return [(title, f"/settings?show={key}", icon) for title, key, icon in parts]
@@ -93,7 +97,7 @@ class SettingsPage:
                              "changes.").classes("text-xs opacity-60")
             for part, panel in (("devices", self._other_devices), ("login", self._login), ("boxes", self._box_filters),
                                 ("seen", self._seen), ("roles", self._roles), ("recording", self._recording),
-                                ("export", self._export)):
+                                ("fonts", self._fonts), ("export", self._export)):
                 if shown(part) and panel is not None:
                     with self._card():
                         if part == "export" and show != "export":

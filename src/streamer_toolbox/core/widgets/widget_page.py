@@ -4,6 +4,7 @@ from collections.abc import Callable
 from html import escape
 from typing import Any
 
+from streamer_toolbox.core.fonts.font_library import CSS as FONTS_CSS
 from streamer_toolbox.core.app_name import APP_NAME
 from streamer_toolbox.core.widgets.streamelements_links import for_widget
 from streamer_toolbox.core.widgets.widget import Widget
@@ -42,6 +43,7 @@ class WidgetPage:
 <head>
 <meta charset="utf-8">
 <title>{escape(widget.name)} · {APP_NAME} widget</title>
+<link rel="stylesheet" href="{FONTS_CSS}">
 <style>html, body {{ margin: 0; background: transparent; overflow: hidden; }}</style>
 <style>
 {_no_close(for_widget(fill(widget.css, data, single=True), widget.name), "style")}

@@ -1,4 +1,5 @@
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -19,6 +20,26 @@ class TestWriteWhole(unittest.TestCase):
     def test_writes_text_and_leaves_no_temp_file(self) -> None:
         write_whole(self.file, "äbc")
         self.assertEqual("äbc", self.file.read_text(encoding="utf-8"))
+        self.assertEqual(["data.json"], [p.name for p in self.folder.iterdir()])
+
+    def test_threads_writing_the_same_file_at_once_all_succeed(self) -> None:
+        """His 11-18: each write has its own .tmp; with one shared .tmp a swap took the other's away."""
+        errors, start = [], threading.Barrier(20)
+
+        def write(number: int) -> None:
+            start.wait()
+            try:
+                write_whole(self.file, f"writer {number}")
+            except Exception as error:
+                errors.append(error)
+
+        threads = [threading.Thread(target=write, args=(n,)) for n in range(20)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        self.assertEqual([], errors)
+        self.assertRegex(self.file.read_text(encoding="utf-8"), r"^writer \d+$")
         self.assertEqual(["data.json"], [p.name for p in self.folder.iterdir()])
 
     def test_writes_bytes(self) -> None:

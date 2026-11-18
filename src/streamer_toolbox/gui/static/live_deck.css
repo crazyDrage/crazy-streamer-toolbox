@@ -50,3 +50,10 @@ html:fullscreen .tb-deck-drawer.open { display: flex !important; flex-direction:
   left: 22px; top: 50%; transform: translateY(-50%); z-index: 3000; max-height: 90vh; overflow-y: auto;
   min-width: 160px; max-width: 60vw; padding: 6px; border-radius: 6px; background: var(--tb-panel);
   border: 1px solid var(--tb-line); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5); }
+
+/* a button whose state is on (its flow's output, DeckStates): its on look, and a small light in the corner so
+   on shows even without an on look (his 11-18) */
+.tb-deck-on::after { content: ""; position: absolute; top: 6px; left: 6px; width: 9px; height: 9px;
+  border-radius: 50%; background: #69f0ae; box-shadow: 0 0 6px #69f0ae; pointer-events: none; }
+/* Swap places: the button waiting for the one it swaps with */
+.tb-deck-swapping .tb-deck-face { outline: 3px dashed rgba(255, 255, 255, 0.95); outline-offset: -5px; }

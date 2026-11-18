@@ -73,6 +73,9 @@ class FlowRunner:
         self._runs: dict[asyncio.Task, FlowRun] = {}  # the runs going on now (stop)
         # folder → switched off (FlowLibrary sets it: its FlowFolders); none of that folder's flows starts
         self.folder_off: Callable[[str], bool] = lambda folder: False
+        # (flow name, {output: value}) each time a run (not a Test of one box) gives back a value: Live buttons
+        # follow them (DeckStates)
+        self.outputs_heard: list[Callable[[str, dict[str, Any]], None]] = []
 
     async def run(self, flow: Flow, event: dict[str, Any] | None = None,
                   inputs: dict[str, Any] | None = None, start: str = START) -> list[dict[str, Any]]:
@@ -342,11 +345,16 @@ class FlowRunner:
         run.results.append({"box": node.id, "action": node.action, "result": result})
         self._remember(run, node, result)
         action = self._actions.get(node.action) if node.action in self._actions else None
+        given: dict[str, Any] = {}
         if action and action.gives_back:  # a Flow output box: given back under the name in that field
-            run.outputs[str(await self._fill(node.params.get(action.gives_back, ""), run, {})).strip()] = result
+            given[str(await self._fill(node.params.get(action.gives_back, ""), run, {})).strip()] = result
+        if action and action.ends_flow and isinstance(result, dict):
+            given.update(result)  # its values: orange dots of the flow's box in the other flow
+        run.outputs.update(given)
+        if given and not run.test:
+            for heard in self.outputs_heard:
+                heard(run.flow.name, given)
         if action and action.ends_flow:
-            if isinstance(result, dict):
-                run.outputs.update(result)  # its values: orange dots of the flow's box in the other flow
             if run.ended is not None and not run.ended.done():
                 run.ended.set_result(run)  # its box in the other flow goes on now
         if len(ports) > 1 and isinstance(result, list) and all(p in ports for p in result):

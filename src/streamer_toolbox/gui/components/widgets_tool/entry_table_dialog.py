@@ -9,6 +9,7 @@ from streamer_toolbox.core.widgets.design_values import DesignValues
 from streamer_toolbox.core.widgets.element_design import ENDINGS, LIST_EVENTS, ElementDesign
 from streamer_toolbox.core.widgets.element_settings import _number
 from streamer_toolbox.core.widgets.entry_table import CELL_KINDS, FITS, LAYER_KINDS, LAYERS, EntryTable
+from streamer_toolbox.gui.components.font_picker import FontPicker
 from streamer_toolbox.gui.components.widgets_tool.emoji_help import EMOJI_HELP
 
 FIELD = "outlined dense options-dense"
@@ -18,8 +19,6 @@ SIDES = {"top": ("north", "above", "up"), "right": ("east", "right of", "to the 
 # where each arrow sits in its 3x3 cross: (column, row)
 CROSS = {"top": (2, 1), "right": (3, 2), "bottom": (2, 3), "left": (1, 2)}
 CELL_ICONS = {"text": "title", "image": "image", "video": "movie"}
-FONTS = ["Arial", "Arial Black", "Verdana", "Tahoma", "Trebuchet MS", "Segoe UI", "Georgia", "Times New Roman",
-         "Courier New", "Impact", "Comic Sans MS", "Consolas"]
 # what the preview fills in besides the values' defaults: a chat message's own words
 SAMPLES = {"message": {"message": "Hello chat Kappa how is everyone?"}}
 # the preview's emoji dictionary for a text that has one (the event's own on stream)
@@ -282,9 +281,8 @@ class EntryTableDialog:
 
     def _words_look(self, style: dict[str, Any], set_: Callable[[str, Any], None]) -> None:
         with ui.row().classes("w-full no-wrap gap-2"):
-            ui.select(sorted({*FONTS, str(style.get("fontFamily") or "Arial")}), label="Font",
-                      value=str(style.get("fontFamily") or "Arial"), new_value_mode="add-unique",
-                      on_change=lambda e: set_("fontFamily", e.value)).props(FIELD + " use-input") \
+            FontPicker.build(str(style.get("fontFamily") or "Arial"),
+                             lambda value: set_("fontFamily", value or "Arial")).props(FIELD) \
                 .classes("flex-1 min-w-0")
             ui.number("Size", value=_number(style.get("fontSize")) or None, min=1, step=1,
                       on_change=lambda e: set_("fontSize", f"{e.value}px" if e.value else None)) \

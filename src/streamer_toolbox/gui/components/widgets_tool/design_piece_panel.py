@@ -7,12 +7,11 @@ from streamer_toolbox.core.widgets.design_values import DesignValues
 from streamer_toolbox.core.widgets.element_design import (ANIMATIONS_IN, ANIMATIONS_OUT, KINDS, REACTIONS,
                                                           ElementDesign)
 from streamer_toolbox.core.widgets.element_settings import _number
+from streamer_toolbox.gui.components.font_picker import FontPicker
 from streamer_toolbox.gui.components.widgets_tool.design_live_panel import DesignLivePanel
 from streamer_toolbox.gui.components.widgets_tool.emoji_help import EMOJI_HELP
 
 FIELD = "outlined dense options-dense"
-FONTS = ["Arial", "Arial Black", "Verdana", "Tahoma", "Trebuchet MS", "Segoe UI", "Georgia", "Times New Roman",
-         "Courier New", "Impact", "Comic Sans MS", "Consolas"]
 SHADOW = "2px 2px 4px #000000"
 OUTLINE = "3px #000000"
 # where the align buttons put a piece on the canvas (widget_designer.js align)
@@ -141,11 +140,9 @@ class DesignPiecePanel:
         if kind != "text":
             ui.label("The words").classes("text-sm font-semibold pt-1")
         with ui.row().classes("w-full no-wrap gap-2"):
-            ui.select(sorted({*FONTS, str(style.get("fontFamily") or "Arial")}), label="Font",
-                      value=str(style.get("fontFamily") or "Arial"), new_value_mode="add-unique",
-                      on_change=lambda e: self._style("font", fontFamily=e.value)) \
-                .props(FIELD + " use-input").classes("flex-1 min-w-0") \
-                .tooltip("A font on this PC; type another font's name to use it")
+            FontPicker.build(str(style.get("fontFamily") or "Arial"),
+                             lambda value: self._style("font", fontFamily=value or "Arial")) \
+                .props(FIELD).classes("flex-1 min-w-0")
             ui.number("Size", value=_number(style.get("fontSize")) or 16, min=1, step=1,
                       on_change=lambda e: e.value and self._style("size", fontSize=f"{e.value}px")) \
                 .props(FIELD).classes("w-24")

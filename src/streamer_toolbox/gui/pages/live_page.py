@@ -2,6 +2,8 @@ from collections.abc import Callable
 
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.deck.deck_images import DeckImages
+from streamer_toolbox.core.deck.deck_pager import DeckPager
+from streamer_toolbox.core.deck.deck_states import DeckStates
 from streamer_toolbox.core.deck.deck_store import DeckStore
 from streamer_toolbox.core.flows.flow_library import FlowLibrary
 from streamer_toolbox.gui.components.flow_editor.action_picker import ActionPicker
@@ -14,17 +16,20 @@ class LivePage:
     nothing else (his answer of 2026-10-14: "Recent" and the plugins' cards went; a plugin's cards are under
     Plugins → that plugin)."""
 
-    def __init__(self, actions: ActionRegistry, activity: ActivityLog, deck: DeckStore, flows: FlowLibrary,
-                 images: DeckImages, picker: Callable[[], ActionPicker]) -> None:
+    def __init__(self, actions: ActionRegistry, activity: ActivityLog, deck: DeckStore, states: DeckStates,
+                 pager: DeckPager, flows: FlowLibrary, images: DeckImages, picker: Callable[[], ActionPicker]) -> None:
         self._actions = actions
         self._activity = activity
         self._deck = deck
+        self._states = states
+        self._pager = pager
         self._flows = flows
         self._images = images
         self._picker = picker  # the Add box window, for what a button runs
 
     def build(self) -> None:
-        LiveDeckView(self._deck, self._actions, self._flows, self._activity, self._images, self._picker).build()
+        LiveDeckView(self._deck, self._states, self._pager, self._actions, self._flows, self._activity,
+                     self._images, self._picker).build()
 
     def side_items(self) -> list[tuple[str, str, str]]:
         """The side list of Live: its deck pages (his round 63: like the Flows tab, the pages on the left)."""
@@ -32,5 +37,6 @@ class LivePage:
 
     def build_bare(self) -> None:
         """/live/buttons: the deck on its own, without the toolbox around it (his round 63; for a tablet)."""
-        LiveDeckView(self._deck, self._actions, self._flows, self._activity, self._images, self._picker,
+        LiveDeckView(self._deck, self._states, self._pager, self._actions, self._flows, self._activity,
+                     self._images, self._picker,
                      bare=True).build()
