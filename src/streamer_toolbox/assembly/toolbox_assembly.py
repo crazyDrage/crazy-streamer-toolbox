@@ -7,6 +7,7 @@ from nicegui import Client, app, ui
 
 from streamer_toolbox.api.action_router import build_action_router
 from streamer_toolbox.api.caller_auth import CallerAuth
+from streamer_toolbox.api.font_router import build_font_router
 from streamer_toolbox.api.media_router import build_media_router
 from streamer_toolbox.api.overlay_router import build_overlay_router
 from streamer_toolbox.api.widget_router import build_widget_router
@@ -48,6 +49,10 @@ from streamer_toolbox.core.connections.left_out import LEFT_OUT, left_out
 from streamer_toolbox.core.connections.secrets_folder import SecretsFolder
 from streamer_toolbox.core.deck.deck_images import URL as DECK_IMAGES_URL
 from streamer_toolbox.core.deck.deck_images import DeckImages
+from streamer_toolbox.core.fonts.font_library import FontLibrary
+from streamer_toolbox.core.deck.boxes.show_live_page import ShowLivePage
+from streamer_toolbox.core.deck.deck_pager import DeckPager
+from streamer_toolbox.core.deck.deck_states import DeckStates
 from streamer_toolbox.core.deck.deck_store import DeckStore
 from streamer_toolbox.core.events.chat_memory import ChatMemory
 from streamer_toolbox.core.events.common_events import CommonEvents
@@ -58,6 +63,8 @@ from streamer_toolbox.connections.twitch.twitch_role_list import TwitchRoleList
 from streamer_toolbox.core.events.role_book import RoleBook
 from streamer_toolbox.core.events.role_loader import RoleLoader
 from streamer_toolbox.core.events.role_loading import RoleLoading
+from streamer_toolbox.gui.components.font_picker import FontPicker
+from streamer_toolbox.gui.components.fonts_panel import FontsPanel
 from streamer_toolbox.gui.components.role_loading_panel import RoleLoadingPanel
 from streamer_toolbox.gui.components.secrets_login_panel import SecretsLoginPanel
 from streamer_toolbox.gui.pages.unlock_page import UnlockPage
@@ -319,6 +326,10 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
         return token.user_id if token else ""
     actions.add_box(BttvEmotes(EmoteLookup(), KeptAnswers(args.config.parent / "cache" / "bttv_emotes.json", 50),
                                twitch_id, media_buffer), "twitch")
+    # the Live deck: one store (a save redraws open Live pages); a flow can turn its page (his 11-18)
+    deck_store = DeckStore(args.config.parent / "live_deck.json", lambda: flows.all())
+    deck_pager = DeckPager()
+    actions.add_box(ShowLivePage(deck_pager, deck_store), "live")
     # values a flow keeps a while under a name (his round 90: a chatter's picture isn't asked every message)
     remembered = RememberedValues(args.config.parent / "cache" / "remembered_values.json")
     RememberedActions(remembered).add_to(actions)
@@ -331,6 +342,9 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
     async def keep_alerts() -> None:
         alert_backup.start()  # before the connections: what was kept plays first
     runner = FlowRunner(actions, variables)
+    # what flows gave back: Live buttons with a state follow it, kept through a restart (his 11-18)
+    deck_states = DeckStates(args.config.parent / "live_states.json", deck_store.followed)
+    runner.outputs_heard.append(deck_states.heard)
     flows = FlowLibrary(FlowStore(args.config.parent / "flows"), FlowStore(args.config.parent / "flow_templates"),
                         runner, actions)
     flows.boxes_gone.append(media_buffer.forget)  # a box left out at Save flow: its kept files go (his 11-15)
@@ -479,6 +493,11 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
     app.include_router(build_action_router(actions, CallerAuth(list(config.callers)), activity.add))
     app.include_router(build_overlay_router(alert_queue))
     app.include_router(build_media_router(media_buffer))
+    # fonts every text can use, hosted for every device (his 11-18): config/fonts/ + config/fonts.json
+    font_library = FontLibrary(args.config.parent / "fonts", args.config.parent / "fonts.json")
+    font_library.folder.mkdir(parents=True, exist_ok=True)
+    app.include_router(build_font_router(font_library))
+    FontPicker.source = font_library.fonts  # every font field offers the same list
     channel_lookup = ChannelLookup(twitch.helix, channel_info)
     app.include_router(build_widget_router(widget_store, widget_hub, WidgetPage(widget_hub.session, channel_info),
                                            channel_lookup, widget_fallback,
@@ -488,8 +507,7 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
     deck_images = DeckImages(args.config.parent / "deck_images")
     deck_images.folder.mkdir(parents=True, exist_ok=True)
     app.add_static_files(DECK_IMAGES_URL, deck_images.folder)
-    deck_store = DeckStore(args.config.parent / "live_deck.json", flows.all)  # one: a save redraws open Live pages
-    live_page = LivePage(actions, activity, deck_store, flows,
+    live_page = LivePage(actions, activity, deck_store, deck_states, deck_pager, flows,
                          deck_images, lambda: ActionPicker(actions, filters=box_filters, switched_off=switched_off,
                                                            view=test_view, flow_only=False))
     shell.page("Live", "/", live_page.build, heading=False)
@@ -577,7 +595,8 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
                                                          deck_store, deck_images, actions),
                                             ExportImporter(flows, alert_store, widget_store, event_types, variables,
                                                            deck_store, deck_images, actions,
-                                                           args.config.parent / "media", event_users.start)))
+                                                           args.config.parent / "media", event_users.start)),
+                                 FontsPanel(font_library))
     shell.page("Settings", "/settings", settings_page.build)
     shell.sub_items["/settings"] = settings_page.sections
 

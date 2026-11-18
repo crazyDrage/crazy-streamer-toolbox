@@ -290,6 +290,12 @@ core/media/media_buffer  MediaBuffer: pictures and videos from the web kept on t
                          A box left out at Save flow loses its folder (FlowLibrary.boxes_gone). The box knows
                          where it runs from core/flows/current_box (set by FlowRunner). api/media_router serves
                          them (only files of the index, sandboxed)
+core/fonts/              FontLibrary: the fonts every text can use (his 11-18): files in config/fonts/ hosted for
+                         every device, fonts of this PC by name in config/fonts.json (on this machine only).
+                         InstalledFonts: this PC's fonts (Windows + Linux folders), which may be copied in (not
+                         Windows' own: windows_font_names, research 21). FontReader (fontTools): family, weight,
+                         license, embedding flag. api/font_router serves /toolbox/fonts/fonts.css + the files (CORS:
+                         a widget's sandboxed page loads them too)
 core/system/github_program  GithubProgram: a program fetched from a GitHub project's releases into the settings
                          folder and kept up to date (SHA-256 checked, once a day); used for TwitchDownloaderCLI
                          (connections/twitch/twitch_clip_downloader: the Download clip box)
@@ -335,10 +341,15 @@ gui/
                          StreamElements" = core/widgets/StreamElementsCleaner). They hand widgets to an
                          ImportTarget (gui/services/WidgetImportTarget → the widget store)
     points_tool/         PointsTool (Tools page, Points tab: the switch, name and numbers, the viewers' list)
+    fonts_panel.py       FontsPanel (Settings → Fonts: the list with marks, Add font: upload / from this PC)
+    font_picker.py       FontPicker (every font field; FontPicker.source set once in the assembly)
     live_deck/           LiveDeckView (the Live page's deck: page tabs, button grid, edit mode, presses) and
                          DeckButtonDialog (one button: what it runs + its values, label, colour, icon, page).
                          Data: core/deck/ (Deck → DeckPage → DeckButton; DeckStore = config/live_deck.json, made
-                         from the flows until first saved; `version` lets open tabs redraw after a save)
+                         from the flows until first saved; `version` lets open tabs redraw after a save; undo
+                         = the last 50 saves in memory; DeckStates = what flows last gave back, for buttons with
+                         a state (FlowRunner.outputs_heard; on / off of the followed ones kept in config/live_states.json); DeckPager + boxes/ShowLivePage = a flow turns the
+                         open Live pages)
   static/                served at /static: drawflow/ (vendored Drawflow 0.0.60, MIT), flow_boxes.js/.css
   services/              non-visual GUI helpers: RemoteLoginMiddleware (an ASGI gate for pages and NiceGUI's
                          socket: another device gets /login until signed in, and a socket only for a login page;

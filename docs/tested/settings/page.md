@@ -23,3 +23,9 @@
 | Start without a window (headless) | `start-headless.bat` | - | - | - | - | 2026-11-03 | the same as --open none |
 | Starter window: how it opens, Start, Open / Restart / Stop, tray icon, "Back up now?" on close | `start-settings.bat` | 2026-11-03 | - | - | - | 2026-11-03 | demo, off screen; ~30 MB |
 | Starter: back up the settings (once a day, Back up now; keeps 10 daily + 10 monthly) | `SettingsBackup` | 2026-11-03 | - | - | - | 2026-11-03 |  |
+| Settings → Fonts: the fonts, each marked all devices / on this machine only, shown in its own font | `FontsPanel` | 2026-11-18 | - | - | - | 2026-11-18 | His 11-18 (round 93) |
+| Add font: upload a file (all devices, license warning) | `FontLibrary.add_file` | 2026-11-18 | - | - | - | 2026-11-18 | |
+| Add font: from this PC by name (on this machine only, warning) or copied in (fonts you installed, all devices) | `InstalledFonts`, `FontLibrary.copy_installed` | 2026-11-18 | - | - | - | 2026-11-18 | Windows' own fonts can't be copied (temp/research/21) |
+| Font files put in the fonts folder by hand show up | `FontLibrary.faces` | 2026-11-18 | - | - | - | 2026-11-18 | |
+| One endpoint for every page: /toolbox/fonts/fonts.css (OBS, phone, widgets, alerts, the toolbox) | `font_router`, `Look`, `alerts.html`, `WidgetPage` | 2026-11-18 | - | - | - | 2026-11-18 | Checked: a phone-size page and a sandboxed frame load it |
+| Font fields (widget pieces, event lists, alerts) offer the toolbox's fonts with marks | `FontPicker` | 2026-11-18 | - | - | - | 2026-11-18 | |

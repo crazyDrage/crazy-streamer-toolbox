@@ -6,6 +6,7 @@ import logging
 import re
 import shutil
 import socket
+import threading
 import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path
@@ -64,7 +65,11 @@ class MediaBuffer:
     Only http(s) addresses on the internet: not this PC, not the home network (a flow from someone else must
     not reach the router through the toolbox). A name is looked up first: one that points inside (localtest.me
     is 127.0.0.1) is refused too. Left open: a name server that answers differently a moment later (DNS
-    rebinding) still gets through, as httpx looks the name up again."""
+    rebinding) still gets through, as httpx looks the name up again.
+
+    Its index files are read and written under one thread lock (`_files`): overlays ask for kept files in the
+    web server's threads, many at once (a kept chat list: ~40 emotes), and each may write the index ("last
+    used"). Without it most of them failed on the first load after an hour (his 11-18)."""
 
     def __init__(self, folder: Path, transport: httpx.AsyncBaseTransport | None = None,
                  clock: Callable[[], float] = time.time, resolve: Resolve | None = None) -> None:
@@ -73,6 +78,7 @@ class MediaBuffer:
         self._clock = clock
         self._resolve = resolve or _addresses
         self._locks: dict[tuple[str, str], asyncio.Lock] = {}
+        self._files = threading.RLock()
 
     async def keep(self, url: str, folder: str = "", max_mb: float = 500, file_mb: float = 20,
                    days: float = 0, name: str = "", box: tuple[str, str] | None = None) -> Kept:
@@ -86,34 +92,37 @@ class MediaBuffer:
             raise ValueError("the sizes must be more than 0 MB")
         place = _own(box) if box is not None and not folder else f"{SHARED_PLACE}/{folder or 'media'}"
         if box is not None:
-            self._map(box, folder)
+            with self._files:
+                self._map(box, folder)
         key = hashlib.sha256(url.encode("utf-8")).hexdigest()[:CODE]
         # one lock per file (the same picture asked twice at once is one download) and one per folder around its
         # index: pictures kept at the same time (a message's emotes) each read and write the index whole, so
         # without it one's entry was written over by the other's (his 11-16: "only one emote at the time")
         async with self._locks.setdefault((place, key), asyncio.Lock()):
             async with self._locks.setdefault((place, ""), asyncio.Lock()):
-                found = self._good(place, self._index(place), key, days)
+                with self._files:
+                    found = self._good(place, self._index(place), key, days)
             if found is None:
                 found = await self._download(place, url, key, _name_part(name), int(file_mb * MB))
                 entry = {"url": url, "fetched": self._clock(), "used": self._clock(), "size": found.stat().st_size}
             else:
                 entry = None
             async with self._locks.setdefault((place, ""), asyncio.Lock()):
-                index = self._index(place)  # as it is now: others may have kept theirs meanwhile
-                index["limits"] = {"max_mb": max_mb, "file_mb": file_mb, "days": days}
-                if entry is not None:
-                    index["files"][found.name] = entry
-                elif found.name in index["files"]:
-                    index["files"][found.name]["used"] = self._clock()
-                elif found.is_file():  # it went from the index meanwhile, its file is still there: in again
-                    index["files"][found.name] = {"url": url, "fetched": self._clock(), "used": self._clock(),
-                                                  "size": found.stat().st_size}
-                index["latest"][""] = found.name
-                if box is not None:
-                    index["latest"]["/".join(box)] = found.name
-                self._tidy(place, index, keeping=found.name)
-                self._save(place, index)
+                with self._files:
+                    index = self._index(place)  # as it is now: others may have kept theirs meanwhile
+                    index["limits"] = {"max_mb": max_mb, "file_mb": file_mb, "days": days}
+                    if entry is not None:
+                        index["files"][found.name] = entry
+                    elif found.name in index["files"]:
+                        index["files"][found.name]["used"] = self._clock()
+                    elif found.is_file():  # it went from the index meanwhile, its file is still there: in again
+                        index["files"][found.name] = {"url": url, "fetched": self._clock(), "used": self._clock(),
+                                                      "size": found.stat().st_size}
+                    index["latest"][""] = found.name
+                    if box is not None:
+                        index["latest"]["/".join(box)] = found.name
+                    self._tidy(place, index, keeping=found.name)
+                    self._save(place, index)
         if box is not None:
             return Kept(f"{ROUTE}/{BOX_PLACE}/{box[0]}/{box[1]}/{found.name}", found)
         return Kept(f"{ROUTE}/{place}/{found.name}", found)
@@ -122,21 +131,27 @@ class MediaBuffer:
         """A kept file at a box's address (latest.* = the newest it kept), only while it is good."""
         if not FLOW.fullmatch(flow) or not BOX.fullmatch(box):
             return None
-        shared = self._boxes().get(f"{flow}/{box}")
-        place = f"{SHARED_PLACE}/{shared}" if shared else _own((flow, box))
-        return self._find(place, file, f"{flow}/{box}")
+        with self._files:
+            shared = self._boxes().get(f"{flow}/{box}")
+            place = f"{SHARED_PLACE}/{shared}" if shared else _own((flow, box))
+            return self._find(place, file, f"{flow}/{box}")
 
     def find_shared(self, folder: str, file: str) -> Path | None:
         """A kept file of a shared folder (latest.* = the newest anyone kept there)."""
         if not FOLDER.fullmatch(folder):
             return None
-        return self._find(f"{SHARED_PLACE}/{folder}", file, "")
+        with self._files:
+            return self._find(f"{SHARED_PLACE}/{folder}", file, "")
 
     def forget(self, flow: str, boxes: list[str]) -> None:
         """These boxes of the flow are gone (Save flow without them, the flow deleted): their own folders go;
         what they kept in a shared folder stays for the others, until room is needed."""
         if not FLOW.fullmatch(flow):
             return
+        with self._files:
+            self._forget(flow, boxes)
+
+    def _forget(self, flow: str, boxes: list[str]) -> None:
         mapped = self._boxes()
         before = dict(mapped)
         for box in boxes:

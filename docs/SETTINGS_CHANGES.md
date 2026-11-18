@@ -28,6 +28,21 @@ Small additions that an older toolbox simply ignores (a new key with a default, 
 need a step; they are listed under "Without a step" in their version's entry.
 
 
+## After version 7, not released yet (no new number)
+
+Without a step:
+- `live_deck.json`: a button may have `confirm` (asks before it runs), `state` (the output of its flow it follows)
+  and `on_label` / `on_color` / `on_icon` / `on_text_color` (its look while that output means on). Missing: false /
+  empty. An older toolbox ignores them (the button just runs and looks the same).
+- New file `live_states.json`: on / off of the flow outputs Live buttons follow (`{flow: {output: true}}`),
+  so a button's state stays after a restart (his 11-18). Missing or broken: everything off.
+- New folder `fonts/`: font files the toolbox hosts for every device (uploaded in Settings → Fonts, copied
+  from this PC, or put there by hand). New file `fonts.json`: `{"this_machine": [names]}`, fonts of this PC
+  used by name. Missing on Windows: the twelve fonts the font fields offered before. Older toolboxes ignore both;
+  a text whose font is hosted shows another font there.
+- Per browser (not in the settings folder): `live_start_page` (the page Live opens with on that device),
+  `live_editing`, `live_clipboard`.
+
 ## Version 7 (2026-11-16)
 
 Step: `ChatEmotesUpgrade` (`core/upgrades/chat_emotes_upgrade.py`). His "we don't need emotes and emoji_dict.

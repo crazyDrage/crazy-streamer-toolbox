@@ -22,8 +22,9 @@ DELETE = "delete"  # what open() gives when the button was deleted
 class DeckButtonDialog:
     """Edits one Live deck button: what it does (runs a box, picked in the same window as the flow editor's
     Add box, with fixed values for its fields; or shows another page of the deck, like his SAMMI buttons; his
-    round 63), its label, colour, text colour, icon or picture, and page. open() gives (button, page name),
-    DELETE, or None (cancelled)."""
+    round 63), its label, colour, text colour, icon or picture, and page; whether a press asks first, and (a
+    flow's button) the output of its flow it follows with its look when on (his 11-18). open() gives (button,
+    page name), DELETE, or None (cancelled)."""
 
     def __init__(self, button: DeckButton | None, page: str, pages: list[str], actions: ActionRegistry,
                  flows: FlowLibrary, images: DeckImages, picker: Callable[[], ActionPicker]) -> None:
@@ -45,6 +46,9 @@ class DeckButtonDialog:
                              on_change=lambda e: setattr(button, "label", e.value)) \
                 .props("outlined dense").classes("w-full")
             self._fields()
+            ui.switch("Ask before it runs (big buttons: end stream, raid)", value=button.confirm,
+                      on_change=lambda e: setattr(button, "confirm", e.value))
+            self._state()
             ui.label("Colour").classes("text-sm font-semibold")
             self._colors()
             ui.color_input("Text colour", value=button.text_color,
@@ -109,12 +113,15 @@ class DeckButtonDialog:
     def _set(self, action: str, params: dict[str, str]) -> None:
         """What it does changed; a label that was the old one's name follows."""
         old_title = self._title(self._button.action)
+        if action != self._button.action:
+            self._button.state = ""  # another flow has other outputs
         self._button.action = action
         self._button.params = params
         if not self._button.label or self._button.label == old_title:
             self._label.set_value(self._title(action))
         self._what.refresh()
         self._fields.refresh()
+        self._state.refresh()
 
     def _title(self, action: str) -> str:
         if action == GO_TO_PAGE:
@@ -150,6 +157,37 @@ class DeckButtonDialog:
                 .props("outlined dense").classes("w-full")
             if hint:
                 ui.label(hint).classes("text-xs opacity-60 -mt-2")
+
+    @ui.refreshable_method
+    def _state(self) -> None:
+        """His 11-18: an output of the button's flow sets its look (`"active": true` → the on look). Folds, open
+        when it has one (rule 31)."""
+        button, action = self._button, self._button.action
+        if not action.startswith("flow.") or action not in self._actions:
+            return
+        outputs = list(self._actions.get(action).outputs)
+        with ui.expansion("State: a look while on", icon="toggle_on", value=bool(button.state))                 .classes("w-full").props("dense"):
+            if not outputs and not button.state:
+                ui.label("This flow gives nothing back. Give it an End box or a Flow output box (e.g. active = "
+                         "true), then pick that value here.").classes("text-xs opacity-70")
+                return
+            choices = {"": "No state", **{name: name for name in outputs}}
+            if button.state and button.state not in choices:
+                choices[button.state] = f"{button.state} (not in the flow anymore)"
+            ui.select(choices, value=button.state, label="Follows this output of the flow",
+                      on_change=lambda e: setattr(button, "state", e.value or ""))                 .props("outlined dense").classes("w-full")
+            ui.label("On while its newest value is true, a number other than 0, or a text other than false / off / "
+                     "no. Every run of the flow counts, also one something else started. Empty fields below: the "
+                     "normal look; a small light shows it is on.").classes("text-xs opacity-60")
+            ui.input("Label when on", value=button.on_label,
+                     on_change=lambda e: setattr(button, "on_label", e.value))                 .props("outlined dense").classes("w-full")
+            with ui.row().classes("w-full gap-2"):
+                ui.color_input("Colour when on", value=button.on_color,
+                               on_change=lambda e: setattr(button, "on_color", e.value or ""))                     .props("dense outlined clearable").classes("w-40")
+                ui.color_input("Text colour when on", value=button.on_text_color,
+                               on_change=lambda e: setattr(button, "on_text_color", e.value or ""))                     .props("dense outlined clearable").classes("w-40")
+            ui.input("Icon when on (a Material icon name)", value=button.on_icon,
+                     on_change=lambda e: setattr(button, "on_icon", e.value.strip()))                 .props("outlined dense").classes("w-full")
 
     def _set_param(self, name: str, value: str) -> None:
         if value.strip():

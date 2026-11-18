@@ -71,10 +71,37 @@
     setTimeout(() => { swallowClick = false; }, 300);
     emitEvent("tb_deck_turn", { by: dx < 0 ? 1 : -1 });
   });
+  // Page Up / Down turn the page also while editing (his 11-18 pick 2); the arrows only when not editing
   document.addEventListener("keydown", (event) => {
-    if (!["ArrowLeft", "ArrowRight"].includes(event.key) || !document.querySelector(".tb-deck")) return;
-    if (document.querySelector(".tb-deck-edit, .q-dialog") || event.target.closest("input, textarea")) return;
-    emitEvent("tb_deck_turn", { by: event.key === "ArrowRight" ? 1 : -1 });
+    const page = { PageDown: 1, PageUp: -1 }[event.key];
+    const arrow = { ArrowRight: 1, ArrowLeft: -1 }[event.key];
+    if (!(page || arrow) || !document.querySelector(".tb-deck")) return;
+    if (document.querySelector(".q-dialog") || event.target.closest("input, textarea")) return;
+    if (arrow && document.querySelector(".tb-deck-edit")) return;
+    event.preventDefault();
+    emitEvent("tb_deck_turn", { by: page || arrow });
+  });
+
+  // editing: Ctrl+C / X / V / Z, Delete, Escape on what is under the mouse ("tb_deck_key" {key, index, x, y};
+  // index: the button under it or -1, x / y: the cell under it or -1)
+  let mouseX = -1;
+  let mouseY = -1;
+  document.addEventListener("pointermove", (event) => { mouseX = event.clientX; mouseY = event.clientY; });
+  document.addEventListener("keydown", (event) => {
+    const board = document.querySelector(".tb-deck-edit");
+    if (!board || document.querySelector(".q-dialog") || event.target.closest("input, textarea")) return;
+    const letter = event.key.toLowerCase();
+    const key = (event.ctrlKey || event.metaKey) && ["c", "x", "v", "z"].includes(letter) ? letter
+      : ["Delete", "Backspace", "Escape"].includes(event.key) ? event.key : "";
+    if (!key) return;
+    event.preventDefault();
+    const under = document.elementFromPoint(mouseX, mouseY);
+    const tile = under && under.closest(".tb-deck-edit .tb-deck-button");
+    const box = board.getBoundingClientRect();
+    const inside = mouseX >= box.left && mouseX < box.right && mouseY >= box.top && mouseY < box.bottom;
+    emitEvent("tb_deck_key", { key, index: tile ? Number(tile.dataset.index) : -1,
+      x: inside ? Math.floor(((mouseX - box.left) / box.width) * Number(board.dataset.columns)) : -1,
+      y: inside ? Math.floor(((mouseY - box.top) / box.height) * Number(board.dataset.rows)) : -1 });
   });
 
   // Fit the screen: the deck as wide as it can be while all of it stays in the window (full screen: the css)

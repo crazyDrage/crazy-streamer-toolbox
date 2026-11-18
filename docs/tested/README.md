@@ -53,9 +53,9 @@ name in that file. The script keeps such rows as they are.
 
 | Where | Tested | Of |
 |---|---|---|
-| **[live](live/)** | **0** | **1** |
-| [live/page](live/page.md) | 0 | 1 |
-| **[flows](flows/)** | **15** | **371** |
+| **[live](live/)** | **0** | **4** |
+| [live/page](live/page.md) | 0 | 4 |
+| **[flows](flows/)** | **15** | **376** |
 | [flows/page](flows/page.md) | 0 | 6 |
 | [flows/triggers/any_platform](flows/triggers/any_platform.md) | 3 | 10 |
 | [flows/triggers/crowdcontrol](flows/triggers/crowdcontrol.md) | 0 | 1 |
@@ -78,6 +78,7 @@ name in that file. The script keeps such rows as they are.
 | [flows/triggers/widget](flows/triggers/widget.md) | 0 | 1 |
 | [flows/triggers/youtube](flows/triggers/youtube.md) | 0 | 9 |
 | [flows/boxes/alert/alerts](flows/boxes/alert/alerts.md) | 0 | 2 |
+| [flows/boxes/cache/remember](flows/boxes/cache/remember.md) | 0 | 1 |
 | [flows/boxes/discord/general](flows/boxes/discord/general.md) | 0 | 1 |
 | [flows/boxes/event/events](flows/boxes/event/events.md) | 0 | 15 |
 | [flows/boxes/example/effects](flows/boxes/example/effects.md) | 0 | 1 |
@@ -94,6 +95,7 @@ name in that file. The script keeps such rows as they are.
 | [flows/boxes/list/change](flows/boxes/list/change.md) | 0 | 2 |
 | [flows/boxes/list/new_list](flows/boxes/list/new_list.md) | 0 | 5 |
 | [flows/boxes/list/read](flows/boxes/list/read.md) | 0 | 5 |
+| [flows/boxes/live/live](flows/boxes/live/live.md) | 0 | 1 |
 | [flows/boxes/logic/flow](flows/boxes/logic/flow.md) | 0 | 4 |
 | [flows/boxes/logic/if](flows/boxes/logic/if.md) | 0 | 3 |
 | [flows/boxes/logic/math](flows/boxes/logic/math.md) | 0 | 4 |
@@ -108,7 +110,7 @@ name in that file. The script keeps such rows as they are.
 | [flows/boxes/mixitup/currency](flows/boxes/mixitup/currency.md) | 0 | 3 |
 | [flows/boxes/mixitup/inventory](flows/boxes/mixitup/inventory.md) | 0 | 3 |
 | [flows/boxes/mixitup/viewers](flows/boxes/mixitup/viewers.md) | 0 | 1 |
-| [flows/boxes/object/change](flows/boxes/object/change.md) | 0 | 3 |
+| [flows/boxes/object/change](flows/boxes/object/change.md) | 0 | 4 |
 | [flows/boxes/object/read](flows/boxes/object/read.md) | 0 | 5 |
 | [flows/boxes/obs/advanced](flows/boxes/obs/advanced.md) | 0 | 5 |
 | [flows/boxes/obs/audio](flows/boxes/obs/audio.md) | 0 | 8 |
@@ -134,7 +136,7 @@ name in that file. The script keeps such rows as they are.
 | [flows/boxes/tip/tips](flows/boxes/tip/tips.md) | 0 | 1 |
 | [flows/boxes/tits/general](flows/boxes/tits/general.md) | 0 | 5 |
 | [flows/boxes/twitch/channel_points](flows/boxes/twitch/channel_points.md) | 0 | 5 |
-| [flows/boxes/twitch/chat](flows/boxes/twitch/chat.md) | 0 | 5 |
+| [flows/boxes/twitch/chat](flows/boxes/twitch/chat.md) | 0 | 7 |
 | [flows/boxes/twitch/polls_and_predictions](flows/boxes/twitch/polls_and_predictions.md) | 0 | 4 |
 | [flows/boxes/twitch/stream](flows/boxes/twitch/stream.md) | 0 | 13 |
 | [flows/boxes/twitch/viewers](flows/boxes/twitch/viewers.md) | 0 | 6 |
@@ -204,4 +206,4 @@ name in that file. The script keeps such rows as they are.
 | [learn/page](learn/page.md) | 0 | 11 |
 | **[settings](settings/)** | **0** | **20** |
 | [settings/page](settings/page.md) | 0 | 20 |
-| **All** | **15** | **449** |
+| **All** | **15** | **457** |
