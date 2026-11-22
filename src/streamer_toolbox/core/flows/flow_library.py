@@ -116,7 +116,7 @@ class FlowLibrary:
         if old_name and old_name != flow.name:
             self.delete(old_name)
         self._register(flow)
-        self._stamps.update({flow.name: s for n, s in self._store.stamps().items() if n == flow.name})
+        self._stamps.update({n: s for n, s in self._store.stamps().items() if n == flow.name})
 
     def delete(self, name: str) -> None:
         self._store.delete(name)

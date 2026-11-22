@@ -33,7 +33,7 @@ that can freeze or cut the line.
 | The toolbox knows what didn't arrive | unconfirmed alerts, or alerts with no page listening, are noted: red line on the Overlay page, a warning in the log | `AlertQueue.missed`, `WidgetHub.missed` |
 | A page that comes back gets what it missed | every message has a number; the page says its last one and gets the rest (alerts up to 60 s old, widget events up to 10 min, the last 1000 kept) | `core/overlay/sent_messages.py` |
 | A refreshed OBS source goes on | the page keeps its last number in the browser | `alerts.js`, `widget.js` |
-| A toolbox restart | off (default): the waiting alerts are cleared. Overlay → "Keep alerts through a restart": the line is kept in `alert_backup.json` and goes on with the same numbers | `core/alerts/alert_backup.py` |
+| A toolbox restart | off (default): the waiting alerts are cleared. Overlay → "Keep alerts through a restart": the line is kept in `alert_backup.json` + `alert_backup.log` (one line per change, so 17,000 waiting alerts cost no more per alert than 10) and goes on with the same numbers | `core/alerts/alert_backup.py` |
 
 ## How to check it again
 

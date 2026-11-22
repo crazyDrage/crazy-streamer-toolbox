@@ -42,7 +42,9 @@ class AlertQueue:
         # ("21:14:05", its text, its id), the newest last. A page that comes back gets them again (self.sent).
         self.missed: deque[tuple[str, str, int]] = deque(maxlen=20)
         self.sent = SentMessages(RESEND_SECONDS)
-        self.on_change: Callable[[], None] | None = None  # the line changed (AlertBackup writes it down)
+        # the line changed, with what changed (AlertBackup writes it down): {"add": an alert}, {"next": 1} (the
+        # first one is showing now) or {"clear": 1}; "next" and "clear" also carry the new "sent" and "files"
+        self.on_change: Callable[[dict[str, Any]], None] | None = None
 
     @property
     def overlays(self) -> int:
@@ -97,7 +99,7 @@ class AlertQueue:
         in_front = len(self._waiting) + (1 if self._showing else 0)
         done = asyncio.Event()
         self._waiting.append((alert, done))
-        self._changed()
+        self._changed({"add": alert.to_dict()})
         if self._player is None:
             self._player = asyncio.create_task(self._play())
         if wait:
@@ -115,17 +117,20 @@ class AlertQueue:
             self._player = None
             self._showing = False
         self._tell({"type": "clear"})
-        self._changed()
+        self._changed({"clear": 1, **self._sent_state()})
         return dropped
 
     def state(self) -> dict[str, Any]:
         """The line for a backup file: the alerts still waiting, the messages of the last minute (with the
         files their random names stand for) and the numbers."""
+        return {"waiting": [alert.to_dict() for alert, _ in self._waiting], **self._sent_state()}
+
+    def _sent_state(self) -> dict[str, Any]:
+        """The messages of the last minute and the files their random names stand for (small: one minute)."""
         sent = self.sent.state()
         named = {url[len(FILE_URL):] for _, _, message in sent["kept"] for url in _urls(message.get("alert", {}))
                  if url and url.startswith(FILE_URL)}
-        return {"waiting": [alert.to_dict() for alert, _ in self._waiting], "sent": sent,
-                "files": {token: str(file) for token, file in self._files.items() if token in named}}
+        return {"sent": sent, "files": {token: str(file) for token, file in self._files.items() if token in named}}
 
     def restore(self, state: dict[str, Any]) -> None:
         """Goes on from a backup (in the running event loop): the waiting alerts play, the numbers go on. An
@@ -143,9 +148,9 @@ class AlertQueue:
         if self._waiting and self._player is None:
             self._player = asyncio.create_task(self._play())
 
-    def _changed(self) -> None:
+    def _changed(self, change: dict[str, Any]) -> None:
         if self.on_change is not None:
-            self.on_change()
+            self.on_change(change)
 
     def file(self, token: str) -> Path | None:
         """The file a /overlay/file/<token> name stands for, None if it never did or is too old."""
@@ -158,7 +163,7 @@ class AlertQueue:
                 self._showing = True
                 try:
                     sent = self._tell({"type": "alert", "alert": self.payload(alert)})
-                    self._changed()
+                    self._changed({"next": 1, **self._sent_state()})
                     if not self.overlays:
                         self._missed(alert.text, "no Browser source was listening", sent["id"])
                     await self._sleep(alert.shown_seconds + self._gap)

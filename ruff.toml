@@ -1,0 +1,13 @@
+# The code check (ruff, a dev tool, see requirements.txt): only checks that find mistakes, no style.
+#   .venv/Scripts/python.exe -m ruff check src tests plugins
+line-length = 120
+
+[lint]
+select = ["F", "E9", "B", "PLE"]  # pyflakes, syntax errors, bugbear, pylint errors
+ignore = [
+    "B008",  # Depends(...) / Body(...) in defaults: FastAPI's own way
+    "B024",  # an ABC without abstract methods: interfaces like Trigger are filled with class values
+    "B027",  # an empty method in an ABC: a hook a class may fill, not a must
+    "B904",  # raise ... from inside except: the toolbox's errors are messages for him, not chains
+    "B905",  # zip() without strict=: the lists are the same length by how they are made
+]

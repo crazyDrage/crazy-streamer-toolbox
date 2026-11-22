@@ -28,9 +28,36 @@ Small additions that an older toolbox simply ignores (a new key with a default, 
 need a step; they are listed under "Without a step" in their version's entry.
 
 
-## After version 7, not released yet (no new number)
+## Version 8 (2026-11-22, not released yet)
+
+Step: `BuildObjectUpgrade` (`core/upgrades/build_object_upgrade.py`). His "Build object box needs an update. it
+should look more like the Input box, and adding variables. remove the start input, because we have a combine
+object box".
+
+| Before (version 7) | After (version 8) |
+|---|---|
+| Build object (`object.build`) with `name_1` / `value_1` ... `name_5` / `value_5` | one line per name, `{name = value}` (+ Add value); empty names left out, a later pair with the same name wins (as before) |
+| Build object's `start` (an object to add the pairs to) | gone: a Join objects box (`first` = that object, `second` = Build object) after it, and what read Build object's result reads Join objects' |
 
 Without a step:
+- New file `secrets/warudo_in_key.txt` (in the vault like every secret): the key in the address Warudo's
+  plugin connects to (Connections → Warudo → Warudo → toolbox). Made at the first Copy address. Missing: no
+  line is let in until it is made. An older toolbox ignores it (it has no such address).
+- New file `secrets/vnyan_in_key.txt`: the same for VNyan's WebSocket Message node (Connections → VNyan →
+  VNyan → toolbox). An older toolbox ignores it.
+- VNyan's default address is now `ws://127.0.0.1:8000/vnyan` (was localhost; VNyan's own client turns localhost
+  into ::1, 11-22). Only a default: an address someone saved stays.
+- `[vnyan]` `api` is no longer read (the box Send API message to VNyan went, his 11-22 "outdated now"; Send data
+  to VNyan does it over the websocket). A saved one stays in the file and is ignored. A flow that still has the
+  box `vnyan.api_message` shows it as a box that no longer exists.
+- New file `inbox_types.json`: `{"warudo": ["camera", "default"]}`, the types that connected in once (a
+  trigger's type list, the tab's list; Remove takes one out). Missing or broken: none yet, they come back
+  as they connect. An older toolbox ignores it.
+- New file `alert_backup.log` next to `alert_backup.json` ("Keep alerts through a restart" on): one line per
+  change of the alert line since the picture in `alert_backup.json` (`{"add": alert}`, `{"next": 1}`,
+  `{"clear": 1}`, each with its `number`; next / clear carry `sent` and `files`). `alert_backup.json` gets
+  `number` (the last change it holds). Missing log or number: the picture alone, as before. An older toolbox
+  reads only the picture, so after going back it misses the changes in the log (the last few alerts).
 - `live_deck.json`: a button may have `confirm` (asks before it runs), `state` (the output of its flow it follows)
   and `on_label` / `on_color` / `on_icon` / `on_text_color` (its look while that output means on). Missing: false /
   empty. An older toolbox ignores them (the button just runs and looks the same).

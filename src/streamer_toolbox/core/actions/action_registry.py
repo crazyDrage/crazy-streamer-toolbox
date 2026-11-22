@@ -82,11 +82,11 @@ class ActionRegistry:
             retrigger: str = "", variable_fields: tuple[str, ...] = (),
             keys_of: str = "", output_names: str = "", alongside: str = "",
             freeze: bool | None = False, lines_from: str = "",
-            starts: dict[str, tuple[str, ...]] | None = None) -> None:
+            starts: dict[str, tuple[str, ...]] | None = None, copies: str = "") -> None:
         """See RegisteredAction for what options, capture, group, ports, flow_only, join, live, outputs,
         port_fields, labels, hints, editors, entries, fills, live_hints, files, colors, many,
         lights, shown, typed, value_lines, data_only, entry_fields, named_lines, toggles, offered, ends_flow, gives_back,
-        once_per_flow, retrigger, variable_fields, keys_of, output_names, alongside, freeze, lines_from and starts mean."""
+        once_per_flow, retrigger, variable_fields, keys_of, output_names, alongside, freeze, lines_from, starts and copies mean."""
         if name in self._actions:
             raise ValueError(f"action {name!r} is already registered")
         self._actions[name] = RegisteredAction(name, handler, description, label, dict(options or {}), capture,
@@ -101,7 +101,8 @@ class ActionRegistry:
                                                named_lines, tuple(toggles), offered, ends_flow, gives_back,
                                                once_per_flow, retrigger, tuple(variable_fields), keys_of,
                                                output_names, alongside, freeze=freeze, lines_from=lines_from,
-                                               starts={dot: tuple(names) for dot, names in (starts or {}).items()})
+                                               starts={dot: tuple(names) for dot, names in (starts or {}).items()},
+                                               copies=copies)
         self._with_account(name)
 
     def add_box(self, box: "Box", owner: str) -> str:

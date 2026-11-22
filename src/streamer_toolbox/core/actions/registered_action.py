@@ -51,6 +51,9 @@ class RegisteredAction:
     what a new start of the flow does while the box runs ("nothing", "restart", "add"; Wait's
     if_started_again): the handler gets the Retrigger (PluginContext.retrigger). `variable_fields` hold a
     variable's own name (Set variable's name): renaming the variable renames them too.
+    `copies` ("other.action:Button text") gives the box's form a button with that text: it runs the other action
+    with the box's matching fields (a wired field as the keys the editor knows of it) and copies the text it gives
+    (Send data to VNyan's "Copy VNyan block", his 11-22).
     `keys_of` names a field whose value's keys become the box's data dots, following what is wired into it
     (Object values, his round 60). `output_names` names a text field whose names (separated by commas) become the
     box's data dots, each one a key of its result (Run Python's outputs, his idea of 10-30). A box with `entries` runs once at a time per flow (a second run that reaches it
@@ -137,6 +140,7 @@ class RegisteredAction:
     freeze: bool | None = False  # None: the box can't be frozen (see freezable)
     lines_from: str = ""
     starts: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    copies: str = ""
     # set by the registry for a connection with several accounts (ActionRegistry.accounts_for): is its Multiple
     # accounts switch on; the box then has an Account field (AccountHandler)
     accounts: Callable[[], bool] | None = None

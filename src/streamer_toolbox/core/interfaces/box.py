@@ -63,6 +63,7 @@ class Box(ABC):
     live_hints: dict[str, HintProvider] = {}                 # a hint worked out from the box's values
     variable_fields: tuple[str, ...] = ()                    # fields that hold a variable's name
     capture: str = ""                                        # an action that saves the program's state
+    copies: str = ""                                         # "action:Button text": a button copies its text
 
     # its dots
     outputs: dict[str, str] = {}                             # the keys its result always has: data dots

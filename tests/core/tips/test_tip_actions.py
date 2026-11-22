@@ -1,6 +1,5 @@
 import tempfile
 import unittest
-from pathlib import Path
 
 from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.events.event_bus import EventBus

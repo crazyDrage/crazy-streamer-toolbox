@@ -14,7 +14,7 @@ from streamer_toolbox.core.actions.numbered_fields import count_field, numbered_
 from streamer_toolbox.core.actions.registered_action import RegisteredAction
 from streamer_toolbox.core.data.box_value import kind_of
 from streamer_toolbox.core.files.box_value_files import BoxValueFiles
-from streamer_toolbox.core.flows.box_wire import WIRE_IN, is_wire_in
+from streamer_toolbox.core.flows.box_wire import WIRE_IN, box_source, is_wire_in
 from streamer_toolbox.core.flows.flow import END_LINE
 from streamer_toolbox.core.flows.flow_runner import FlowRunner
 from streamer_toolbox.core.variables.variable_store import VariableStore
@@ -146,6 +146,11 @@ class NodeEditor:
             if action and action.capture and action.shows(action.capture.partition(":")[2], node.params):
                 ui.button("Save current", icon="my_location", on_click=lambda: self._capture(node, action)) \
                     .props("no-caps outline dense").tooltip(self._capture_tip(action))
+            if action and action.copies:
+                ui.button(action.copies.partition(":")[2] or "Copy", icon="content_copy",
+                          on_click=lambda: self._copy(node, action)) \
+                    .props("no-caps outline dense").tooltip("Copies a text made from this box, to paste into the "
+                                                            "program")
 
     def _frozen(self, node: NodeDraft) -> None:
         """A frozen box: when it ran, Run again and Unfreeze, on top of its panel."""
@@ -205,10 +210,12 @@ class NodeEditor:
         """End's values: a name and a value each (typed or a wire), x to take one away and "+ Add value". Every line
         is an orange dot on the box; in another flow it is a dot of this flow's box, named like the line."""
         ui.separator().classes("opacity-40")
-        # End gives its values back; Build text puts them into its text as {name}; Set source settings sends them
+        # End gives its values back; Build text puts them into its text as {name}; Set source settings sends them;
+        # Build object makes them the keys of its object
         ui.label("Values it gives back" if action.ends_flow else
                  "Its lines (an empty one changes nothing)" if action.lines_from else
-                 "Its values ({name} in the text)").classes("text-sm font-semibold")
+                 "Its values ({name} in the text)" if "text" in box_parameters(action) else
+                 "Its values").classes("text-sm font-semibold")
         now = self._lines_now.get(node.id, {})
         lines = action.lines_named(node.params)
         for number, name in enumerate(lines, 1):
@@ -382,6 +389,47 @@ class NodeEditor:
         except Exception as e:
             ui.notify(str(e), type="negative", multi_line=True)
         self._on_change(rebuild=True)
+
+    async def _copy(self, node: NodeDraft, action: RegisteredAction) -> None:
+        """copies "other.action:Button text": run other.action with this box's matching fields (a wired one as the
+        keys known of it) and put the text it gives on the clipboard."""
+        target = action.copies.partition(":")[0]
+        wanted = box_parameters(self._actions.get(target))
+        params: dict[str, Any] = {}
+        for name, value in node.params.items():
+            if name not in wanted:
+                continue
+            if is_wire_in(value):
+                wired, value = value, self.dots.known_keys(value)
+                if value is None and await self._work_out(wired):
+                    value = self.dots.known_keys(wired)
+                if value is None:
+                    shown = action.labels.get(name) or name.replace("_", " ").capitalize()
+                    ui.notify(f"{shown} comes over a wire whose values aren't known yet: run the flow once (or "
+                              "test the box it comes from), or type them", type="warning", multi_line=True)
+                    return
+            params[name] = value
+        try:
+            text = await self._actions.run(target, **params)
+        except Exception as e:
+            ui.notify(str(e), type="warning", multi_line=True)
+            return
+        ui.clipboard.write(str(text))
+        ui.notify("Copied: paste it into the program", type="positive")
+
+    async def _work_out(self, wired: Any) -> bool:
+        """Runs the box a field is wired to when it only works out a value (data_only: Build object, Value, ...),
+        so its last result is known. A box that asks a program is never run behind his back."""
+        source = box_source(wired)
+        other = self._draft.node(source[0]) if source else None
+        other_action = self._actions.get(other.action) if other else None
+        if other is None or other_action is None or not other_action.data_only:
+            return False
+        try:
+            await self._runner.run_node(self._draft.to_flow(), other.to_node())
+        except Exception:
+            return False
+        return True
 
     def _capture_tip(self, action: RegisteredAction) -> str:
         capture, _, param = action.capture.partition(":")

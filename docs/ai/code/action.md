@@ -65,6 +65,7 @@ class ThingActions:
 | `live=True` | a reading action without parameters that fields can use as a Live value |
 | `flow_only=True` | only inside flows: not on Live, not in the SAMMI deck, **not over the API** |
 | `capture="obs.get_x"` | a "Save current" button: that action stores the program's state under the same fields |
+| `copies="vnyan.data_block:Copy VNyan block"` | a button with that text: it runs that action with the box's matching fields (a wired field as the keys the editor knows of it, e.g. from Build object) and copies the text it gives, to paste into another program |
 | `fills={"request": provider}`, `live_hints={"data": provider}` | setting a field fills others (only empty ones or the last fill), and a hint worked out from the box's values |
 | `editors={"animation": "vts_animation"}` | the field keeps a value of its own, edited in its own window (a `FieldEditor`; a plugin adds one with `ctx.add_field_editor`) |
 | `entries=("stop",)` | extra run dots on the left: a wire arriving while the box runs is passed to it (`BoxSignals`: `ctx.box_signals()` in a plugin, `.has("stop")`, `await .wait_for(seconds, "stop")`); it doesn't start the box. The box's own dot is drawn "start" then |

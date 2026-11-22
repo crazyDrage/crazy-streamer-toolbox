@@ -7,6 +7,7 @@ from streamer_toolbox.core.actions.action_registry import ActionRegistry
 from streamer_toolbox.core.connections.connection_status import ConnectionStatus
 from streamer_toolbox.core.connections.setting_field import SettingField
 from streamer_toolbox.core.interfaces.box import Box
+from streamer_toolbox.core.interfaces.message_inbox import MessageInbox
 
 
 class Connection(ABC):
@@ -83,6 +84,11 @@ class Connection(ABC):
         """The accounts whose events come in now (each event says it as "account"). With more than one, its
         triggers get an Account select (one or more; his answer 120). Empty: one account only."""
         return []
+
+    def inbox(self) -> MessageInbox | None:
+        """Where its program's messages come in (ws://<toolbox>/connections/<id>/in/<type>?key=...), or None:
+        it takes none (most connections only connect out)."""
+        return None
 
     def add_gui_settings(self) -> None:
         """Extra NiceGUI content under the standard fields on its tab (e.g. OBS fit targets, the SAMMI deck)."""

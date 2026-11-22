@@ -10,7 +10,8 @@ log = logging.getLogger(__name__)
 
 BACKUPS = "backups"  # in the settings folder
 UPGRADES = "upgrades"  # in backups/: the copies made before a settings upgrade (SettingsUpgrades)
-NOT_BACKED_UP = ("cache", BACKUPS, "app_window")  # downloads, the backups themselves, the window's browser data
+# downloads, the backups themselves, the window's browser data, the log
+NOT_BACKED_UP = ("cache", BACKUPS, "app_window", "logs")
 
 
 class SettingsBackup:

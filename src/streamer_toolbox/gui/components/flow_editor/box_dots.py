@@ -130,6 +130,10 @@ class BoxDots:
                 node.outputs = found
         return {k: v for k, v in node.outputs.items() if k not in action.outputs}
 
+    def known_keys(self, value: Any) -> dict[str, str] | None:
+        """{key: kind} of the object a field holds or is wired to, as far as the editor knows it (else None)."""
+        return self._keys_of(value)
+
     def _keys_of(self, value: Any) -> dict[str, str] | None:
         """{key: kind} of the object a field holds or is wired to (a Value line, a box's last result); None when
         that isn't known (nothing wired, never run)."""
@@ -248,8 +252,11 @@ class BoxDots:
         return "" if node_id == INPUT else "text"
 
     def field_name(self, node: NodeDraft, name: str) -> str:
-        """A field's name on its row of the box: the one the form shows ("Compare with" for right)."""
+        """A field's name on its row of the box: the one the form shows ("Compare with" for right). A line he
+        named (named_lines) shows as he typed it: it is a key, e.g. Build object's (his 11-22)."""
         action = self.action(node.action)
+        if action and action.named_lines and name in action.lines_named(node.params):
+            return name
         return (action.labels.get(name) if action else None) or field_label(name)
 
     def field_text(self, node: NodeDraft, name: str) -> str:

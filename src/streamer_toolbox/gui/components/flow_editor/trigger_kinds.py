@@ -54,6 +54,7 @@ TRIGGER_KINDS = {  # every platform at once (CommonEvents); the platform's own o
                  "twitch.power_up": ("auto_awesome", "Power-up used", "kind", "*"),
                  "twitch.suspicious_user": ("gpp_maybe", "Suspicious user wrote", "reason", "*"),
                  "timer": ("timer", "Timer (seconds)", "every", "10"),
+                 "connection.status": ("cable", "Status change", "connection", "*"),
                  "vts.model_loaded": ("face", "Model loaded", "model", "*"),
                  "vts.tracking": ("visibility", "Tracking found / lost", "face", "*"),
                  "vts.background": ("wallpaper", "VTS background changed", "background", "*"),
@@ -66,6 +67,8 @@ TRIGGER_KINDS = {  # every platform at once (CommonEvents); the platform's own o
                  "veadotube.state": ("face_retouching_natural", "veadotube state changed", "state", "*"),
                  "veadotube.push_to_talk": ("mic", "veadotube push-to-talk changed", "state", "*"),
                  "widget.loaded": ("widgets", "Widget loaded", "widget", "*"),
+                 "warudo.message": ("view_in_ar", "Message from Warudo", "type", "*"),
+                 "vnyan.message": ("pets", "Message from VNyan", "type", "*"),
                  "tits.hit": ("sports_baseball", "T.I.T.S. model was hit", "item", "*"),
                  "tits.trigger_started": ("play_circle", "T.I.T.S. trigger started", "trigger", "*"),
                  "tits.trigger_ended": ("stop_circle", "T.I.T.S. trigger ended", "trigger", "*"),
@@ -131,6 +134,7 @@ TRIGGER_INFO: dict[str, str] = {
     "rumble.online": "Your Rumble stream went live",
     "rumble.offline": "Your Rumble stream ended",
     "timer": "Again and again, every so many seconds",
+    "connection.status": "A connection got connected or lost: when the toolbox starts and finds the program, when the program starts later or comes back, and when it closes or goes away. Pick the connection (or ALL) and on connect / on disconnect / on change",
     "vts.model_loaded": "A model was loaded in VTube Studio",
     "vts.tracking": "The face or a hand was found or lost",
     "vts.background": "VTube Studio shows another background",
@@ -143,6 +147,8 @@ TRIGGER_INFO: dict[str, str] = {
     "widget.loaded": "A widget's page was opened: OBS loaded its Browser source, or its preview in the toolbox. "
                      "Send it what it shows at once (the last follower, a goal, ...). Match the widget's name",
     "veadotube.push_to_talk": "veadotube mini's push-to-talk (its microphone) went on or off. Match on to start only when it goes on, off for off",
+    "vnyan.message": "VNyan sent a message (its \"WebSocket Message\" node, see Connections → VNyan). Match the type, the word in its address",
+    "warudo.message": "Warudo sent a message (its plugin \"Send Websocket\", see Connections → Warudo). Match the type, the word in its address",
     "tits.hit": "A thrown item hit the model; with the item, how hard (strength) and from where (x, y, z)",
     "tits.trigger_started": "A T.I.T.S. trigger started",
     "tits.trigger_ended": "A T.I.T.S. trigger ended",
@@ -153,6 +159,13 @@ TRIGGER_INFO: dict[str, str] = {
     "tiltify.donation": "A donation to your Tiltify campaign (charity, not a tip)",
     "crowdcontrol.effect": "A viewer asked for an effect in the game",
     "key.pressed": "A key on this PC was pressed, e.g. f23",
+}
+
+# a second dropdown on a trigger (his 11-21): kind → (the event value it matches, {value: what the dropdown says},
+# the value a new trigger gets). "*" = any
+TRIGGER_SELECTS: dict[str, tuple[str, dict[str, str], str]] = {
+    "connection.status": ("status", {"connected": "on connect", "disconnected": "on disconnect", "*": "on change"},
+                          "connected"),
 }
 
 # the kinds whose field is a number: the editor asks "any / higher than / lower than / equal to" and the number

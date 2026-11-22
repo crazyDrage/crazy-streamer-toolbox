@@ -30,7 +30,8 @@ class KeepMediaLocally(Box):
                        "(a picture used in several flows is downloaded once)",
              "max_mb": "When the folder is fuller, the files unused the longest go",
              "file_mb": "A bigger file isn't kept (its web address goes on)",
-             "days": "Then it is downloaded again. 0 = as long as there is room"}
+             "days": "Then it is downloaded again the next time; one nobody asked for in that many days goes. "
+                     "0 = as long as there is room"}
 
     def __init__(self, buffer: MediaBuffer) -> None:
         self._buffer = buffer

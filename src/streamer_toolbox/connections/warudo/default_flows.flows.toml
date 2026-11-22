@@ -1,0 +1,33 @@
+# Warudo's default flows: its tab's "Add default flows" puts them, switched off, into the folder "Warudo - default"
+# (DefaultFlows). The same format as Flows → Export folder. His idea (11-21): Warudo's "Send Websocket Asset" doesn't
+# connect again after the toolbox was closed; once the toolbox finds Warudo, it sends the address to his blueprint
+# "toolbox_connect_input_default" (Copy blueprint on the Warudo tab), which sets it on the asset.
+toolbox_flows = 1
+folder = "Warudo - default"
+
+[[flows]]
+name = "warudo_connect_input_default"
+label = "Warudo - default - connect input"
+description = "When the toolbox finds Warudo (at its start, or when Warudo starts later), it sends Warudo the address of the type default. Needs the blueprint toolbox_connect_input_default and the asset toolbox_input_default in Warudo (Connections → Warudo: Copy blueprint, Copy asset). For another type: copy this flow and change the type and the action's name."
+wires = [
+    {from = "t1", port = "out", to = "n2"},
+]
+
+[[flows.triggers]]
+kind = "connection.status"
+id = "t1"
+box = [20, 40]
+connection = "warudo"
+status = "connected"
+
+[[flows.nodes]]
+id = "n1"
+action = "warudo.input_address"
+box = [320, 200]
+params = {type = "default"}
+
+[[flows.nodes]]
+id = "n2"
+action = "warudo.send"
+box = [620, 40]
+params = {action = "connect_input_default", data = "${box.n1}"}

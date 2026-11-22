@@ -113,7 +113,7 @@ class FlowListView:
             with ui.button(icon="more_vert").props("flat round dense").classes("sm:hidden") \
                     .on("click.stop", lambda: None):
                 with ui.menu():
-                    for icon, tip, handler in tools:
+                    for _, tip, handler in tools:
                         ui.menu_item(tip, on_click=handler)
 
     def _add_button(self, text: str, entries: tuple[OutlineEntry, ...], source: str, port: str) -> None:

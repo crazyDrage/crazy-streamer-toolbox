@@ -17,6 +17,7 @@ from streamer_toolbox.core.flows.flow_store import FlowStore
 from streamer_toolbox.core.config.config_table_writer import ConfigTableWriter
 from streamer_toolbox.core.upgrades.accounts_upgrade import AccountsUpgrade
 from streamer_toolbox.core.upgrades.youtube_accounts_upgrade import YouTubeAccountsUpgrade
+from streamer_toolbox.core.upgrades.build_object_upgrade import BuildObjectUpgrade
 from streamer_toolbox.core.upgrades.chat_emotes_upgrade import ChatEmotesUpgrade
 from streamer_toolbox.core.upgrades.emoji_dict_upgrade import EmojiDictUpgrade
 from streamer_toolbox.core.upgrades.profile_picture_upgrade import ProfilePictureUpgrade
@@ -109,7 +110,8 @@ class TestEventConversion(unittest.TestCase):
             AccountsUpgrade(lambda: "", self.events, ConfigTableWriter(self.folder / "toolbox.toml")),
             YouTubeAccountsUpgrade(lambda: ""), RumbleAccountsUpgrade(lambda: ""),
             ProfilePictureUpgrade(self.flows, lambda: "", self.folder / "twitch_pictures.json"),
-            EmojiDictUpgrade(lambda: []), ChatEmotesUpgrade(self.flows, lambda: [])]).flow
+            EmojiDictUpgrade(lambda: []), ChatEmotesUpgrade(self.flows, lambda: []),
+            BuildObjectUpgrade(self.flows)]).flow
         old = 'label = "Old"\n[[nodes]]\nid = "n1"\naction = "alert.play.follow"\nparams = { user = "x" }\n'
         node = self.flows.import_file(old, "old.toml")[0].nodes[0]
         self.assertEqual((node.action, node.params), ("event.send.follow", {"user": "x", "only_to": "alert follow"}))

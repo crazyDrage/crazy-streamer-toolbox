@@ -1,3 +1,5 @@
+import re
+from dataclasses import replace
 from urllib.parse import quote
 
 from nicegui import ui
@@ -9,6 +11,7 @@ from streamer_toolbox.gui.components.default_flows_dialog import DefaultFlowsDia
 from streamer_toolbox.core.interfaces.connection import Connection
 from streamer_toolbox.core.connections.connection_manager import ConnectionManager
 from streamer_toolbox.core.connections.connection_state import ConnectionState
+from streamer_toolbox.core.connections.connection_status import ConnectionStatus
 
 STATE_LOOK = {  # badge text, Quasar colour
     ConnectionState.OFF: ("off", "grey"),
@@ -16,6 +19,17 @@ STATE_LOOK = {  # badge text, Quasar colour
     ConnectionState.CONNECTED: ("connected", "positive"),
     ConnectionState.ERROR: ("not connected", "negative"),
 }
+PLAIN_CONNECTING = ("", "connecting")  # a retry with nothing new to say
+COUNTDOWN = re.compile(r"trying again in \d+ s")  # 2 s, 4 s, 8 s...: the log keeps the seconds
+
+
+def text_to_show(shown: ConnectionStatus, new: ConnectionStatus) -> ConnectionStatus:
+    """The status whose text the tab shows. A plain retry keeps the text already there, and a retry's countdown
+    shows as "trying again", so the tab doesn't shrink and grow with every try (his 11-20 and 11-21); only the
+    badge says it's connecting."""
+    if new.state is ConnectionState.CONNECTING and new.detail in PLAIN_CONNECTING and shown.detail:
+        return shown
+    return replace(new, detail=COUNTDOWN.sub("trying again", new.detail))
 
 
 class ConnectionPanel:
@@ -38,12 +52,16 @@ class ConnectionPanel:
                 ui.space()
                 badge = ui.badge()
 
-            @ui.refreshable
-            def status_block() -> None:
-                status = connection.status
+            def show_badge(status: ConnectionStatus) -> None:
                 text, colour = STATE_LOOK[status.state]
                 badge.set_text(text)
                 badge.props(f"color={colour}")
+
+            shown = {"status": connection.status, "text": text_to_show(connection.status, connection.status)}
+
+            @ui.refreshable
+            def status_block() -> None:
+                status = shown["text"]
                 if status.detail:
                     ui.label(status.detail).classes("text-sm text-negative break-all")
                 for name, value in status.facts:
@@ -51,12 +69,18 @@ class ConnectionPanel:
                         ui.label(name).classes("w-36 shrink-0 opacity-70")
                         ui.label(value).classes("break-all")
 
+            show_badge(connection.status)
             status_block()
-            shown = {"status": connection.status}
 
             def refresh_if_changed() -> None:
-                if shown["status"] != connection.status:
-                    shown["status"] = connection.status
+                status = connection.status
+                if shown["status"] == status:
+                    return
+                shown["status"] = status
+                show_badge(status)
+                text = text_to_show(shown["text"], status)
+                if text != shown["text"]:
+                    shown["text"] = text
                     status_block.refresh()
 
             ui.timer(1.0, refresh_if_changed)

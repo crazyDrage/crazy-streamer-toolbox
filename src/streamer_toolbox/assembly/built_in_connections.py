@@ -34,6 +34,8 @@ from streamer_toolbox.connections.warudo_connection import WarudoConnection
 from streamer_toolbox.connections.youtube_connection import YouTubeConnection
 from streamer_toolbox.core.config.config_table_writer import ConfigTableWriter
 from streamer_toolbox.core.connections.account_keys import AccountKeys, fit_name
+from streamer_toolbox.core.connections.inbox_types import InboxTypes
+from streamer_toolbox.core.connections.secret_file import SecretFile
 from streamer_toolbox.core.connections.secrets_folder import SecretsFolder
 from streamer_toolbox.core.config.obs_config import ObsConfig
 from streamer_toolbox.core.events.event_bus import EventBus
@@ -48,7 +50,9 @@ class BuiltInConnections:
 
     def __init__(self, tables: dict[str, Any], obs: ObsConfig, folder: Path, events: EventBus,
                  secrets: SecretsFolder | None = None,
-                 raw: Callable[[str, dict[str, Any]], None] | None = None, config_file: Path | None = None) -> None:
+                 raw: Callable[[str, dict[str, Any]], None] | None = None, config_file: Path | None = None,
+                 port: int = 8850) -> None:
+        self._port = port  # the toolbox's own: the address a program connects in to
         self._secrets = secrets or SecretsFolder(folder)
         self._config_file = config_file or folder / "toolbox.toml"  # where a tab's account settings are saved
         self._made: dict[str, Any] = {}  # connection id → the connection (for the account settings' callbacks)
@@ -89,8 +93,12 @@ class BuiltInConnections:
             FanslyConnection(tables.get("fansly", {}), events),
             StreamSocketConnection(tables.get("streamsocket", {}), secret("streamsocket_secret.txt"),
                                    events, lambda: (twitch_tokens.load().user_id if twitch_tokens.load() else "")),
-            VNyanConnection(tables.get("vnyan", {})),
-            WarudoConnection(tables.get("warudo", {})),
+            VNyanConnection(tables.get("vnyan", {}), events=events, port=self._port,
+                            in_key=SecretFile(secret("vnyan_in_key.txt"), "key"),
+                            in_types=InboxTypes(folder / "inbox_types.json")),
+            WarudoConnection(tables.get("warudo", {}), events=events, port=self._port,
+                             in_key=SecretFile(secret("warudo_in_key.txt"), "key"),
+                             in_types=InboxTypes(folder / "inbox_types.json")),
             VeadotubeConnection(tables.get("veadotube", {}), events),
             TitsConnection(tables.get("tits", {}), events),
             StreamerbotConnection(tables.get("streamerbot", {}),

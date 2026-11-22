@@ -84,6 +84,14 @@ EVENT_FIELDS: dict[str, tuple[str, ...]] = {
     "streamsocket.event": ("event", "event_id", "bits", "user", "user_id", "categories", "test", "role", "platform"),
     # T.I.T.S.: something hit the model (item = what was thrown; x, y, z = the direction it flew, each -1 to 1),
     # a trigger started / ended
+    # a connection got connected or lost (ConnectionWatcher): connection = its id (warudo, obs, ...), title = its
+    # tab's name, status = connected / disconnected
+    "connection.status": ("connection", "title", "status"),
+    # Warudo sent something (its plugin "Send Websocket"): type = the word in its address, text = as it came
+    # (no value read as JSON: his 11-22, JSON text to value does that in the flow)
+    "warudo.message": ("type", "text"),
+    # VNyan sent something (its "WebSocket Message" node): the same values as Warudo's
+    "vnyan.message": ("type", "text"),
     "tits.hit": ("item", "item_id", "trigger", "trigger_id", "strength", "x", "y", "z"),
     "tits.trigger_started": ("trigger", "trigger_id"),
     "tits.trigger_ended": ("trigger", "trigger_id"),

@@ -13,12 +13,10 @@ import secrets
 import sys
 from pathlib import Path
 
-from nicegui import app, ui
-
-from streamer_toolbox.assembly.toolbox_assembly import assemble
 from streamer_toolbox.core.app_name import APP_NAME
 from streamer_toolbox.core.config.toolbox_config import ToolboxConfig
 from streamer_toolbox.core.files.write_whole import write_whole
+from streamer_toolbox.core.system.log_file import LogFile
 from streamer_toolbox.core.system.parent_watch import ParentWatch
 from streamer_toolbox.core.system.toolbox_launcher import ToolboxLauncher
 from streamer_toolbox.core.system.update_starter import UpdateStarter
@@ -59,6 +57,11 @@ def main() -> None:
     config = ToolboxConfig.read(args.config)
     if not args.child:
         sys.exit(_launch(args, config))
+    # only the toolbox loads NiceGUI and its parts: the launcher just starts it and opens the page (~70 MB less)
+    from nicegui import app, ui
+
+    from streamer_toolbox.assembly.toolbox_assembly import assemble
+    LogFile(args.config.parent / "logs").attach()  # the toolbox only: the launcher's few lines stay in the console
     log.info("config: %s", args.config if args.config.exists() else "none found, using defaults")
     _, restart = assemble(args, config)
     # the launcher closes our stdin: window closed, Ctrl+C. Watched once the server runs: app.shutdown() before

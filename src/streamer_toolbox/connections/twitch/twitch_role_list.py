@@ -47,7 +47,7 @@ class TwitchRoleList:
         """Every user id of one list, and how many requests it took."""
         users: list[str] = []
         after = ""
-        for page in range(1, MOST_PAGES + 1):
+        for page in range(1, MOST_PAGES + 1):  # noqa: B007 (page = the requests it took, after the loop)
             params = {"broadcaster_id": broadcaster, "first": PAGE, **({"after": after} if after else {})}
             answer = await self._helix("GET", path, params=params)
             users += [str(u["user_id"]) for u in answer.get("data") or [] if isinstance(u, dict) and u.get("user_id")]

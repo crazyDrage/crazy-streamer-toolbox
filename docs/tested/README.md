@@ -53,11 +53,12 @@ name in that file. The script keeps such rows as they are.
 
 | Where | Tested | Of |
 |---|---|---|
-| **[live](live/)** | **0** | **4** |
-| [live/page](live/page.md) | 0 | 4 |
-| **[flows](flows/)** | **15** | **376** |
+| **[live](live/)** | **0** | **11** |
+| [live/page](live/page.md) | 0 | 11 |
+| **[flows](flows/)** | **19** | **383** |
 | [flows/page](flows/page.md) | 0 | 6 |
 | [flows/triggers/any_platform](flows/triggers/any_platform.md) | 3 | 10 |
+| [flows/triggers/connection](flows/triggers/connection.md) | 1 | 1 |
 | [flows/triggers/crowdcontrol](flows/triggers/crowdcontrol.md) | 0 | 1 |
 | [flows/triggers/example](flows/triggers/example.md) | 0 | 1 |
 | [flows/triggers/fansly](flows/triggers/fansly.md) | 0 | 3 |
@@ -74,7 +75,9 @@ name in that file. The script keeps such rows as they are.
 | [flows/triggers/toolbox](flows/triggers/toolbox.md) | 0 | 2 |
 | [flows/triggers/twitch](flows/triggers/twitch.md) | 3 | 14 |
 | [flows/triggers/veadotube](flows/triggers/veadotube.md) | 0 | 2 |
+| [flows/triggers/vnyan](flows/triggers/vnyan.md) | 0 | 1 |
 | [flows/triggers/vtube_studio](flows/triggers/vtube_studio.md) | 4 | 6 |
+| [flows/triggers/warudo](flows/triggers/warudo.md) | 1 | 1 |
 | [flows/triggers/widget](flows/triggers/widget.md) | 0 | 1 |
 | [flows/triggers/youtube](flows/triggers/youtube.md) | 0 | 9 |
 | [flows/boxes/alert/alerts](flows/boxes/alert/alerts.md) | 0 | 2 |
@@ -147,7 +150,7 @@ name in that file. The script keeps such rows as they are.
 | [flows/boxes/video/video](flows/boxes/video/video.md) | 0 | 1 |
 | [flows/boxes/viewer/chat](flows/boxes/viewer/chat.md) | 0 | 1 |
 | [flows/boxes/viewer/per_viewer](flows/boxes/viewer/per_viewer.md) | 0 | 4 |
-| [flows/boxes/vnyan/general](flows/boxes/vnyan/general.md) | 0 | 2 |
+| [flows/boxes/vnyan/general](flows/boxes/vnyan/general.md) | 0 | 4 |
 | [flows/boxes/voicemod/general](flows/boxes/voicemod/general.md) | 0 | 3 |
 | [flows/boxes/voicemod/soundboard](flows/boxes/voicemod/soundboard.md) | 0 | 2 |
 | [flows/boxes/vtube_studio/expressions](flows/boxes/vtube_studio/expressions.md) | 0 | 2 |
@@ -158,7 +161,7 @@ name in that file. The script keeps such rows as they are.
 | [flows/boxes/vtube_studio/model_position](flows/boxes/vtube_studio/model_position.md) | 0 | 8 |
 | [flows/boxes/vtube_studio/parameters](flows/boxes/vtube_studio/parameters.md) | 0 | 2 |
 | [flows/boxes/vtube_studio/visual_effects](flows/boxes/vtube_studio/visual_effects.md) | 0 | 4 |
-| [flows/boxes/warudo/general](flows/boxes/warudo/general.md) | 0 | 1 |
+| [flows/boxes/warudo/general](flows/boxes/warudo/general.md) | 2 | 3 |
 | [flows/boxes/web/request](flows/boxes/web/request.md) | 0 | 1 |
 | [flows/boxes/youtube/chat](flows/boxes/youtube/chat.md) | 0 | 1 |
 | **[variables](variables/)** | **0** | **1** |
@@ -204,6 +207,6 @@ name in that file. The script keeps such rows as they are.
 | [plugins/page](plugins/page.md) | 0 | 4 |
 | **[learn](learn/)** | **0** | **11** |
 | [learn/page](learn/page.md) | 0 | 11 |
-| **[settings](settings/)** | **0** | **20** |
-| [settings/page](settings/page.md) | 0 | 20 |
-| **All** | **15** | **457** |
+| **[settings](settings/)** | **0** | **28** |
+| [settings/page](settings/page.md) | 0 | 28 |
+| **All** | **19** | **479** |

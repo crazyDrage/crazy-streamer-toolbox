@@ -18,4 +18,5 @@ history
 devices
 data
 problems
+tried
 ```

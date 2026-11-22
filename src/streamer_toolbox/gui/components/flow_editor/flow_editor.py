@@ -35,6 +35,7 @@ from streamer_toolbox.gui.components.flow_editor.key_dialog import KeyDialog
 from streamer_toolbox.gui.components.flow_editor.node_editor import NodeEditor
 from streamer_toolbox.gui.components.flow_editor.start_examples import StartExamples
 from streamer_toolbox.gui.components.flow_editor.trigger_kinds import (NUMBER_TRIGGERS, TRIGGER_CHOICES, TRIGGER_INFO,
+                                                                       TRIGGER_SELECTS,
                                                                        TRIGGER_KINDS, offered_triggers)
 from streamer_toolbox.gui.components.flow_editor.trigger_picker import TriggerPicker
 
@@ -44,6 +45,7 @@ KEPT_KEYS = (*ROLE_KEYS, ACCOUNTS)  # filters a trigger keeps when its own field
 
 
 REDEEM = "twitch.redeem"  # its form has the refund checkbox
+ANY = "*"  # a trigger's "any": its dropdown shows it as ALL
 
 
 class FlowEditor:
@@ -239,7 +241,8 @@ class FlowEditor:
         picked = await TriggerPicker(kinds, note, works).pick()
         if picked is None:
             return
-        trigger = FlowTrigger(picked.kind, {picked.match: picked.example} if picked.match else {})
+        trigger = FlowTrigger(picked.kind, {**({picked.match: picked.example} if picked.match else {}),
+                                            **_select_default(picked.kind)})
         self._changed(edit=lambda: (self._draft.add_trigger(trigger), then()))
 
     def _trigger_form(self, trigger_id: str, delete: Callable[[], None] | None = None) -> None:
@@ -269,6 +272,8 @@ class FlowEditor:
                 ui.label("Starts every time; it has nothing to filter by.").classes("text-xs opacity-60")
             else:
                 self._trigger_value(trigger_id, trigger.kind, key, str(trigger.match.get(key, "")))
+                if trigger.kind in TRIGGER_SELECTS:
+                    self._second_select(trigger_id, trigger.kind)
                 if "role" in EVENT_FIELDS.get(trigger.kind, ()):
                     self._who_select(trigger_id)
             self._account_select(trigger_id)
@@ -303,7 +308,10 @@ class FlowEditor:
             if isinstance(choices, dict):  # id → name (rewards): the trigger keeps the id, a rename can't break it
                 self._by_id(trigger_id, key, pick, choices)
                 return
-            pick.set_options(sorted(set(choices) | set(current), key=str.casefold), value=pick.value)
+            options = sorted(set(choices) | set(current), key=str.casefold)
+            if ANY in options:  # * shows as ALL, on top (his 11-21); the trigger keeps *
+                options = {ANY: "ALL", **{option: option for option in options if option != ANY}}
+            pick.set_options(options, value=pick.value)
 
         ui.timer(0.1, load, once=True)
 
@@ -364,8 +372,24 @@ class FlowEditor:
             .tooltip("Tick Ctrl / Alt / Shift and pick the key from a list, or press it")
 
     def _who(self, trigger_id: str) -> dict[str, str]:
-        """The trigger's role and account filters as they are saved (kept when its other field changes)."""
-        return {k: v for k, v in self._draft.trigger(trigger_id).match.items() if k in KEPT_KEYS}
+        """The trigger's role and account filters as they are saved (kept when its other field changes), and its
+        second dropdown's value (TRIGGER_SELECTS)."""
+        trigger = self._draft.trigger(trigger_id)
+        kept = (*KEPT_KEYS, TRIGGER_SELECTS[trigger.kind][0]) if trigger.kind in TRIGGER_SELECTS else KEPT_KEYS
+        return {k: v for k, v in trigger.match.items() if k in kept}
+
+    def _second_select(self, trigger_id: str, kind: str) -> None:
+        """A trigger's second dropdown (Status change: on connect / on disconnect / on change, his 11-21). What it
+        matches shows as it is saved; nothing saved = "*" (rule 29: no hidden filter)."""
+        key, choices, _ = TRIGGER_SELECTS[kind]
+
+        def changed(e) -> None:
+            match = self._draft.trigger(trigger_id).match
+            self._set_trigger(trigger_id, match={**match, key: e.value or ANY})
+
+        value = str(self._draft.trigger(trigger_id).match.get(key, ANY))
+        ui.select({**choices, **({value: value} if value not in choices else {})}, value=value, label="when",
+                  on_change=changed).props("dense").classes("w-40 shrink-0")
 
     def _account_select(self, trigger_id: str) -> None:
         """Which accounts may start it (his answer 120): only when more than one account listens, or when it
@@ -573,3 +597,11 @@ class FlowEditor:
 def _typed(value):
     """Test run inputs are typed as text: "3" → 3, "0.5" → 0.5, "true" → True, other text stays text."""
     return understand(value) if isinstance(value, str) else value
+
+
+def _select_default(kind: str) -> dict[str, str]:
+    """A new trigger's second dropdown value (TRIGGER_SELECTS), e.g. Status change: on connect."""
+    if kind not in TRIGGER_SELECTS:
+        return {}
+    key, _, default = TRIGGER_SELECTS[kind]
+    return {key: default}

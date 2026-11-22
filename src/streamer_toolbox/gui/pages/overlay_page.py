@@ -110,7 +110,7 @@ class OverlayPage:
         ui.switch("Keep alerts through a restart", value=self._backup.on,
                   on_change=lambda e: self._backup.switch(e.value)).props("dense") \
             .tooltip("Off: a restart of the toolbox clears the alerts waiting in line. On: the line is kept in a "
-                     "file (alert_backup.json next to your settings); after a restart the waiting alerts play, and "
+                     "file (alert_backup.json and .log next to your settings); after a restart the waiting alerts play, and "
                      "OBS gets the ones it missed")
         with ui.row().classes("items-center no-wrap gap-2 w-full"):
             scene = keep_typed(ui.select([], label="Scene", new_value_mode="add-unique")

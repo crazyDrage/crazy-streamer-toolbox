@@ -9,8 +9,14 @@ from streamer_toolbox.api.action_router import build_action_router
 from streamer_toolbox.api.caller_auth import CallerAuth
 from streamer_toolbox.api.font_router import build_font_router
 from streamer_toolbox.api.media_router import build_media_router
+from streamer_toolbox.api.inbound_router import build_inbound_router
+from streamer_toolbox.core.actions.registered_action import OptionsProvider
+from streamer_toolbox.core.connections.connection_watcher import STATUS, ConnectionWatcher
+from streamer_toolbox.core.interfaces.connection import Connection
+from streamer_toolbox.core.interfaces.message_inbox import MessageInbox
 from streamer_toolbox.api.overlay_router import build_overlay_router
 from streamer_toolbox.api.widget_router import build_widget_router
+from streamer_toolbox.api.failed_request_log_middleware import FailedRequestLogMiddleware
 from streamer_toolbox.api.widget_sandbox_middleware import WidgetSandboxMiddleware
 from streamer_toolbox.assembly.built_in_connections import BuiltInConnections
 from streamer_toolbox.assembly.own_boxes import OwnBoxes
@@ -65,6 +71,7 @@ from streamer_toolbox.core.events.role_loader import RoleLoader
 from streamer_toolbox.core.events.role_loading import RoleLoading
 from streamer_toolbox.gui.components.font_picker import FontPicker
 from streamer_toolbox.gui.components.fonts_panel import FontsPanel
+from streamer_toolbox.gui.components.log_panel import LogPanel
 from streamer_toolbox.gui.components.role_loading_panel import RoleLoadingPanel
 from streamer_toolbox.gui.components.secrets_login_panel import SecretsLoginPanel
 from streamer_toolbox.gui.pages.unlock_page import UnlockPage
@@ -94,6 +101,7 @@ from streamer_toolbox.core.points.point_store import PointStore
 from streamer_toolbox.core.security.login_throttle import LoginThrottle
 from streamer_toolbox.core.security.remote_access import RemoteAccess
 from streamer_toolbox.core.security.signed_in_devices import SignedInDevices
+from streamer_toolbox.core.system.log_file import LogFile
 from streamer_toolbox.core.system.toolbox_restart import ToolboxRestart
 from streamer_toolbox.core.system.toolbox_update import ToolboxUpdate
 from streamer_toolbox.core.testing.test_gate import TestGate
@@ -105,6 +113,7 @@ from streamer_toolbox.core.system.settings_backup import UPGRADES, SettingsBacku
 from streamer_toolbox.core.system.upgrade_backup_policy import UpgradeBackupPolicy
 from streamer_toolbox.core.upgrades.accounts_upgrade import AccountsUpgrade
 from streamer_toolbox.core.upgrades.settings_upgrades import SettingsUpgrades
+from streamer_toolbox.core.upgrades.build_object_upgrade import BuildObjectUpgrade
 from streamer_toolbox.core.upgrades.chat_emotes_upgrade import ChatEmotesUpgrade
 from streamer_toolbox.core.upgrades.emoji_dict_upgrade import EmojiDictUpgrade
 from streamer_toolbox.core.upgrades.profile_picture_upgrade import ProfilePictureUpgrade
@@ -271,7 +280,7 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
     if not left_out(HEART_RATE):
         heart.add_to(actions)
     built_in = BuiltInConnections(config.tables, config.obs, args.config.parent, events, secrets, raw_event,
-                                  config_file=args.config)
+                                  config_file=args.config, port=port)
     connections = ConnectionManager([connection for connection in [
         *built_in.build(
             probe, twitch, twitch_tokens, mixitup, heart, wants_key,
@@ -398,7 +407,8 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
                               args.config.parent / "cache" / "twitch_pictures.json"),
         EmojiDictUpgrade(lambda: event_types.add_values("chat", (EventValue("picture"), EventValue("emoji_dict"))),
                          flows, lambda: event_flows.update_default("chat")),
-        ChatEmotesUpgrade(flows, lambda: event_types.remove_values("chat", ("emotes",)))],
+        ChatEmotesUpgrade(flows, lambda: event_types.remove_values("chat", ("emotes",))),
+        BuildObjectUpgrade(flows)],
         back_up=upgrade_backup)
     for line in upgrades.run() + conversion.leftovers():
         log.info("settings upgrade %s", line)
@@ -466,7 +476,9 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
             log.info("%d sub(s) came in while the toolbox was off", len(found))
 
     # with a login set (Settings → Login) nothing starts before the password was typed (UnlockPage)
-    work = StartOnce([keep_alerts, connections.start_all, clock.start, start_payouts, power.start_all])
+    watcher = ConnectionWatcher(connections.all, events)  # the trigger "Status change" (his 11-21)
+    work = StartOnce([keep_alerts, watcher.start, connections.start_all, clock.start, start_payouts,
+                      power.start_all])
 
     async def start_unless_locked() -> None:
         if secrets.vault.unlocked:
@@ -489,9 +501,12 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
     app.add_middleware(SecretsLockMiddleware, vault=secrets.vault)
     ui.page(UNLOCK, title=f"Log in · {APP_NAME}")(UnlockPage(secrets.vault, LoginThrottle(), work.run).build)
     app.add_middleware(RemoteLoginMiddleware, access=access, devices=devices, is_login_client=_is_login_client)
+    app.add_middleware(FailedRequestLogMiddleware)  # the last added is the outermost: it sees every answer
     ui.page("/login", title=f"Sign in · {APP_NAME}")(LoginPage(access, LoginThrottle(), devices).build)
     app.include_router(build_action_router(actions, CallerAuth(list(config.callers)), activity.add))
     app.include_router(build_overlay_router(alert_queue))
+    app.include_router(build_inbound_router(  # programs that send to the toolbox (Warudo's plugin)
+        lambda connection_id: next((c.inbox() for c in connections.all() if c.id == connection_id), None)))
     app.include_router(build_media_router(media_buffer))
     # fonts every text can use, hosted for every device (his 11-18): config/fonts/ + config/fonts.json
     font_library = FontLibrary(args.config.parent / "fonts", args.config.parent / "fonts.json")
@@ -525,9 +540,24 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
         owner, dot, _ = kind.partition(".")
         return [name for c in connections.all() if not dot or c.id == owner for name in c.listening_accounts()]
 
+    def inbox_type_choices(all_connections: list[Connection]) -> dict[str, OptionsProvider]:
+        """A connection that takes messages in: its trigger `<id>.message` offers ALL (*) and the types that
+        connected once (his 11-21)."""
+        def choices(inbox: MessageInbox) -> OptionsProvider:
+            async def known() -> list[str]:
+                return ["*", *inbox.known_types()]
+            return known
+        return {f"{c.id}.message": choices(inbox) for c in all_connections if (inbox := c.inbox()) is not None}
+
+    async def connection_choices() -> list[str]:
+        """The trigger "Status change": ALL (*) and every connection's id."""
+        return ["*", *(c.id for c in connections.all())]
+
     shell.page("Edit flow", "/flows/edit", FlowEditorPage(flows, actions, runner, variables,
                                                             BoxValueFiles(boxes),
-                                                            {"twitch.redeem": twitch.reward_choices},
+                                                            {"twitch.redeem": twitch.reward_choices,
+                                                             **inbox_type_choices(connections.all()),
+                                                             STATUS: connection_choices},
                                                             box_filters, switched_off, last_events,
                                                             test_view, trigger_accounts).build)
     shell.page("Variables", "/variables", VariablesPage(variables, flows).build)
@@ -596,7 +626,7 @@ def assemble(args: argparse.Namespace, config: ToolboxConfig) -> tuple[TestGate,
                                             ExportImporter(flows, alert_store, widget_store, event_types, variables,
                                                            deck_store, deck_images, actions,
                                                            args.config.parent / "media", event_users.start)),
-                                 FontsPanel(font_library))
+                                 FontsPanel(font_library), LogPanel(LogFile(args.config.parent / "logs")))
     shell.page("Settings", "/settings", settings_page.build)
     shell.sub_items["/settings"] = settings_page.sections
 

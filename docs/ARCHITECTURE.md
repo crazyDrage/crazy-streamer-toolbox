@@ -26,7 +26,7 @@ core/                    shared building blocks, no service-specific code. Every
                          boxes/, connections/<id>/boxes/), one per file; see docs/ai/code/action.md
   interfaces/            every interface: Connection, VideoProbe, LayoutPolicy, SceneItemEditor,
                          ObsConnectionChecker, ConfirmService, MessageService, PageOpener, PluginContext,
-                         ToolboxPlugin, SoundPlayer; and what a plugin adds, one class per kind: Box, Trigger,
+                         ToolboxPlugin, SoundPlayer, MessageInbox; and what a plugin adds, one class per kind: Box, Trigger,
                          Tool, Page, Panel, Listener, FieldEditor
   actions/               ActionRegistry (every runnable action by name), RegisteredAction, action descriptions;
                          JsonBoxes + JsonBox + JsonBoxField (boxes written as JSON: a folder of *.json, each box
@@ -203,10 +203,16 @@ connections/             ONLY the connection classes, one per service
   streamelements_connection.py  streamlabs_connection.py  rumble_connection.py  youtube_connection.py
   fansly_connection.py (a LineConnection on the chat socket of Fansly's website: join the chatroom, "p" every
   10 s; no login, read only)
-  websocket/             SocketMessageSender: open, send one text, close (VNyan, Warudo); RequestSocket (a
+  websocket/             SocketConnection (the base of every websocket connection, his 11-21 rule: a send
+                         that fails while connected restarts the connection and goes once more, no "on
+                         disconnect" in between; a second failure = disconnected); VisitConnection (open,
+                         send one text, close, through SocketMessageSender: VNyan, Warudo); RequestSocket (a
                          websocket that stays open and talks JSON: requests matched to their answers by an
-                         id, the program's own messages, connects again by itself); LineConnection (the
-                         connection class around one RequestSocket: start / stop / test / _ask)
+                         id, the program's own messages, connects again by itself: once at once without
+                         telling an error, then slower; AnswerLostError = the line closed before the answer,
+                         not sent again); LineConnection (the connection class around one RequestSocket:
+                         start / stop / test / _ask); SocketInbox (messages FROM a program that connects to
+                         the toolbox's address → <id>.message, with its key and known types: Warudo, VNyan)
   tits/                  TitsActions (throw an item, activate a trigger, by name). The connection has two
                          websockets: /websocket for requests, /events → tits.hit / trigger_started / _ended
   streamerbot/           StreamerbotActions (run an action by name, code trigger, get global, write in
@@ -223,8 +229,11 @@ connections/             ONLY the connection classes, one per service
   discord/               DiscordActions: a message into a channel through its webhook
   tiltify/               TiltifyFeed (logs in as his application, asks for a campaign's new donations
                          again and again → tiltify.donation; not a tip)
-  vnyan/                 VNyanActions: a named message to VNyan's node graph (its WebSocket node; its API
-                         Message node over the web API on 8069). Send only
+  vnyan/                 VNyanActions: a named message to VNyan's node graph (its WebSocket Command node),
+                         data (a JSON line → the Data of a node with an empty Command Text); each box has a
+                         "Copy VNyan block" button (copies): VNyanCopyTexts makes the node blocks to paste into
+                         VNyan, like his exports. VNyan → toolbox: SocketInbox (vnyan.message), tried with him
+                         11-22 (temp/recordings/vnyan/). The API Message box went 11-22 (his "outdated")
   warudo/                WarudoActions: a named action to a Warudo blueprint (On WebSocket Action node, port
                          19190). Send only; the message's shape is not confirmed with the real program
   veadotube/             VeadotubeInstances (finds the running veadotube mini by the files it keeps),
@@ -306,6 +315,10 @@ api/                     the HTTP API (POST /action/<name>), callers, tokens, al
                          websocket, the alert files) and widget_router (/overlay/widget/<name>: a shell holding the page (.../page) in a frame, its
                          websocket, his media files, the widget's own store). No tokens: the login gate guards
                          them like the pages
+                         inbound_router: programs that send TO the toolbox, ws /connections/<id>/in/<type>?key=
+                         (a connection's inbox(), a MessageInbox: SocketInbox for Warudo's plugin, 11-21, and
+                         VNyan's WebSocket Message node, 11-22; addresses use 127.0.0.1). The key is checked
+                         by the inbox; the login gate lets this PC through, other devices not yet
 gui/
   pages/                 one file per page: Live, Flows, Edit flow, Variables, Overlay (the overlay's address,
                          Add it to OBS, a preview frame, tabs: Alerts, Widgets), Tools, Connections, Plugins,

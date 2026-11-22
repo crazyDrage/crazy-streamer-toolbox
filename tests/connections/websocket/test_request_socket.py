@@ -2,6 +2,7 @@ import asyncio
 import time
 import unittest
 
+from streamer_toolbox.connections.websocket.answer_lost_error import AnswerLostError
 from streamer_toolbox.connections.websocket.request_socket import RequestSocket
 from tests.fakes.fake_json_socket_server import FakeJsonSocketServer
 
@@ -86,6 +87,42 @@ class TestRequestSocket(unittest.IsolatedAsyncioTestCase):
             url = last.url
             await until(lambda: task.done())
         self.assertEqual(self.states[-1], "the key <key> was refused")
+
+    async def test_a_dropped_line_comes_back_at_once_without_telling_an_error(self) -> None:
+        async with FakeJsonSocketServer(echo) as server:
+            line = RequestSocket("Program", lambda: server.url, on_state=self.states.append, id_key="ref",
+                                 retry_delay=5, again_after=0.01)
+            await self._run(line)
+            await until(lambda: self.states == ["connected"])
+            await server.drop()
+            await until(lambda: self.states == ["connected", "connected"])
+            self.assertEqual((await line.request({"say": "back"}))["you_said"], "back")
+
+    async def test_reopen_waits_for_the_line_and_says_when_it_does_not_come_back(self) -> None:
+        async with FakeJsonSocketServer(echo) as server:
+            url = server.url
+            line = RequestSocket("Program", lambda: url, on_state=self.states.append, id_key="ref",
+                                 retry_delay=5, again_after=0.01, timeout=0.3)
+            await self._run(line)
+            await until(lambda: self.states == ["connected"])
+            await line.reopen()
+            self.assertEqual(self.states, ["connected", "connected"])
+            self.assertEqual(len(server.paths), 2)
+        with self.assertRaisesRegex(ConnectionError, "Program"):
+            await line.reopen()
+        self.assertIn("trying again in 5 s", self.states[-1])
+
+    async def test_an_answer_lost_with_the_line_is_said_as_such(self) -> None:
+        async with FakeJsonSocketServer(echo) as server:
+            line = RequestSocket("Program", lambda: server.url, on_state=self.states.append, id_key="ref",
+                                 retry_delay=5, again_after=0.01, timeout=2)
+            await self._run(line)
+            await until(lambda: self.states == ["connected"])
+            waiting = asyncio.create_task(line.request({"say": "x", "quiet": True}))
+            await until(lambda: len(server.received) == 1)
+            await server.drop()
+            with self.assertRaisesRegex(AnswerLostError, "closed the line before it answered"):
+                await waiting
 
 
 if __name__ == "__main__":

@@ -49,10 +49,15 @@ class TestObjectActions(unittest.IsolatedAsyncioTestCase):
             await SetInObject().run(SETTINGS, "right_arm.id.x", 1)
 
     async def test_build(self) -> None:
-        built = await BuildObject().run(name_1="id", value_1=3, name_2="bool", value_2=True, name_3=" ",
-                                          value_3="left out")
-        self.assertEqual(built, {"id": 3, "bool": True})
-        self.assertEqual(await BuildObject().run(start={"a": 1}, name_1="b", value_1=2), {"a": 1, "b": 2})
+        """His 11-22: lines he names (named_lines), no start object (Join objects does that)."""
+        inner = {"x": 1}
+        built = await BuildObject().run(id=3, bool=True, inner=inner)
+        self.assertEqual(built, {"id": 3, "bool": True, "inner": {"x": 1}})
+        built["inner"]["x"] = 2
+        self.assertEqual(inner, {"x": 1})  # what was wired in stays as it was
+        self.assertEqual(await BuildObject().run(), {})
+        self.assertTrue(BuildObject.named_lines)
+        self.assertTrue(BuildObject.data_only)
 
 
 if __name__ == "__main__":

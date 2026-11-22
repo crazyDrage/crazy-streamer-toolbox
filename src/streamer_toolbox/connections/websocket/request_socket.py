@@ -7,6 +7,8 @@ from typing import Any
 
 import websockets
 
+from streamer_toolbox.connections.websocket.answer_lost_error import AnswerLostError
+
 log = logging.getLogger(__name__)
 
 
@@ -18,7 +20,9 @@ class RequestSocket:
     A request gets an id under `id_key`; the message whose `reply_id` is that id is its answer, every other
     message goes to on_message. After each connect on_open(self) runs (log in, subscribe; it may use
     request); once it is through, on_state gets "connected". A PermissionError from on_open (a refused key)
-    stops it for good; anything else is tried again, slower each time. `beat` = (seconds, message) is sent
+    stops it for good. A line that was up and drops is opened again once at once (after `again_after`
+    seconds), without telling on_state: a self repair (his 11-22). Only when that fails is the error told, and
+    then it is tried again, slower each time. `beat` = (seconds, message) is sent
     again and again while connected, for servers that drop a quiet client (a text message goes as it is, not
     as JSON: Fansly wants a plain "p"). `hide` takes secrets out of a
     text before it is shown."""
@@ -30,7 +34,7 @@ class RequestSocket:
                  reply_id: Callable[[dict[str, Any]], Any] | None = None,
                  connect: Callable[..., Any] = websockets.connect, retry_delay: float = 5.0,
                  timeout: float = 5.0, beat: tuple[float, dict[str, Any] | str] | None = None,
-                 hide: Callable[[str], str] = lambda text: text) -> None:
+                 hide: Callable[[str], str] = lambda text: text, again_after: float = 0.5) -> None:
         self._name = name
         self._url = url
         self._on_message = on_message
@@ -47,6 +51,9 @@ class RequestSocket:
         self._waiting: dict[str, asyncio.Future] = {}
         self._failed: Exception | None = None
         self._delay = retry_delay
+        self._again_after = again_after
+        self._up = False  # told "connected" and not closed since
+        self._settled = asyncio.Event()  # set once a connect is through or its error was told
 
     @property
     def connected(self) -> bool:
@@ -69,19 +76,26 @@ class RequestSocket:
                 raise
             except PermissionError as e:
                 self._on_state(self._hide(str(e)))
+                self._settled.set()
                 await self._close(opener)
                 return
             except Exception as e:
                 reason = self._hide(str(e) or type(e).__name__)
+                if self._up:
+                    log.info("%s: %s; connecting again at once", self._name, reason)
+                    await self._close(opener)
+                    await asyncio.sleep(self._again_after)
+                    continue
                 log.info("%s: %s; trying again in %.0f s", self._name, reason, self._delay)
                 self._on_state(f"{reason}; trying again in {self._delay:.0f} s")
+                self._settled.set()
                 await self._close(opener)
                 await asyncio.sleep(self._delay)
                 self._delay = min(self._delay * 2, 60)
 
     async def request(self, message: dict[str, Any], timeout: float | None = None) -> dict[str, Any]:
         """Sends `message` with a fresh id and gives the answer. ConnectionError while the line is down,
-        TimeoutError when no answer comes."""
+        AnswerLostError when it closes before the answer, TimeoutError when no answer comes."""
         if self._socket is None:
             raise ConnectionError(f"{self._name} is not connected")
         key = secrets.token_hex(6)
@@ -101,6 +115,19 @@ class RequestSocket:
             raise ConnectionError(f"{self._name} is not connected")
         await self._socket.send(json.dumps(message, ensure_ascii=False))
 
+    async def reopen(self) -> None:
+        """Opens the line again now (a line that may be dead is closed first) and waits until it is through.
+        ConnectionError when it doesn't come back."""
+        self._settled.clear()
+        if self._socket is not None:
+            await self._socket.close()
+        try:
+            await asyncio.wait_for(self._settled.wait(), self._again_after + 2 * self._timeout)
+        except TimeoutError:
+            raise ConnectionError(f"{self._name} didn't come back") from None
+        if not self._up:
+            raise ConnectionError(f"{self._name} is not connected")
+
     async def _opened(self) -> None:
         try:
             if self._on_open is not None:
@@ -110,7 +137,9 @@ class RequestSocket:
             await self._socket.close()
             return
         self._delay = self._retry_delay
+        self._up = True
         self._on_state("connected")
+        self._settled.set()
         while self._beat is not None:
             await asyncio.sleep(self._beat[0])
             if isinstance(self._beat[1], str):
@@ -120,12 +149,13 @@ class RequestSocket:
 
     async def _close(self, opener: asyncio.Task | None) -> None:
         socket, self._socket = self._socket, None
+        self._up = False
         if opener is not None:
             opener.cancel()
             await asyncio.gather(opener, return_exceptions=True)
         for future in self._waiting.values():
             if not future.done():
-                future.set_exception(ConnectionError(f"{self._name} closed the line"))
+                future.set_exception(AnswerLostError(f"{self._name} closed the line before it answered"))
         if socket is not None:
             await socket.close()
 

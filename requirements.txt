@@ -12,3 +12,4 @@ fonttools==4.68.0     # reads a font file's name, license and embedding flags (S
 # toolbox is busy with without stopping it (temp/probes/memory_watch.py is the other tool); 2026-10-09.
 # pyflakes==3.4.0, finds unused imports and names (moving the boxes to Box classes, round 57); 2026-10-19
 # coverage==7.16.2, shows which code no test runs (which Box classes since round 57); 2026-10-20
+# ruff==0.17.6, a code check without PyCharm (unused imports, undefined names, dead code); 2026-11-20

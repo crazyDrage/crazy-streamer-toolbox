@@ -10,7 +10,7 @@ from streamer_toolbox.core.flows.default_flows import DefaultFlows
 from streamer_toolbox.core.interfaces.connection import Connection
 from streamer_toolbox.core.testing.test_item import CONNECTION
 from streamer_toolbox.core.testing.test_view import TestView
-from streamer_toolbox.gui.components.connection_panel import STATE_LOOK, ConnectionPanel
+from streamer_toolbox.gui.components.connection_panel import STATE_LOOK, ConnectionPanel, text_to_show
 from streamer_toolbox.gui.components.not_tested_mark import NotTestedMark
 from streamer_toolbox.gui.services.ui_registry import UiRegistry
 
@@ -87,12 +87,16 @@ class ConnectionsPage:
             if connection is None:
                 return
 
+            shown = {"text": connection.status}
+
             def draw() -> None:
                 status = connection.status
                 text, colour = STATE_LOOK[status.state]
                 badge.set_text(text)
                 badge.props(f"color={colour}")
-                detail.set_text(status.detail or ", ".join(f"{name}: {value}" for name, value in status.facts))
+                shown["text"] = text_to_show(shown["text"], status)  # same steady text as on the tab
+                detail.set_text(shown["text"].detail or ", ".join(f"{name}: {value}"
+                                                                   for name, value in shown["text"].facts))
 
             draw()
             ui.timer(2.0, draw)

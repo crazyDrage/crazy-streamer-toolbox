@@ -10,7 +10,7 @@ TOOLBOX, ANY_PLATFORM = "Toolbox", "Any platform"
 FIRST = (TOOLBOX, ANY_PLATFORM)  # on top; the programs follow by name
 OWN = ("timer", "tip")  # nobody's events: the toolbox's own
 # an event's first word → its group's name, where the box categories (CATEGORY_TITLES) have none
-GROUP_TITLES = {"key": "Keyboard", "youtube": "YouTube", "rumble": "Rumble", "fansly": "Fansly",
+GROUP_TITLES = {"connection": "Connections", "key": "Keyboard", "youtube": "YouTube", "rumble": "Rumble", "fansly": "Fansly",
                 "streamelements": "StreamElements", "streamlabs": "Streamlabs", "streamsocket": "StreamSocket",
                 "tiltify": "Tiltify", "crowdcontrol": "Crowd Control"}
 

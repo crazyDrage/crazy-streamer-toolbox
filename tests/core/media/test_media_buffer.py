@@ -211,6 +211,28 @@ class TestMediaBuffer(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([PIC, PIC], self.web.asked)
         self.assertEqual(kept.file, self.buffer.find_for_box(*CHAT, kept.file.name))
 
+    async def test_a_file_still_shown_stays_past_its_days_and_is_downloaded_again_when_kept(self) -> None:
+        """His 11-20: an emote of a kept chat list showed as its word once its download was 30 days old."""
+        kept = await self.buffer.keep(PIC, days=30, box=CHAT)
+        for _ in range(40):  # the list is on screen every day
+            self.now += 24 * 60 * 60
+            self.assertEqual(kept.file, self.buffer.find_for_box(*CHAT, kept.file.name))
+        other = "https://cdn.betterttv.net/emote/other/3x"
+        self.web.picture(other)
+        await self.buffer.keep(other, days=30, box=CHAT)  # tidies the folder: the shown one stays
+        self.assertTrue(kept.file.is_file())
+        await self.buffer.keep(PIC, days=30, box=CHAT)  # older than 30 days: downloaded again
+        self.assertEqual([PIC, other, PIC], self.web.asked)
+
+    async def test_a_file_nobody_asked_for_goes_after_its_days(self) -> None:
+        kept = await self.buffer.keep(PIC, days=30, box=CHAT)
+        self.now += 31 * 24 * 60 * 60
+        self.assertIsNone(self.buffer.find_for_box(*CHAT, kept.file.name))
+        other = "https://cdn.betterttv.net/emote/other/3x"
+        self.web.picture(other)
+        await self.buffer.keep(other, days=30, box=CHAT)
+        self.assertFalse(kept.file.is_file())
+
     async def test_folder_names_are_checked(self) -> None:
         with self.assertRaisesRegex(ValueError, "folder name"):
             await self.buffer.keep(PIC, folder="../up")

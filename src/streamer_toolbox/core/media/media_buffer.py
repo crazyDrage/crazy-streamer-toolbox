@@ -59,6 +59,9 @@ class MediaBuffer:
 
     Each folder has the limits the box that last kept something in it gave: the whole folder's size (the
     longest unused go first), one file's size, and how many days a file is good for (0 = while there is room).
+    The days count twice (his 11-20): a file older than that is downloaded again the next time it is kept (a
+    changed picture comes through), and a file nobody asked for in that many days goes. One that is still
+    shown stays: an emote of a kept chat list showed as its word once its download was 30 days old.
     A changed profile picture has another address, so it is a new file; the old one goes when room is needed.
     A box's own folder goes when Save flow leaves the box out or its flow is deleted (`forget`).
 
@@ -177,7 +180,7 @@ class MediaBuffer:
         if entry is None or not path.is_file():
             return None
         days = float(index.get("limits", {}).get("days", 0) or 0)
-        if days and self._clock() - float(entry.get("fetched", 0)) >= days * DAY:
+        if days and self._clock() - _last_use(entry) >= days * DAY:
             return None
         if self._clock() - float(entry.get("used", 0)) >= USED_EVERY:
             entry["used"] = self._clock()
@@ -247,7 +250,7 @@ class MediaBuffer:
         for name in list(files):
             if not (self._folder / place / name).is_file():
                 del files[name]
-            elif days and name != keeping and self._clock() - float(files[name].get("fetched", 0)) >= days * DAY:
+            elif days and name != keeping and self._clock() - _last_use(files[name]) >= days * DAY:
                 self._drop(place, index, name)
         total = sum(int(entry.get("size", 0)) for entry in files.values())
         for name in sorted(files, key=lambda n: float(files[n].get("used", 0))):
@@ -301,6 +304,11 @@ class MediaBuffer:
     def _save_boxes(self, mapped: dict[str, str]) -> None:
         self._folder.mkdir(parents=True, exist_ok=True)
         write_whole(self._folder / BOXES, json.dumps(mapped, ensure_ascii=False, indent=1))
+
+
+def _last_use(entry: dict[str, Any]) -> float:
+    """When the file was last kept or asked for ("used" is written at most once an hour)."""
+    return max(float(entry.get("used", 0) or 0), float(entry.get("fetched", 0) or 0))
 
 
 def _own(box: tuple[str, str]) -> str:

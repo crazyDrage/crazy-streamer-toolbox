@@ -48,7 +48,7 @@ class UpdateSwap:
         try:
             for name in REPLACED:
                 if (self._into / name).exists():
-                    self._retry(lambda: (self._into / name).rename(self._old / name))
+                    self._retry(lambda: (self._into / name).rename(self._old / name))  # noqa: B023 (runs here)
                     moved.append(name)
             for item in self._new.iterdir():
                 if item.name in KEPT:

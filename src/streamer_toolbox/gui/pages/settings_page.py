@@ -10,6 +10,7 @@ from streamer_toolbox.gui.components.box_filter_panel import BoxFilterPanel
 from streamer_toolbox.gui.components.event_recording_panel import EventRecordingPanel
 from streamer_toolbox.gui.components.export_panel import ExportPanel
 from streamer_toolbox.gui.components.fonts_panel import FontsPanel
+from streamer_toolbox.gui.components.log_panel import LogPanel
 from streamer_toolbox.gui.components.role_loading_panel import RoleLoadingPanel
 from streamer_toolbox.gui.components.secrets_login_panel import SecretsLoginPanel
 from streamer_toolbox.gui.components.test_view_panel import TestViewPanel
@@ -22,7 +23,7 @@ class SettingsPage:
     """How the toolbox looks, where its settings file is, Restart, who may open it from other devices, his own
     filters for the Add box window, what he sees by his checks (TestViewPanel), when viewer roles are loaded
     (RoleLoadingPanel), the event recording's switch (EventRecordingPanel), the toolbox's own login
-    (SecretsLoginPanel), the toolbox's update (UpdatePanel), the fonts (FontsPanel), Export / Import (ExportPanel). A plugin's settings panels are under Plugins →
+    (SecretsLoginPanel), the toolbox's update (UpdatePanel), the fonts (FontsPanel), Export / Import (ExportPanel), the log (LogPanel). A plugin's settings panels are under Plugins →
     that plugin (since 2026-10-14)."""
 
     def __init__(self, config_path: Path, ui_registry: UiRegistry, access: RemoteAccess, devices: SignedInDevices,
@@ -30,7 +31,9 @@ class SettingsPage:
                  box_filters: BoxFilterPanel | None = None, seen: TestViewPanel | None = None,
                  roles: RoleLoadingPanel | None = None, recording: EventRecordingPanel | None = None,
                  login: SecretsLoginPanel | None = None, update: UpdatePanel | None = None,
-                 export: ExportPanel | None = None, fonts: FontsPanel | None = None) -> None:
+                 export: ExportPanel | None = None, fonts: FontsPanel | None = None,
+                 log: LogPanel | None = None) -> None:
+        self._log = log
         self._export = export
         self._fonts = fonts
         self._login = login
@@ -64,6 +67,8 @@ class SettingsPage:
             parts.append(("Fonts", "fonts", "font_download"))
         if self._export is not None:
             parts.append(("Export / Import", "export", "import_export"))
+        if self._log is not None:
+            parts.append(("Log", "log", "receipt_long"))
         return [(title, f"/settings?show={key}", icon) for title, key, icon in parts]
 
     def build(self) -> None:
@@ -74,7 +79,7 @@ class SettingsPage:
             return show not in known or show == part
 
         # two columns that fill up one after the other: cards of different heights leave no gaps between them
-        with ui.element("div").classes("w-full gap-4" + (" lg:columns-2" if show not in ("devices", "boxes", "export") else "")):
+        with ui.element("div").classes("w-full gap-4" + (" lg:columns-2" if show not in ("devices", "boxes", "export", "log") else "")):
             if shown("general"):
                 with self._card():
                     ui.label("Appearance").classes("text-lg font-semibold")
@@ -97,7 +102,7 @@ class SettingsPage:
                              "changes.").classes("text-xs opacity-60")
             for part, panel in (("devices", self._other_devices), ("login", self._login), ("boxes", self._box_filters),
                                 ("seen", self._seen), ("roles", self._roles), ("recording", self._recording),
-                                ("fonts", self._fonts), ("export", self._export)):
+                                ("fonts", self._fonts), ("export", self._export), ("log", self._log)):
                 if shown(part) and panel is not None:
                     with self._card():
                         if part == "export" and show != "export":
