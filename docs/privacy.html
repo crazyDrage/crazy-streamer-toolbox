@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy policy · crazy-streamer-toolbox</title>
+<meta name="description" content="What crazy-streamer-toolbox keeps, and what it talks to.">
+<style>
+  :root { --bg: #fbfbfa; --text: #1d1d1f; --muted: #5f6368; --line: #e3e3e0; --link: #1a5fb4; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #18181a; --text: #ececec; --muted: #a0a0a6; --line: #333338; --link: #8ab4f8; }
+  }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 48px 16px 64px; }
+  h1 { font-size: 2rem; margin: 0 0 4px; }
+  h2 { font-size: 1.3rem; margin: 36px 0 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+  h3 { font-size: 1.05rem; margin: 24px 0 6px; }
+  .muted { color: var(--muted); }
+  a { color: var(--link); overflow-wrap: anywhere; }
+  code { font-size: 0.92em; }
+  footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+<main>
+  <p><a href="./">crazy-streamer-toolbox</a></p>
+  <h1>Privacy policy</h1>
+  <p class="muted">Last changed 2026-11-27. It describes the newest version of the toolbox.</p>
+
+  <p>crazy-streamer-toolbox is a program that runs on your own computer. It has no server of its own and its
+    makers receive nothing from it: no account, no analytics, no telemetry. It only talks to a service or
+    program when you connect it, or for the few things listed under
+    <a href="#online">What goes online without a connection</a>.</p>
+
+  <h2>What it keeps</h2>
+  <p>Everything the toolbox keeps (settings, logins, points, flows, widgets, alerts) stays in its own config
+    folder on your computer. Logins, tokens, keys and passwords for connected services are kept in
+    <code>config/secrets/</code>, never in the settings file and never shown on screen or written into a log.
+    You can delete that folder at any time.</p>
+
+  <h2>Opening the toolbox from other devices</h2>
+  <p>By default only your own computer can open the toolbox's pages. If you switch on access from other devices
+    on your network, they must sign in with a password you set; the password is stored only as a hash.</p>
+
+  <h2>Connections</h2>
+  <p>Every connection is off until you switch it on. Once on, it talks only to that service or program, with the
+    login, key or token you gave it, to do what your flows ask. What it receives is used only on your computer
+    and is not sent anywhere else, sold or shared. Using a service through the toolbox also falls under that
+    service's own terms and privacy policy.</p>
+
+  <h3>Streaming platforms</h3>
+  <p><strong>YouTube (Google).</strong> You log in with a Google Cloud app of your own. The toolbox then reads
+    your channel name, your live broadcasts, their live chat (messages, Super Chats, Super Stickers, memberships)
+    and your newest public subscribers. If you switch on "May write in chat", it also sends the chat messages
+    your flows write. You can remove the access at any time under Connections → YouTube or at
+    <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</p>
+  <p>The toolbox's use of information received from Google APIs follows the
+    <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data
+    Policy</a>, including the Limited Use requirements. See also the
+    <a href="https://www.youtube.com/t/terms">YouTube Terms of Service</a> and the
+    <a href="https://policies.google.com/privacy">Google Privacy Policy</a>.</p>
+  <p><strong>Twitch.</strong> You log in through the toolbox's own Twitch app by confirming a short code on
+    Twitch's page. The login is kept on your computer only; the toolbox's makers never receive it or anything it
+    reads. The toolbox reads your channel's events (chat, follows, subscriptions, gifts, Bits, channel point
+    redemptions, raids, ad breaks, stream online / offline) and does what your flows ask: send chat messages,
+    change the stream title or category, manage channel point rewards, set stream markers and, only if you allow
+    the extra permissions, things like clips, polls, predictions, raids, shoutouts, announcements and
+    moderation. You can remove the access at any time under Connections → Twitch or at
+    <a href="https://www.twitch.tv/settings/connections">twitch.tv/settings/connections</a>.</p>
+  <p><strong>Rumble.</strong> Uses the Live Stream API address from your Rumble account (it holds your key).
+    Reads follows, subscribers, gifted subs, and while you are live your chat and rants. Read only.</p>
+  <p><strong>Fansly.</strong> Joins the chatroom whose id you type, the way Fansly's own website does, and reads
+    its chat, tips and subscriptions. Read only; no login and nothing of your account is used.</p>
+
+  <h3>Tips, donations and alerts services</h3>
+  <p><strong>StreamElements</strong> and <strong>Streamlabs.</strong> With your account's token, the toolbox
+    listens to your activity feed (tips, donations, store redemptions, merch, charity, test alerts, and for
+    Streamlabs the events of the platforms linked to it). Listening only; nothing on the account is changed. If
+    you import a StreamElements widget or overlay, the toolbox downloads it from StreamElements (and the fonts it
+    uses from Google Fonts).</p>
+  <p><strong>Tiltify.</strong> With a Tiltify app of your own, reads the new donations to the campaign you
+    choose.</p>
+  <p><strong>Crowd Control.</strong> Listens to your public Crowd Control feed (the effects viewers buy). No
+    login.</p>
+  <p><strong>StreamSocket Events</strong> (Twitch extension). Listens for the extension's button presses on your
+    channel, with the secret from its configuration page.</p>
+
+  <h3>Heart rate</h3>
+  <p><strong>Pulsoid</strong> and <strong>HypeRate.</strong> Read your heart rate from your own Pulsoid or
+    HypeRate account so flows and widgets can show it. The toolbox keeps only the latest value, in memory; it
+    goes nowhere else unless a flow you build sends it.</p>
+
+  <h3>Messages to other places</h3>
+  <p><strong>Discord.</strong> Posts the messages your flows write into one channel, through that channel's
+    webhook. Nothing is read from Discord.</p>
+  <p><strong>Web request boxes.</strong> Boxes made of JSON (by you or a plugin) call the web address they name,
+    with the values your flow gives them. Where they go is shown on the box.</p>
+
+  <h3>Programs on your own computer</h3>
+  <p><strong>OBS, VTube Studio, Streamer.bot, Mix It Up, SAMMI, Firebot, Lumia Stream, Voicemod, veadotube,
+    VNyan, Warudo, T.I.T.S.</strong> These talk to programs running on your computer (or your local network),
+    not to the internet. Any token or password they need is kept in <code>config/secrets/</code>. Streamer.bot
+    and Lumia Stream can pass on events from platforms they are connected to themselves.</p>
+  <p><strong>Keyboard triggers.</strong> While switched on, the toolbox notices key presses on this computer so a
+    key (for example F23 from a Stream Deck) can start a flow. Only the keys your flows ask for are used; every
+    other key press is dropped at once. Typed text is never kept, shown or logged.</p>
+
+  <h2 id="online">What goes online without a connection</h2>
+  <ul>
+    <li><strong>Update check.</strong> When it starts and every 6 hours while it runs, the toolbox asks GitHub's
+      public API for this project's newest release. An update is only downloaded and installed when you say
+      so.</li>
+    <li><strong>Emotes in widgets.</strong> When a chat widget needs your channel's BetterTTV and FrankerFaceZ
+      emotes, the toolbox asks BetterTTV and FrankerFaceZ for them by your Twitch channel id. Twitch emote images
+      come from Twitch.</li>
+    <li><strong>Twitch clip downloads.</strong> The first time a flow downloads a Twitch clip, the toolbox gets
+      the free program TwitchDownloader from its GitHub releases (checked against its SHA-256) and looks for a
+      newer one at most once a day.</li>
+    <li><strong>Plugins</strong> you install are made by other people and can do anything the toolbox can.
+      Their privacy is up to them; read what a plugin does before you install it.</li>
+  </ul>
+  <p>These services see your computer's IP address, like any website you visit.</p>
+
+  <h2>Changes</h2>
+  <p>When the toolbox starts using data in a new way, this page changes with it. Its history is in the
+    project's git history.</p>
+
+  <h2>Contact</h2>
+  <p>Questions: open an issue at
+    <a href="https://github.com/crazyDrage/crazy-streamer-toolbox/issues">github.com/crazyDrage/crazy-streamer-toolbox/issues</a>.</p>
+
+  <footer><a href="./">Home</a> · <a href="https://github.com/crazyDrage/crazy-streamer-toolbox">Source code</a></footer>
+</main>
+</body>
+</html>
